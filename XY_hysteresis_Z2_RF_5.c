@@ -19,7 +19,7 @@ int num_of_threads;
 int num_of_procs;
 int cache_size=512;
 double CUTOFF = 0.0000000001;
-long int CHUNK_SIZE = 256;
+// long int CHUNK_SIZE = 256; 
 
 //===============================================================================//
 //====================      Variables                        ====================//
@@ -1456,7 +1456,7 @@ long int CHUNK_SIZE = 256;
         long int i;
         while(iter > 0)
         {
-            #pragma omp parallel for schedule(static, CHUNK_SIZE)
+            #pragma omp parallel for 
             for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
             {
                 long int site_index = black_white_checkerboard[black_or_white][i];
@@ -1568,7 +1568,7 @@ long int CHUNK_SIZE = 256;
         long int i;
         while(iter > 0)
         {
-            #pragma omp parallel for schedule(static, CHUNK_SIZE)
+            #pragma omp parallel for 
             for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
             {
                 long int site_index = black_white_checkerboard[black_or_white][i];
@@ -6686,25 +6686,22 @@ long int CHUNK_SIZE = 256;
         }
         double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
-        // for (CHUNK_SIZE=1; CHUNK_SIZE<=1024; CHUNK_SIZE*=2)
-        // {
+        
         for (i=2; i<=num_of_threads; i+=2)
         {
-            start_time_loop[(i/2)*11+CHUNK_SIZE] = omp_get_wtime();
+            start_time_loop[i] = omp_get_wtime();
             omp_set_num_threads(i);
-            printf("\n\nNo. of THREADS = %ld ,\t CHUNK SIZE = %ld\n\n", i, CHUNK_SIZE);
+            printf("\n\nNo. of THREADS = %ld \n\n", i);
             // field_cool_and_rotate_checkerboard(0, 1);
             random_initialize_and_rotate_checkerboard(0, 1);
-            end_time_loop[(i/2)*11+CHUNK_SIZE] = omp_get_wtime();
+            end_time_loop[i] = omp_get_wtime();
         }
-        // }
-        // for (CHUNK_SIZE=1; CHUNK_SIZE<=1024; CHUNK_SIZE*=2)
-        // {
+        
         for (i=2; i<=num_of_threads; i+=2)
         {
-            printf("No. of THREADS = %ld ,\t CHUNK SIZE = %ld ,\t Time elapsed = %g\n", i, CHUNK_SIZE, end_time_loop[(i/2)*11+CHUNK_SIZE]-start_time_loop[(i/2)*11+CHUNK_SIZE]);
+            printf("No. of THREADS = %ld ,\t Time elapsed = %g\n", i, end_time_loop[i]-start_time_loop[i]);
         }
-        // }
+        
         // random_initialize_and_rotate(0, 1);
         // field_cool_and_rotate(0, 1);
         // zero_temp_RFXY_hysteresis_axis(0, -1);
