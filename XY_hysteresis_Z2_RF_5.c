@@ -1577,6 +1577,8 @@ double CUTOFF = 0.0000000001;
                 double update_prob = update_probability_Metropolis(site_index);
             }
             
+            black_or_white = !black_or_white;
+            iter--;
             // printf("Iteration=%ld\n", iter);
         } 
         
