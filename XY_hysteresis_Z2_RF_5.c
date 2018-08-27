@@ -5027,8 +5027,11 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "_%lf}.dat", delta_h);
-            pFile_1 = fopen(output_file_1, "a");
-            
+        }
+        pFile_1 = fopen(output_file_1, "a");
+        
+        // print column heaser
+        {    
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -5412,7 +5415,7 @@ double CUTOFF = 0.0000000001;
         pFile_1 = fopen(output_file_1, "a");
 
         // print column heaser
-        {    
+        {
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -5655,6 +5658,144 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
+    int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start)
+    {
+        T = 0;
+        
+        printf("\nUpdating all sites simultaneously.. \n");
+        fprintf(pFile_1, "\nUpdating all sites simultaneously.. \n");
+        
+        spin_temp = (double*)malloc(dim_S*no_of_sites*sizeof(double));
+
+        double cutoff_local = 0.0;
+        int j_S, j_L;
+        double *m_last = (double*)malloc(dim_S*sizeof(double));
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            m_last[j_S] = 2;
+        }
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S == jj_S)
+            {
+                order[j_S] = order_start;
+            }
+            else
+            {
+                order[j_S] = 0;
+            }
+        }
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            h[j_S] = 0;
+        }
+        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_theta = 0;
+        printf("\nztne RFXY h rotating with |h|=%lf at T=%lf..", h_start, T);
+
+        long int site_i;
+        int black_or_white = 0;
+
+        int repeat_loop = 1;
+        int repeat_cond = 1;
+        while (repeat_cond)
+        {
+
+            for (h_theta = 0.0; h_theta * order[jj_S] <= 1.0; h_theta = h_theta + order[jj_S] * delta_h)
+            {
+                if (jj_S == 0)
+                {
+                    h[0] = h_start * cos(2*pie*h_theta);
+                    h[1] = h_start * sin(2*pie*h_theta);
+                }
+                else
+                {
+                    h[0] = -h_start * sin(2*pie*h_theta);
+                    h[1] = h_start * cos(2*pie*h_theta);
+                }
+                
+                cutoff_local = -0.1;
+                do
+                {
+                    double cutoff_local_last = cutoff_local;
+                    cutoff_local = 0.0;
+
+                    #pragma omp parallel 
+                    {
+                        #pragma omp for
+                        for (site_i=0; site_i<no_of_sites; site_i++)
+                        {
+                            Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
+                        }
+                        #pragma omp for reduction(+:cutoff_local)
+                        for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
+                        {
+                            cutoff_local += fabs(spin[site_i] - spin_temp[site_i]);
+                            spin[site_i] = spin_temp[site_i];
+                        }
+                    }
+                    // ensemble_m();
+                    // printf("blam = %lf,", m[jj_S]);
+                    // printf("blac=%.17g\n", cutoff_local);
+                    
+                    if (cutoff_local == cutoff_local_last)
+                    {
+                        break;
+                    }
+                }
+                while (cutoff_local > CUTOFF); // 10^-10
+
+                ensemble_m();
+                ensemble_E();
+                
+                printf("\nblah = %lf", h[jj_S]);
+                printf("\nblam = %lf", m[jj_S]);
+                printf("\n");
+
+                fprintf(pFile_1, "%lf\t ", h_theta);
+                fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                }
+                fprintf(pFile_1, "%lf\t ", E);
+
+                fprintf(pFile_1, "\n");
+                
+                // ----------------------------------------------//
+                // if (h_theta * order[jj_S] + delta_h > 1.0)
+                // {
+                //     for(j_S=0; j_S<dim_S; j_S++)
+                //     {
+                //         if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
+                //         {
+                //             h_theta = -delta_h* order[jj_S];
+                //         }
+                //         m_last[j_S] = m[j_S];
+                //     }
+                //     fprintf(pFile_1, "loop %d\n", repeat_loop);
+                //     printf("\nloop %d\n", repeat_loop);
+                //     repeat_loop++;
+                // }
+            }
+            
+            repeat_cond = 0;
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
+                {
+                    repeat_cond = 1;
+                }
+                m_last[j_S] = m[j_S];
+            }
+            fprintf(pFile_1, "loop %d\n", repeat_loop);
+            printf("\nloop %d\n", repeat_loop);
+            repeat_loop++;
+        }
+        free(spin_temp);
+        return 0;
+    }
+
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start)
     {
         T = 0;
@@ -5827,144 +5968,6 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start)
-    {
-        T = 0;
-        
-        printf("\nUpdating all sites simultaneously.. \n");
-        fprintf(pFile_1, "\nUpdating all sites simultaneously.. \n");
-        
-        spin_temp = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-
-        double cutoff_local = 0.0;
-        int j_S, j_L;
-        double *m_last = (double*)malloc(dim_S*sizeof(double));
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_last[j_S] = 2;
-        }
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            if (j_S == jj_S)
-            {
-                order[j_S] = order_start;
-            }
-            else
-            {
-                order[j_S] = 0;
-            }
-        }
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            h[j_S] = 0;
-        }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
-        double h_theta = 0;
-        printf("\nztne RFXY h rotating with |h|=%lf at T=%lf..", h_start, T);
-
-        long int site_i;
-        int black_or_white = 0;
-
-        int repeat_loop = 1;
-        int repeat_cond = 1;
-        while (repeat_cond)
-        {
-
-            for (h_theta = 0.0; h_theta * order[jj_S] <= 1.0; h_theta = h_theta + order[jj_S] * delta_h)
-            {
-                if (jj_S == 0)
-                {
-                    h[0] = h_start * cos(2*pie*h_theta);
-                    h[1] = h_start * sin(2*pie*h_theta);
-                }
-                else
-                {
-                    h[0] = -h_start * sin(2*pie*h_theta);
-                    h[1] = h_start * cos(2*pie*h_theta);
-                }
-                
-                cutoff_local = -0.1;
-                do
-                {
-                    double cutoff_local_last = cutoff_local;
-                    cutoff_local = 0.0;
-
-                    #pragma omp parallel 
-                    {
-                        #pragma omp for
-                        for (site_i=0; site_i<no_of_sites; site_i++)
-                        {
-                            Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
-                        }
-                        #pragma omp for reduction(+:cutoff_local)
-                        for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
-                        {
-                            cutoff_local += fabs(spin[site_i] - spin_temp[site_i]);
-                            spin[site_i] = spin_temp[site_i];
-                        }
-                    }
-                    // ensemble_m();
-                    // printf("blam = %lf,", m[jj_S]);
-                    // printf("blac=%.17g\n", cutoff_local);
-                    
-                    if (cutoff_local == cutoff_local_last)
-                    {
-                        break;
-                    }
-                }
-                while (cutoff_local > CUTOFF); // 10^-10
-
-                ensemble_m();
-                ensemble_E();
-                
-                printf("\nblah = %lf", h[jj_S]);
-                printf("\nblam = %lf", m[jj_S]);
-                printf("\n");
-
-                fprintf(pFile_1, "%lf\t ", h_theta);
-                fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
-                }
-                fprintf(pFile_1, "%lf\t ", E);
-
-                fprintf(pFile_1, "\n");
-                
-                // ----------------------------------------------//
-                // if (h_theta * order[jj_S] + delta_h > 1.0)
-                // {
-                //     for(j_S=0; j_S<dim_S; j_S++)
-                //     {
-                //         if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
-                //         {
-                //             h_theta = -delta_h* order[jj_S];
-                //         }
-                //         m_last[j_S] = m[j_S];
-                //     }
-                //     fprintf(pFile_1, "loop %d\n", repeat_loop);
-                //     printf("\nloop %d\n", repeat_loop);
-                //     repeat_loop++;
-                // }
-            }
-            
-            repeat_cond = 0;
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
-                {
-                    repeat_cond = 1;
-                }
-                m_last[j_S] = m[j_S];
-            }
-            fprintf(pFile_1, "loop %d\n", repeat_loop);
-            printf("\nloop %d\n", repeat_loop);
-            repeat_loop++;
-        }
-        free(spin_temp);
-        return 0;
-    }
-
     int ordered_initialize_and_rotate(int jj_S, double order_start)
     {
         T = 0;
@@ -5986,7 +5989,7 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(h_i_max/32);
+        double h_start = order[jj_S]*(sigma_h[0]/4.0);
         double h_theta = 0;
         h_order = 0;
         r_order = 0;
@@ -6205,6 +6208,252 @@ double CUTOFF = 0.0000000001;
         printf("\nztne RFXY, h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
         
         zero_temp_RFXY_hysteresis_rotate(jj_S, order_start);
+
+        fclose(pFile_1);
+        
+        return 0;
+    }
+
+    int ordered_initialize_and_rotate_checkerboard(int jj_S, double order_start)
+    {
+        T = 0;
+        double cutoff_local = 0.0;
+        int j_S, j_L;
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S == jj_S)
+            {
+                order[j_S] = order_start;
+            }
+            else
+            {
+                order[j_S] = 0;
+            }
+        }
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            h[j_S] = 0;
+        }
+        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_theta = 0;
+        h_order = 0;
+        r_order = 0;
+        initialize_spin_config();
+
+        ensemble_m();
+        ensemble_E();
+        
+        // print statements:
+        {
+            printf("\n%lf", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", m[j_S]);
+            }
+            printf("\norder = ({");
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S != 0)
+                {
+                    printf(",");
+                }
+                if (j_S == jj_S)
+                {
+                    printf("%lf-->%lf", order[j_S], -order[j_S]);
+                }
+                else
+                {
+                    printf("%lf", order[j_S]);
+                }
+            }
+            printf("}, %d, %d)\n", h_order, r_order);
+        }
+        
+        // create file name and pointer. 
+        {
+            // char output_file_1[256];
+            char *pos = output_file_1;
+            pos += sprintf(pos, "O(%d)_%dD_hys_rot_", dim_S, dim_L);
+
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L) 
+                {
+                    pos += sprintf(pos, "x");
+                }
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+            pos += sprintf(pos, "_%lf_{", T);
+            /* for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", J[j_L]);
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            }
+            pos += sprintf(pos, "}_{"); */
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                if (j_S==jj_S)
+                {
+                    pos += sprintf(pos, "(%lf)", h_start);
+                }
+                else
+                {
+                    pos += sprintf(pos, "%lf", h[j_S]);
+                }
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            }
+            pos += sprintf(pos, "}_{");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", order[j_S]);
+            }
+            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            
+        }
+        pFile_1 = fopen(output_file_1, "a");
+
+        // print column heaser
+        {
+            fprintf(pFile_1, "theta(h[:])\t ");
+            fprintf(pFile_1, "h[0]\t ");
+            fprintf(pFile_1, "h[1]\t ");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "<m[%d]>\t ", j_S);
+            }
+            fprintf(pFile_1, "<E>\t dim_{Lat}=%d\t L=", dim_L);
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%d", lattice_size[j_L]);
+            }
+            fprintf(pFile_1, "\t J=");
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", J[j_L]);
+            }
+            fprintf(pFile_1, "\t {/Symbol s}_J=");
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+            }
+            fprintf(pFile_1, "\t <J_{ij}>=");
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+            }
+            fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                if (j_S==jj_S)
+                {
+                    fprintf(pFile_1, "-");
+                }
+                else
+                {
+                    fprintf(pFile_1, "%lf", h[j_S]);
+                }
+            }
+            fprintf(pFile_1, "\t {/Symbol s}_h=");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+            }
+            fprintf(pFile_1, "\t <h_i>=");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+            }
+            fprintf(pFile_1, "\t order=");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", order[j_S]);
+            }
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+        }
+        long int site_i;
+        T = 0;
+        printf("\nztne RFXY, h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
+        
+        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start);
 
         fclose(pFile_1);
         
