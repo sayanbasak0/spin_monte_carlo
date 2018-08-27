@@ -5264,6 +5264,397 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
+    int zero_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start)
+    {
+        double cutoff_local = 0.0;
+        int j_S, j_L;
+        T = 0;
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S == jj_S)
+            {
+                order[j_S] = order_start;
+            }
+            else
+            {
+                order[j_S] = 0;
+            }
+        }
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            h[j_S] = 0;
+        }
+        double h_start = order[jj_S]*(h_max+h_i_max);
+        double h_end = -h_start;
+        h_order = 0;
+        r_order = 0;
+        initialize_spin_config();
+        
+
+        printf("\nztne RFXY looping  at T=%lf.. \n",  T);
+
+        ensemble_m();
+        ensemble_E();
+        
+        // print statements:
+        {
+            printf("\n%lf", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", m[j_S]);
+            }
+            printf("\norder = ({");
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S != 0)
+                {
+                    printf(",");
+                }
+                if (j_S == jj_S)
+                {
+                    printf("%lf-->%lf", order[j_S], -order[j_S]);
+                }
+                else
+                {
+                    printf("%lf", order[j_S]);
+                }
+            }
+            printf("}, %d, %d)\n", h_order, r_order);
+        }
+        
+        // create file name and pointer. 
+        {
+            // char output_file_1[256];
+            char *pos = output_file_1;
+            pos += sprintf(pos, "O(%d)_%dD_hysteresis_", dim_S, dim_L);
+
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L) 
+                {
+                    pos += sprintf(pos, "x");
+                }
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+            pos += sprintf(pos, "_%lf_{", T);
+            /* for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", J[j_L]);
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            }
+            pos += sprintf(pos, "}_{"); */
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                if (j_S==jj_S)
+                {
+                    pos += sprintf(pos, "(%lf)", h_start);
+                }
+                else
+                {
+                    pos += sprintf(pos, "%lf", h[j_S]);
+                }
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+            }
+            pos += sprintf(pos, "}_{");    
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            }
+            pos += sprintf(pos, "}_{");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", order[j_S]);
+            }
+            pos += sprintf(pos, "_%lf}.dat", delta_h);
+        }
+        pFile_1 = fopen(output_file_1, "a");
+
+        // print column heaser
+        {    
+            fprintf(pFile_1, "h[%d]\t ", jj_S);
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "<m[%d]>\t ", j_S);
+            }
+            fprintf(pFile_1, "<E>\t dim_{Lat}=%d\t L=", dim_L);
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%d", lattice_size[j_L]);
+            }
+            fprintf(pFile_1, "\t J=");
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", J[j_L]);
+            }
+            fprintf(pFile_1, "\t {/Symbol s}_J=");
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+            }
+            fprintf(pFile_1, "\t <J_{ij}>=");
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                if (j_L)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+            }
+            fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                if (j_S==jj_S)
+                {
+                    fprintf(pFile_1, "-");
+                }
+                else
+                {
+                    fprintf(pFile_1, "%lf", h[j_S]);
+                }
+            }
+            fprintf(pFile_1, "\t {/Symbol s}_h=");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+            }
+            fprintf(pFile_1, "\t <h_i>=");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+            }
+            fprintf(pFile_1, "\t order=");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_1, ",");
+                }
+                fprintf(pFile_1, "%lf", order[j_S]);
+            }
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+        }
+        long int site_i;
+        int black_or_white = 0;
+        
+        for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
+        {
+            cutoff_local = -0.1;
+            
+            do 
+            {
+                
+                cutoff_local = 0.0;
+
+                #pragma omp parallel 
+                {
+                    #pragma omp for reduction(+:cutoff_local)
+                    for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[black_or_white][site_i];
+                        double spin_local[dim_S];
+
+                        cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
+                    }
+
+                    #pragma omp for reduction(+:cutoff_local)
+                    for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[!black_or_white][site_i];
+                        double spin_local[dim_S];
+
+                        cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
+                    }
+                    
+                }
+                // printf("\nblac = %g\n", cutoff_local);
+
+            }
+            while (cutoff_local > CUTOFF); // 10^-10
+
+            ensemble_m();
+            ensemble_E();
+            
+            // printf("\nblah = %lf", h[jj_S]);
+            // printf("\nblam = %lf", m[jj_S]);
+            // printf("\n");
+
+            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%lf\t ", m[j_S]);
+            }
+            fprintf(pFile_1, "%lf\t ", E);
+
+            fprintf(pFile_1, "\n");
+        }
+
+        // ----------------------------------------------//
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S == jj_S)
+            {
+                order[j_S] = -order_start;
+            }
+            else
+            {
+                order[j_S] = 0;
+            }
+        }
+        h_start = order[jj_S]*(h_max+h_i_max);
+        h_end = -h_start;
+
+        ensemble_m();
+        ensemble_E();
+        
+        // print statements:
+        {
+            printf("\n%lf", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", m[j_S]);
+            }
+            printf("\norder = ({");
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S != 0)
+                {
+                    printf(",");
+                }
+                if (j_S == jj_S)
+                {
+                    printf("%lf-->%lf", order[j_S], -order[j_S]);
+                }
+                else
+                {
+                    printf("%lf", order[j_S]);
+                }
+            }
+            printf("}, %d, %d)\n", h_order, r_order);
+        }
+
+        for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
+        {
+            cutoff_local = -0.1;
+            
+            do 
+            {
+                
+                cutoff_local = 0.0;
+
+                #pragma omp parallel 
+                {
+                    #pragma omp for reduction(+:cutoff_local)
+                    for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[black_or_white][site_i];
+                        double spin_local[dim_S];
+
+                        cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
+                    }
+
+                    #pragma omp for reduction(+:cutoff_local)
+                    for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[!black_or_white][site_i];
+                        double spin_local[dim_S];
+
+                        cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
+                    }
+                    
+                }
+                // printf("\nblac = %g\n", cutoff_local);
+
+            }
+            while (cutoff_local > CUTOFF); // 10^-10
+
+            ensemble_m();
+            ensemble_E();
+
+            // printf("\nblah = %lf", h[jj_S]);
+            // printf("\nblam = %lf", m[jj_S]);
+            // printf("\n");
+            
+            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%lf\t ", m[j_S]);
+            }
+            fprintf(pFile_1, "%lf\t ", E);
+
+            fprintf(pFile_1, "\n");
+        }
+
+        fclose(pFile_1);
+        
+        return 0;
+    }
+
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start)
     {
         T = 0;
@@ -5307,7 +5698,7 @@ double CUTOFF = 0.0000000001;
 
             for (h_theta = 0.0; h_theta * order[jj_S] <= 1.0; h_theta = h_theta + order[jj_S] * delta_h)
             {
-                cutoff_local = -0.1;
+                
                 if (jj_S == 0)
                 {
                     h[0] = h_start * cos(2*pie*h_theta);
@@ -5319,6 +5710,7 @@ double CUTOFF = 0.0000000001;
                     h[1] = h_start * cos(2*pie*h_theta);
                 }
 
+                cutoff_local = -0.1;
                 do
                 {
                     // double cutoff_local_last = cutoff_local;
@@ -5387,9 +5779,9 @@ double CUTOFF = 0.0000000001;
                 ensemble_m();
                 ensemble_E();
                 
-                printf("\nblah = %lf", h[jj_S]);
-                printf("\nblam = %lf", m[jj_S]);
-                printf("\n");
+                // printf("\nblah = %lf", h[jj_S]);
+                // printf("\nblam = %lf", m[jj_S]);
+                // printf("\n");
 
                 fprintf(pFile_1, "%lf\t ", h_theta);
                 fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
