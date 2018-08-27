@@ -6090,7 +6090,7 @@ double CUTOFF = 0.0000000001;
         // cooling_protocol T_MAX - T_MIN=0
         cooling_protocol();
         fclose(pFile_1);
-        return 0;
+        
         // rotate field
         long int site_i;
         int repeat_loop = 1;
@@ -6200,7 +6200,7 @@ double CUTOFF = 0.0000000001;
         }
 
         fclose(pFile_1);
-        free(spin_t_);
+        
         return 0;
     }
 
