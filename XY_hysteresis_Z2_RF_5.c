@@ -235,6 +235,119 @@ double CUTOFF = 0.0000000001;
 
 //====================      Initialization                   ====================//
 
+    int initialize_h_zero()
+    {
+        long int i;
+        for(i=0; i<dim_S*no_of_sites; i=i+1)
+        {
+            h_random[i] = 0;
+            // h_total[i] = h; 
+        }
+        return 0;
+    }
+
+    int initialize_h_random_gaussian()
+    {
+        long int i, r_i;
+        int j_S;
+        
+        initialize_h_zero();
+
+        for(j_S=0; j_S<dim_S; j_S=j_S+1)
+        {
+            h_dev_net[j_S] = 0;
+            for(i=0; i<no_of_sites; i=i+1)
+            {
+                do
+                {
+                    r_i = rand()%no_of_sites;
+                } while(h_random[dim_S*r_i + j_S]!=0);
+                h_random[dim_S*r_i + j_S] = sigma_h[j_S] * generate_gaussian();
+                h_dev_net[j_S] += h_random[dim_S*r_i + j_S];
+
+                if (h_random[dim_S*r_i + j_S]>h_i_max)
+                {
+                    h_i_max = h_random[dim_S*r_i + j_S];
+                }
+                else 
+                {
+                    if (h_random[dim_S*r_i + j_S]<h_i_min)
+                    {
+                        h_i_min = h_random[dim_S*r_i + j_S];
+                    }
+                }
+            }
+            
+            h_dev_avg[j_S] = h_dev_net[j_S] / no_of_sites;
+        }
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h_i_max = fabs(h_i_min);
+        }
+        else
+        {
+            h_i_max = fabs(h_i_max);
+        }
+        h_i_min = -h_i_max;
+        return 0;
+    }
+
+    int initialize_J_zero()
+    {
+        long int i;
+        for(i=0; i<dim_L*no_of_sites; i=i+1)
+        {
+            J_random[i] = 0;
+            // h_total[i] = h; 
+        }
+        return 0;
+    }
+
+    int initialize_J_random_gaussian()
+    {
+        long int i, r_i;
+        int j_L, k_L;
+        
+        initialize_J_zero();
+
+        for(j_L=0; j_L<dim_L; j_L=j_L+1)
+        {
+            J_dev_net[j_L] = 0;
+            for(i=0; i<no_of_sites; i=i+1)
+            {
+                do
+                {
+                    r_i = rand()%no_of_sites;
+                } while(J_random[2*dim_L*r_i + 2*j_L]!=0);
+                J_random[2*dim_L*r_i + 2*j_L] = sigma_J[j_L] * generate_gaussian();
+                J_dev_net[j_L] += J_random[2*dim_L*r_i + 2*j_L];
+
+                if (J_random[2*dim_L*r_i + 2*j_L]>J_i_max)
+                {
+                    J_i_max = J_random[2*dim_L*r_i + 2*j_L];
+                }
+                else if (J_random[2*dim_L*r_i + 2*j_L]<J_i_min)
+                {
+                    J_i_min = J_random[2*dim_L*r_i + 2*j_L];
+                }
+            }
+            J_dev_avg[j_L] = J_dev_net[j_L] / no_of_sites;
+        }
+        
+        for(j_L=0; j_L<dim_L; j_L=j_L+1)
+        {
+            J_dev_net[j_L] = 0;
+            for(i=0; i<no_of_sites; i=i+1)
+            {
+                
+                J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
+                
+            }
+        }
+        
+        return 0;
+    }
+
     int initialize_nearest_neighbor_index()
     {
         long int i; 
@@ -1852,6 +1965,160 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
+//====================      Save J, h                        ====================//
+
+    int save_h_config()
+    {
+        long int i;
+        int j_S, j_L;
+        h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
+
+        initialize_h_random_gaussian();
+
+        char output_file_1[128];
+        char *pos = output_file_1;
+        pos += sprintf(pos, "h_config_");
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, "-");
+            }
+            pos += sprintf(pos, "%lf", sigma_h[j_S]);
+        }
+        pos += sprintf(pos, "_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "x");
+            }
+            pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, ".dat");
+            
+        pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
+        
+        fprintf(pFile_1, "%lf ", h_i_min);
+        printf( "\nh_i_min=%lf ", h_i_min);
+        // fprintf(pFile_1, "\n");
+        fprintf(pFile_1, "%lf ", h_i_max);
+        printf( "h_i_max=%lf \n", h_i_max);
+        fprintf(pFile_1, "\n");
+
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%lf ", h[j_S]);
+            fprintf(pFile_1, "%lf ", sigma_h[j_S]);
+            printf( "sigma_h[%d]=%lf \n", j_S, sigma_h[j_S]);
+            fprintf(pFile_1, "%lf ", h_dev_avg[j_S]);
+            printf( "h_dev_avg[%d]=%lf \n", j_S, h_dev_avg[j_S]);
+            fprintf(pFile_1, "\n");
+        }
+        fprintf(pFile_1, "\n");
+
+        for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%lf ", h_random[dim_S*i + j_S]);
+            }
+            fprintf(pFile_1, "\n");
+            
+        }
+        fclose(pFile_1);
+
+        /* for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                printf("|%lf|", h_random[dim_S*i + j_S]);
+            }
+            printf("\n");
+        }
+        printf("\n"); */
+
+        
+        
+        return 0;
+    }
+
+    int save_J_config()
+    {
+        long int i;
+        int j_L, k_L;
+        J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
+
+        initialize_J_random_gaussian();
+        
+        char output_file_1[128];
+        char *pos = output_file_1;
+        pos += sprintf(pos, "J_config_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "-");
+            }
+            pos += sprintf(pos, "%lf", sigma_J[j_L]);
+        }
+        pos += sprintf(pos, "_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "x");
+            }
+            pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, ".dat");
+        
+        pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
+        
+        fprintf(pFile_1, "%lf ", J_i_min);
+        // fprintf(pFile_1, "\n");
+        fprintf(pFile_1, "%lf ", J_i_max);
+        fprintf(pFile_1, "\n");
+
+        for (j_L=0; j_L<dim_L; j_L++)
+        {
+            fprintf(pFile_1, "%lf ", J[j_L]);
+            fprintf(pFile_1, "%lf ", sigma_J[j_L]);
+            fprintf(pFile_1, "%lf ", J_dev_avg[j_L]);
+            fprintf(pFile_1, "\n");
+        }
+        fprintf(pFile_1, "\n");
+
+        for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_L = 0; j_L<dim_L; j_L++)
+            {
+                for (k_L = 0; k_L<2; k_L++)
+                {
+                    fprintf(pFile_1, "%lf ", J_random[2*dim_L*i + 2*j_L + k_L]);
+                }
+            }
+            fprintf(pFile_1, "\n");
+        }
+        fclose(pFile_1);
+
+        /* for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_L = 0; j_L<dim_L; j_L++)
+            {
+                for (k_L = 0; k_L<2; k_L++)
+                {
+                    printf("|%lf|", J_random[2*dim_L*i + 2*j_L + k_L]);
+                }
+            }
+            printf("\n");
+        }
+        printf("\n"); */
+        
+        
+        return 0;
+    }
+
 //====================      Load J, h                        ====================//
 
     int load_h_config()
@@ -1883,24 +2150,31 @@ double CUTOFF = 0.0000000001;
         
         pFile_1 = fopen(input_file_1, "r"); // opens file for reading
 
-        h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-        fscanf(pFile_1, "%lf", &h_i_min);
-        fscanf(pFile_1, "%lf", &h_i_max);
-        for (j_S=0; j_S<dim_S; j_S++)
+        if (pFile_1 == NULL)
         {
-            fscanf(pFile_1, "%lf", &h[j_S]);
-            fscanf(pFile_1, "%lf", &sigma_h[j_S]);
-            fscanf(pFile_1, "%lf", &h_dev_avg[j_S]);
+            save_h_config(); // creates file for later
         }
-        
-        for (i = 0; i < no_of_sites; i++)
+        else
         {
-            for (j_S = 0; j_S<dim_S; j_S++)
+            h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
+            fscanf(pFile_1, "%lf", &h_i_min);
+            fscanf(pFile_1, "%lf", &h_i_max);
+            for (j_S=0; j_S<dim_S; j_S++)
             {
-                fscanf(pFile_1, "%lf", &h_random[dim_S*i + j_S]);
+                fscanf(pFile_1, "%lf", &h[j_S]);
+                fscanf(pFile_1, "%lf", &sigma_h[j_S]);
+                fscanf(pFile_1, "%lf", &h_dev_avg[j_S]);
             }
+            
+            for (i = 0; i < no_of_sites; i++)
+            {
+                for (j_S = 0; j_S<dim_S; j_S++)
+                {
+                    fscanf(pFile_1, "%lf", &h_random[dim_S*i + j_S]);
+                }
+            }
+            fclose(pFile_1);
         }
-        fclose(pFile_1);
         //---------------------------------------------------------------------------------------//
         /*
         for (i = 0; i < no_of_sites; i++)
@@ -1947,27 +2221,34 @@ double CUTOFF = 0.0000000001;
         
         pFile_1 = fopen(input_file_1, "r"); // opens file for reading
 
-        J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
-        fscanf(pFile_1, "%lf", &J_i_min);
-        fscanf(pFile_1, "%lf", &J_i_max);
-        for (j_L=0; j_L<dim_L; j_L++)
+        if (pFile_1 == NULL)
         {
-            fscanf(pFile_1, "%lf", &J[j_L]);
-            fscanf(pFile_1, "%lf", &sigma_J[j_L]);
-            fscanf(pFile_1, "%lf", &J_dev_avg[j_L]);
+            save_J_config(); // creates file for later
         }
-        
-        for (i = 0; i < no_of_sites; i++)
+        else
         {
-            for (j_L = 0; j_L<dim_L; j_L++)
+            J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
+            fscanf(pFile_1, "%lf", &J_i_min);
+            fscanf(pFile_1, "%lf", &J_i_max);
+            for (j_L=0; j_L<dim_L; j_L++)
             {
-                for (k_L = 0; k_L<2; k_L++)
+                fscanf(pFile_1, "%lf", &J[j_L]);
+                fscanf(pFile_1, "%lf", &sigma_J[j_L]);
+                fscanf(pFile_1, "%lf", &J_dev_avg[j_L]);
+            }
+            
+            for (i = 0; i < no_of_sites; i++)
+            {
+                for (j_L = 0; j_L<dim_L; j_L++)
                 {
-                    fscanf(pFile_1, "%lf", &J_random[2*dim_L*i + 2*j_L + k_L]);
+                    for (k_L = 0; k_L<2; k_L++)
+                    {
+                        fscanf(pFile_1, "%lf", &J_random[2*dim_L*i + 2*j_L + k_L]);
+                    }
                 }
             }
+            fclose(pFile_1);
         }
-        fclose(pFile_1);
         //---------------------------------------------------------------------------------------//
         /*
         for (i = 0; i < no_of_sites; i++)
@@ -6692,8 +6973,8 @@ double CUTOFF = 0.0000000001;
             start_time_loop[i] = omp_get_wtime();
             omp_set_num_threads(i);
             printf("\n\nNo. of THREADS = %ld \n\n", i);
-            // field_cool_and_rotate_checkerboard(0, 1);
-            random_initialize_and_rotate_checkerboard(0, 1);
+            field_cool_and_rotate_checkerboard(0, 1);
+            // random_initialize_and_rotate_checkerboard(0, 1);
             end_time_loop[i] = omp_get_wtime();
         }
         
