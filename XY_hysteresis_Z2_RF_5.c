@@ -85,7 +85,7 @@ double CUTOFF = 0.0000000001;
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double delta_h = 0.01, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
+    double delta_h = 0.001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -129,15 +129,17 @@ double CUTOFF = 0.0000000001;
 
 //====================      Specific heat Cv                 ====================//
     double Cv = 0;
+
 //====================      Susceptibility (Tensor) X        ====================//
     double X = 0;
     double X_ab[dim_S*dim_S] = { 0 };
+
 //====================      Binder Parameter B               ====================//
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10; // *=lattice_size
-    long int average_j = 1; // *=lattice_size
+    long int thermal_i = 1*10*10; // *=lattice_size
+    long int average_j = 1*10; // *=lattice_size
 
 //====================      Hysteresis T!=0                  ====================//
     long int hysteresis_MCS = 1; 
@@ -628,19 +630,21 @@ double CUTOFF = 0.0000000001;
     {
         long int i; 
         int j_S;
-        for (j_S=0; j_S<dim_S; j_S=j_S+1)
+        for (j_S=0; j_S<dim_S; j_S++)
         {
             m[j_S] = 0;
         }
-        #pragma omp parallel for private(j_S) reduction(+:m[:dim_S])
-        for(i=0; i<no_of_sites; i=i+1)
+        
+        #pragma omp parallel for private(i,j_S) reduction(+:m[:dim_S])
+        for (j_S=0; j_S<dim_S; j_S++)
         {
-            for (j_S=0; j_S<dim_S; j_S=j_S+1)
+            for(i=0; i<no_of_sites; i++)
             {
                 m[j_S] += spin[dim_S*i + j_S];
             }
         }
-        for (j_S=0; j_S<dim_S; j_S=j_S+1)
+
+        for (j_S=0; j_S<dim_S; j_S++)
         {
             m[j_S] = m[j_S] / no_of_sites;
         }
@@ -3084,7 +3088,8 @@ double CUTOFF = 0.0000000001;
 
             // pFile_1 = fopen(output_file_1, "a");
 
-            fprintf(pFile_1, "%lf\t %lf\t ", T, m_abs_avg);
+            fprintf(pFile_1, "%lf\t ", T);
+            fprintf(pFile_1, "%lf\t ", m_abs_avg);
 
             for(j_S=0; j_S<dim_S; j_S++)
             {
@@ -3125,9 +3130,9 @@ double CUTOFF = 0.0000000001;
     {
         int j_S, j_SS, j_L;
 
-        ensemble_all();
-        // ensemble_E();
-        // ensemble_m();
+        // ensemble_all();
+        ensemble_E();
+        ensemble_m();
 
         printf("Initial Magnetisation = (%lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
@@ -3146,7 +3151,8 @@ double CUTOFF = 0.0000000001;
 
             // pFile_1 = fopen(output_file_1, "a");
 
-            fprintf(pFile_1, "%lf\t %lf\t ", T, m_abs_avg);
+            fprintf(pFile_1, "%lf\t ", T);
+            fprintf(pFile_1, "%lf\t ", m_abs_avg);
 
             for(j_S=0; j_S<dim_S; j_S++)
             {
@@ -3167,9 +3173,9 @@ double CUTOFF = 0.0000000001;
             // fclose(pFile_1);
         }
 
-        ensemble_all();
-        // ensemble_E();
-        // ensemble_m();
+        // ensemble_all();
+        ensemble_E();
+        ensemble_m();
 
         printf("Final Magnetisation = (%lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
@@ -5030,8 +5036,8 @@ double CUTOFF = 0.0000000001;
         }
         pFile_1 = fopen(output_file_1, "a");
         
-        // print column heaser
-        {    
+        // print column header
+        {
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -5414,7 +5420,7 @@ double CUTOFF = 0.0000000001;
         }
         pFile_1 = fopen(output_file_1, "a");
 
-        // print column heaser
+        // print column header
         {
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5658,7 +5664,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start)
+    int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start, double h_start)
     {
         T = 0;
         
@@ -5689,7 +5695,7 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        
         double h_theta = 0;
         printf("\nztne RFXY h rotating with |h|=%lf at T=%lf..", h_start, T);
 
@@ -5796,7 +5802,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start)
+    int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start)
     {
         T = 0;
 
@@ -5825,7 +5831,7 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        
         double h_theta = 0;
         printf("\nztne RFXY h rotating with |h|=%lf at T=%lf..", h_start, T);
 
@@ -6113,7 +6119,7 @@ double CUTOFF = 0.0000000001;
         }
         pFile_1 = fopen(output_file_1, "a");
 
-        // print column heaser
+        // print column header
         {
             fprintf(pFile_1, "theta(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
@@ -6207,7 +6213,7 @@ double CUTOFF = 0.0000000001;
         T = 0;
         printf("\nztne RFXY, h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
         
-        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start);
+        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
 
         fclose(pFile_1);
         
@@ -6359,7 +6365,7 @@ double CUTOFF = 0.0000000001;
         }
         pFile_1 = fopen(output_file_1, "a");
 
-        // print column heaser
+        // print column header
         {
             fprintf(pFile_1, "theta(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
@@ -6453,7 +6459,7 @@ double CUTOFF = 0.0000000001;
         T = 0;
         printf("\nztne RFXY, h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
         
-        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start);
+        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
 
         fclose(pFile_1);
         
@@ -6606,7 +6612,7 @@ double CUTOFF = 0.0000000001;
         pFile_1 = fopen(output_file_1, "a");
 
         // cooling_protocol T_MAX - T_MIN=0
-        // print column heaser
+        // print column header
         {
             
             fprintf(pFile_1, "T\t |m|\t ");
@@ -6704,7 +6710,7 @@ double CUTOFF = 0.0000000001;
         pFile_1 = fopen(output_file_1, "a");
         
         // rotate field
-        // print column heaser
+        // print column header
         {
             fprintf(pFile_1, "\ntheta(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
@@ -6794,7 +6800,7 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
-        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start);
+        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
         fclose(pFile_1);
         
         return 0;
@@ -6821,7 +6827,7 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(sigma_h[0]/16.0);
         h[jj_S] = h_start;
         double h_theta = 0.0;
         h_order = 0;
@@ -6946,7 +6952,7 @@ double CUTOFF = 0.0000000001;
         pFile_1 = fopen(output_file_1, "a");
         
         // cooling_protocol T_MAX - T_MIN=0
-        // print column heaser
+        // print column header
         {
             
             fprintf(pFile_1, "T\t |m|\t ");
@@ -7038,12 +7044,13 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%lf\t \n", h_order, r_order, thermal_i, average_j, delta_T);
         }
+        omp_set_num_threads(16);
         cooling_protocol();
         fclose(pFile_1);
-        
+        // return 0;
         pFile_1 = fopen(output_file_1, "a");
         // rotate field
-        // print column heaser
+        // print column header
         {
             fprintf(pFile_1, "\ntheta(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
@@ -7133,7 +7140,8 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
-        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start);
+        omp_set_num_threads(24);
+        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
         fclose(pFile_1);
         
         return 0;
@@ -7282,7 +7290,7 @@ double CUTOFF = 0.0000000001;
         }
         pFile_1 = fopen(output_file_1, "a");
 
-        // print column heaser
+        // print column header
         {
             fprintf(pFile_1, "theta(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
@@ -7372,7 +7380,7 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
-        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start);
+        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
         fclose(pFile_1);
 
         return 0;
@@ -7522,7 +7530,7 @@ double CUTOFF = 0.0000000001;
         }
         pFile_1 = fopen(output_file_1, "a");
 
-        // print column heaser
+        // print column header
         { 
             fprintf(pFile_1, "theta(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
@@ -7612,7 +7620,8 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
-        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start);
+        omp_set_num_threads(24);
+        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
         fclose(pFile_1);
         
         return 0;
@@ -7703,26 +7712,35 @@ double CUTOFF = 0.0000000001;
         double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         
-        for (i=2; i<=num_of_threads; i+=2)
-        {
-            start_time_loop[i] = omp_get_wtime();
-            omp_set_num_threads(i);
-            printf("\n\nNo. of THREADS = %ld \n\n", i);
-            field_cool_and_rotate_checkerboard(0, 1);
-            // random_initialize_and_rotate_checkerboard(0, 1);
-            end_time_loop[i] = omp_get_wtime();
-        }
+        // for (i=num_of_threads; i>=1; i++)
+        // {
+        //     start_time_loop[i-1] = omp_get_wtime();
+        //     omp_set_num_threads(i);
+        //     printf("\n\nNo. of THREADS = %ld \n\n", i);
+        //     // field_cool_and_rotate_checkerboard(0, 1);
+        //     r_order = 1;
+        //     initialize_spin_config();
+        //     for (j=0; j<100000; j++)
+        //     {
+        //         spin[rand()%(dim_S*no_of_sites)] = (double)rand()/(double)RAND_MAX;
+        //         ensemble_m();
+        //         // ensemble_E();
+        //     }
+            
+        //     // random_initialize_and_rotate_checkerboard(0, 1);
+        //     end_time_loop[i-1] = omp_get_wtime();
+        // }
         
-        for (i=2; i<=num_of_threads; i+=2)
-        {
-            printf("No. of THREADS = %ld ,\t Time elapsed = %g\n", i, end_time_loop[i]-start_time_loop[i]);
-        }
+        // for (i=1; i<=num_of_threads; i++)
+        // {
+        //     printf("No. of THREADS = %ld ,\t Time elapsed = %g\n", i, end_time_loop[i-1]-start_time_loop[i-1]);
+        // }
         
-        // random_initialize_and_rotate(0, 1);
-        // field_cool_and_rotate(0, 1);
+        // random_initialize_and_rotate_checkerboard(0, 1);
+        field_cool_and_rotate_checkerboard(0, 1);
         // zero_temp_RFXY_hysteresis_axis(0, -1);
         // zero_temp_RFXY_hysteresis_axis(1, 1);
-        // zero_temp_RFXY_hysteresis_rotate(0, 1);
+
         
         
         // zero_temp_RFIM_hysteresis();
