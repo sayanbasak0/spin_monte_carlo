@@ -1,6 +1,7 @@
 // using bitbucket
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 #include <omp.h>
@@ -9,7 +10,7 @@
 #define dim_S 2
 
 FILE *pFile_1;
-char output_file_1[256];
+char output_file_0[256];
 
 const double pie = 3.141592625359;
 double k_B = 1;
@@ -85,7 +86,7 @@ double CUTOFF = 0.0000000001;
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double delta_h = 0.001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
+    double delta_h = 0.0001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -94,7 +95,7 @@ double CUTOFF = 0.0000000001;
     double T = 3.0;
     double Temp_min = 0.0;
     double Temp_max = 2.0;
-    double delta_T = 0.1;
+    double delta_T = 0.01;
 
 //====================      Magnetisation <M>                ====================//
     double m[dim_S];
@@ -138,8 +139,8 @@ double CUTOFF = 0.0000000001;
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10*10; // *=lattice_size
-    long int average_j = 1*10; // *=lattice_size
+    long int thermal_i = 1*10*10*10; // *=lattice_size
+    long int average_j = 1*10*10; // *=lattice_size
 
 //====================      Hysteresis T!=0                  ====================//
     long int hysteresis_MCS = 1; 
@@ -1981,8 +1982,8 @@ double CUTOFF = 0.0000000001;
 
         initialize_h_random_gaussian();
 
-        char output_file_1[128];
-        char *pos = output_file_1;
+        char output_file_0[128];
+        char *pos = output_file_0;
         pos += sprintf(pos, "h_config_");
         for (j_S = 0 ; j_S != dim_S ; j_S++) 
         {
@@ -2003,7 +2004,7 @@ double CUTOFF = 0.0000000001;
         }
         pos += sprintf(pos, ".dat");
             
-        pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
+        pFile_1 = fopen(output_file_0, "w"); // opens new file for writing
         
         fprintf(pFile_1, "%lf ", h_i_min);
         printf( "\nh_i_min=%lf ", h_i_min);
@@ -2057,8 +2058,8 @@ double CUTOFF = 0.0000000001;
 
         initialize_J_random_gaussian();
         
-        char output_file_1[128];
-        char *pos = output_file_1;
+        char output_file_0[128];
+        char *pos = output_file_0;
         pos += sprintf(pos, "J_config_");
         for (j_L = 0 ; j_L != dim_L ; j_L++) 
         {
@@ -2079,7 +2080,7 @@ double CUTOFF = 0.0000000001;
         }
         pos += sprintf(pos, ".dat");
         
-        pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
+        pFile_1 = fopen(output_file_0, "w"); // opens new file for writing
         
         fprintf(pFile_1, "%lf ", J_i_min);
         // fprintf(pFile_1, "\n");
@@ -2421,8 +2422,8 @@ double CUTOFF = 0.0000000001;
 
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_evo(t)_at_T=%lf_%c_%c_", dim_S, dim_L, T, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -2496,7 +2497,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "step\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -2586,7 +2587,7 @@ double CUTOFF = 0.0000000001;
         {
             thermalizing_iteration(thermal_i);
             averaging_iteration(average_j);
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             fprintf(pFile_1, "%d\t ", i);
             
             for(j_S=0; j_S<dim_S; j_S++)
@@ -2629,8 +2630,8 @@ double CUTOFF = 0.0000000001;
 
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_evo(t)_at_T=%lf_%c_%c_", dim_S, dim_L, T, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -2704,7 +2705,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "|m|\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -2784,7 +2785,7 @@ double CUTOFF = 0.0000000001;
 
         thermalizing_iteration(thermal_i);
         averaging_iteration(average_j);
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
         fprintf(pFile_1, "%lf\t ", m_abs_avg);
         
         for(j_S=0; j_S<dim_S; j_S++)
@@ -2864,8 +2865,8 @@ double CUTOFF = 0.0000000001;
 
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_Temp_evo_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -2939,7 +2940,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "T\t ");
             fprintf(pFile_1, "<|m|>\t ");
@@ -3086,7 +3087,7 @@ double CUTOFF = 0.0000000001;
             thermalizing_iteration(thermal_i);
             averaging_iteration(average_j);
 
-            // pFile_1 = fopen(output_file_1, "a");
+            // pFile_1 = fopen(output_file_0, "a");
 
             fprintf(pFile_1, "%lf\t ", T);
             fprintf(pFile_1, "%lf\t ", m_abs_avg);
@@ -3149,7 +3150,7 @@ double CUTOFF = 0.0000000001;
             thermalizing_iteration(thermal_i);
             averaging_iteration(average_j);
 
-            // pFile_1 = fopen(output_file_1, "a");
+            // pFile_1 = fopen(output_file_0, "a");
 
             fprintf(pFile_1, "%lf\t ", T);
             fprintf(pFile_1, "%lf\t ", m_abs_avg);
@@ -3216,8 +3217,8 @@ double CUTOFF = 0.0000000001;
 
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_ZFC-ZFH_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -3291,7 +3292,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "T\t |m|\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3459,8 +3460,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hysteresis_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -3542,7 +3543,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld.dat", h_order, r_order, hysteresis_MCS);
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3775,8 +3776,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hysteresis_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -3858,7 +3859,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}.dat");
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4086,8 +4087,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_ringdown_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -4169,7 +4170,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}.dat");
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "h[%d]\t ", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4420,8 +4421,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_rpm_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -4503,7 +4504,7 @@ double CUTOFF = 0.0000000001;
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
             pos += sprintf(pos, "}.dat");
-            pFile_1 = fopen(output_file_1, "a");
+            pFile_1 = fopen(output_file_0, "a");
         }
         // column labels and parameters
         {
@@ -4950,8 +4951,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hysteresis_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -5034,7 +5035,7 @@ double CUTOFF = 0.0000000001;
             }
             pos += sprintf(pos, "_%lf}.dat", delta_h);
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
         
         // print column header
         {
@@ -5334,8 +5335,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hysteresis_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -5418,7 +5419,7 @@ double CUTOFF = 0.0000000001;
             }
             pos += sprintf(pos, "_%lf}.dat", delta_h);
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
@@ -6032,8 +6033,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hys_rot_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -6117,7 +6118,7 @@ double CUTOFF = 0.0000000001;
             pos += sprintf(pos, "_%lf}.dat", delta_h);
             
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
@@ -6278,8 +6279,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hys_rot_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -6363,7 +6364,7 @@ double CUTOFF = 0.0000000001;
             pos += sprintf(pos, "_%lf}.dat", delta_h);
             
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
@@ -6525,8 +6526,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hys_rot_fcool_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -6609,7 +6610,7 @@ double CUTOFF = 0.0000000001;
             }
             pos += sprintf(pos, "_%lf}.dat", delta_h);
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
 
         // cooling_protocol T_MAX - T_MIN=0
         // print column header
@@ -6707,7 +6708,7 @@ double CUTOFF = 0.0000000001;
         cooling_protocol();
         fclose(pFile_1);
 
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
         
         // rotate field
         // print column header
@@ -6827,7 +6828,7 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/16.0);
+        double h_start = order[jj_S]*(sigma_h[0]/64.0);
         h[jj_S] = h_start;
         double h_theta = 0.0;
         h_order = 0;
@@ -6865,8 +6866,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hys_rot_fcool_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -6947,8 +6948,12 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "_%lf}_c", delta_h);
         }
+        char output_file_1[256];
+        strcpy(output_file_1, output_file_0);
+        strcat(output_file_1, ".dat");
+        
         pFile_1 = fopen(output_file_1, "a");
         
         // cooling_protocol T_MAX - T_MIN=0
@@ -7048,8 +7053,13 @@ double CUTOFF = 0.0000000001;
         cooling_protocol();
         fclose(pFile_1);
         // return 0;
-        pFile_1 = fopen(output_file_1, "a");
+
         // rotate field
+        char output_file_2[256];
+        strcpy(output_file_2, output_file_0);
+        strcat(output_file_2, "_r.dat");
+        
+        pFile_1 = fopen(output_file_2, "a");
         // print column header
         {
             fprintf(pFile_1, "\ntheta(h[:])\t ");
@@ -7204,8 +7214,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hys_rot_rand_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -7288,7 +7298,7 @@ double CUTOFF = 0.0000000001;
             }
             pos += sprintf(pos, "_%lf}.dat", delta_h);
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
@@ -7444,8 +7454,8 @@ double CUTOFF = 0.0000000001;
         
         // create file name and pointer. 
         {
-            // char output_file_1[256];
-            char *pos = output_file_1;
+            // char output_file_0[256];
+            char *pos = output_file_0;
             pos += sprintf(pos, "O(%d)_%dD_hys_rot_rand_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -7528,7 +7538,7 @@ double CUTOFF = 0.0000000001;
             }
             pos += sprintf(pos, "_%lf}.dat", delta_h);
         }
-        pFile_1 = fopen(output_file_1, "a");
+        pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         { 
