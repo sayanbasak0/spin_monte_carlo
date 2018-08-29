@@ -1982,8 +1982,8 @@ double CUTOFF = 0.0000000001;
 
         initialize_h_random_gaussian();
 
-        char output_file_0[128];
-        char *pos = output_file_0;
+        char output_file_1[128];
+        char *pos = output_file_1;
         pos += sprintf(pos, "h_config_");
         for (j_S = 0 ; j_S != dim_S ; j_S++) 
         {
@@ -2004,7 +2004,7 @@ double CUTOFF = 0.0000000001;
         }
         pos += sprintf(pos, ".dat");
             
-        pFile_1 = fopen(output_file_0, "w"); // opens new file for writing
+        pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
         
         fprintf(pFile_1, "%lf ", h_i_min);
         printf( "\nh_i_min=%lf ", h_i_min);
@@ -2058,8 +2058,8 @@ double CUTOFF = 0.0000000001;
 
         initialize_J_random_gaussian();
         
-        char output_file_0[128];
-        char *pos = output_file_0;
+        char output_file_1[128];
+        char *pos = output_file_1;
         pos += sprintf(pos, "J_config_");
         for (j_L = 0 ; j_L != dim_L ; j_L++) 
         {
@@ -2080,7 +2080,7 @@ double CUTOFF = 0.0000000001;
         }
         pos += sprintf(pos, ".dat");
         
-        pFile_1 = fopen(output_file_0, "w"); // opens new file for writing
+        pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
         
         fprintf(pFile_1, "%lf ", J_i_min);
         // fprintf(pFile_1, "\n");
