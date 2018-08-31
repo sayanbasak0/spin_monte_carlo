@@ -10,7 +10,7 @@ set xtics nomirror
 set ytics nomirror
 
 # On the Y axis put a major tick every 5
-set xtics 0.5
+set xtics 0.1
 set ytics 0.2
 
 # On both the x and y axes split each space in half and put a minor tic there
