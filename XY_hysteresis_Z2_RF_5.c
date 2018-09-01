@@ -86,14 +86,14 @@ double CUTOFF = 0.0000000001;
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double delta_h = 0.0001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
+    double delta_h = 0.01, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
 
 //====================      Temperature                      ====================//
     double T = 3.0;
-    double Temp_min = 0.0;
+    double Temp_min = 0.6;
     double Temp_max = 2.0;
     double delta_T = 0.01;
 
@@ -2409,9 +2409,9 @@ double CUTOFF = 0.0000000001;
         }
         printf("}, %d, %d)\n", h_order, r_order);
 
-        ensemble_all();
-        // ensemble_E();
-        // ensemble_m();
+        // ensemble_all();
+        ensemble_E();
+        ensemble_m();
 
         printf("Initial Magnetisation = (%lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
@@ -2500,6 +2500,7 @@ double CUTOFF = 0.0000000001;
             pFile_1 = fopen(output_file_0, "a");
             
             fprintf(pFile_1, "step\t ");
+            fprintf(pFile_1, "<|m|>\t ");
             for (j_S=0; j_S<dim_S; j_S++)
             {
                 fprintf(pFile_1, "<m[%d]>\t ", j_S);
@@ -2589,6 +2590,7 @@ double CUTOFF = 0.0000000001;
             averaging_iteration(average_j);
             pFile_1 = fopen(output_file_0, "a");
             fprintf(pFile_1, "%d\t ", i);
+            fprintf(pFile_1, "%lf\t ", m_abs_avg);
             
             for(j_S=0; j_S<dim_S; j_S++)
             {
@@ -6827,9 +6829,10 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
+        
         // start from h[0] or h[1] != 0
-        // double h_start = order[jj_S]*(sigma_h[0]/2.0);
-        double h_start = 0.0; delta_h = 0.01; // for zero applied field only
+        double h_start = order[jj_S]*(sigma_h[0]/8.0);
+        // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
         double h_theta = 0.0;
         h_order = 0;
@@ -7053,7 +7056,7 @@ double CUTOFF = 0.0000000001;
         omp_set_num_threads(16);
         cooling_protocol();
         fclose(pFile_1);
-        // return 0;
+        return 0;
 
         // rotate field
         char output_file_2[256];
@@ -7748,7 +7751,12 @@ double CUTOFF = 0.0000000001;
         // }
         
         // random_initialize_and_rotate_checkerboard(0, 1);
+        start_time_loop[0] = omp_get_wtime();
         field_cool_and_rotate_checkerboard(0, 1);
+        end_time_loop[0] = omp_get_wtime();
+        start_time_loop[1] = omp_get_wtime();
+        evolution_at_T(100);
+        end_time_loop[1] = omp_get_wtime();
         // zero_temp_RFXY_hysteresis_axis(0, -1);
         // zero_temp_RFXY_hysteresis_axis(1, 1);
 
@@ -7825,8 +7833,8 @@ double CUTOFF = 0.0000000001;
 
         free_memory();
         double end_time = omp_get_wtime();
-        printf("\nCPU  Start Time = %lf \n", start_time);
-        printf("\nCPU  End Time = %lf \n", end_time);
+        printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", end_time_loop[0] - start_time_loop[0], Temp_max, Temp_min );
+        printf("\nEvolution time (at T=%lf) = %lf \n", end_time_loop[1] - start_time_loop[1], T );
         
         printf("\nCPU Time elapsed total = %lf \n", end_time-start_time);
         return 0;
