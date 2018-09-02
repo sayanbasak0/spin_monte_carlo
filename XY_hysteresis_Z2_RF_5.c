@@ -18,7 +18,7 @@ double k_B = 1;
 unsigned int *random_seed;
 int num_of_threads;
 int num_of_procs;
-int cache_size=512;
+int cache_size=2;
 double CUTOFF = 0.0000000001;
 // long int CHUNK_SIZE = 256; 
 
@@ -141,7 +141,7 @@ double CUTOFF = 0.0000000001;
 //====================      MC-update iterations             ====================//
     long int thermal_i = 1*10*10*5; // *=lattice_size
     long int average_j = 1*10*5; // *=lattice_size
-    long int avg_inter = 1; // *=lattice_size
+    long int sampling_inter = 16; // *=lattice_size
 
 //====================      Hysteresis T!=0                  ====================//
     long int hysteresis_MCS = 1; 
@@ -2348,7 +2348,7 @@ double CUTOFF = 0.0000000001;
 
         while(average_iter)
         {
-            Monte_Carlo_Sweep(avg_inter);
+            Monte_Carlo_Sweep(sampling_inter-rand()%sampling_inter);
             // random_Wolff_sweep(1);
             ensemble_m();
             ensemble_E();
@@ -7713,7 +7713,7 @@ double CUTOFF = 0.0000000001;
         srand(time(NULL));
 
         printf("RAND_MAX = %lf,\n sizeof(int) = %ld,\n sizeof(long) = %ld,\n sizeof(double) = %ld,\n sizeof(long int) = %ld,\n sizeof(short int) = %ld,\n sizeof(unsigned int) = %ld,\n sizeof(RAND_MAX) = %ld\n", (double)RAND_MAX, sizeof(int), sizeof(long), sizeof(double), sizeof(long int), sizeof(short int), sizeof(unsigned int), sizeof(RAND_MAX));
-        
+        // get GPU MAX THREADS
         num_of_threads = omp_get_max_threads();
         num_of_procs = omp_get_num_procs();
         random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
