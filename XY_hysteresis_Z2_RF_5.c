@@ -7756,7 +7756,7 @@ double CUTOFF = 0.0000000001;
         field_cool_and_rotate_checkerboard(0, 1);
         end_time_loop[0] = omp_get_wtime();
         start_time_loop[1] = omp_get_wtime();
-        evolution_at_T(100);
+        // evolution_at_T(100);
         end_time_loop[1] = omp_get_wtime();
         // zero_temp_RFXY_hysteresis_axis(0, -1);
         // zero_temp_RFXY_hysteresis_axis(1, 1);
