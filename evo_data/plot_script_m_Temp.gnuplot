@@ -10,7 +10,7 @@ set xtics nomirror
 set ytics nomirror
 
 # On the Y axis put a major tick every 5
-set xtics 0.05
+set xtics 0.1
 set ytics 0.2
 
 # On both the x and y axes split each space in half and put a minor tic there
@@ -69,21 +69,21 @@ set style line 6 lt 1 lc rgb "#00D0D0" lw 2 pt 12 ps 1.5
 set style line 7 lt 1 lc rgb "#B200B2" lw 2 pt 5 ps 1.5
 
 # Name our output file
-set output "h_mag_xy_abs_T0.01.png"
+set output "mag_Temp.png"
 
 # Put X and Y labels
-set xlabel "h_x/J"
-set ylabel "|<M_x/M_y>|"
+set xlabel "T/J"
+set ylabel "|<M_y/M_y>|"
 
 # Set the range of our x and y axes
-set xrange [0:0.25]
-set yrange [-0.1:1]
+set xrange [0.6:2]
+set yrange [-0.9:0.9]
 
 # Give the plot a title
-set title "Magnetisation vs Field upon cooling (T=0.01)"
+set title "Magnetisation vs Temperature upon cooling"
 
 # Put the legend at the bottom left of the plot
-set key right center
+set key right top
 
 # Plot the actual data
 # u 1:2 = using column 1 for X axis and column 2 for Y axis
@@ -91,11 +91,12 @@ set key right center
 # ls 1 = use our defined linestyle 1
 # t "Test 1" = title "Test 1" will go in the legend
 # The rest of the lines plot columns 3, 5 and 7
-plot \
-"m_T0.01_vs_h.dat" u 10:4:5 w yerrorbars ls 1 t "|<M_x>|", \
-"m_T0.01_vs_h.dat" u 10:6:7 w yerrorbars ls 2 t "|<M_y>|", \
-"m_T0.01_vs_h.dat" u 10:4 w lines ls 1 notitle, \
-"m_T0.01_vs_h.dat" u 10:6 w lines ls 2 notitle
+plot "M_C_2.000000-0.600000_128x128_0.125000_0.500000.dat" u 1:3 w lp ls 1 t "h_x = R_x/4, M_x", \
+"M_C_2.000000-0.600000_128x128_0.062500_0.500000.dat" u 1:3 w lp ls 2 t "h_x = R_x/8, M_x", \
+"M_C_2.000000-0.600000_128x128_0.031250_0.500000.dat" u 1:3 w lp ls 3 t "h_x = R_x/16, M_x", \
+"M_C_2.000000-0.600000_128x128_0.125000_0.500000.dat" u 1:4 w lp ls 4 t "h_x = R_x/4, M_y", \
+"M_C_2.000000-0.600000_128x128_0.062500_0.500000.dat" u 1:4 w lp ls 5 t "h_x = R_x/8, M_y", \
+"M_C_2.000000-0.600000_128x128_0.031250_0.500000.dat" u 1:4 w lp ls 6 t "h_x = R_x/16, M_y", \
 
 # This is important because it closes our output file.
 set output 
