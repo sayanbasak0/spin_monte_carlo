@@ -139,9 +139,9 @@ double CUTOFF = 0.0000000001;
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10*10*5; // *=lattice_size
-    long int average_j = 1*10*5; // *=lattice_size
-    long int avg_inter = 1; // *=lattice_size
+    long int thermal_i = 1*10*10; // *=lattice_size
+    long int average_j = 1*10*10; // *=lattice_size
+    long int sampling_inter = 16; // *=lattice_size
 
 //====================      Hysteresis T!=0                  ====================//
     long int hysteresis_MCS = 1; 
@@ -2348,7 +2348,7 @@ double CUTOFF = 0.0000000001;
 
         while(average_iter)
         {
-            Monte_Carlo_Sweep(avg_inter);
+            Monte_Carlo_Sweep(sampling_inter-rand()%sampling_inter);
             // random_Wolff_sweep(1);
             ensemble_m();
             ensemble_E();
@@ -6832,7 +6832,7 @@ double CUTOFF = 0.0000000001;
         }
         
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/16.0);
+        double h_start = order[jj_S]*(sigma_h[0]/4.0);
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
         double h_theta = 0.0;
