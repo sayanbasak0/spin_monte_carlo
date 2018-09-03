@@ -139,9 +139,9 @@ double CUTOFF = 0.0000000001;
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10*10; // *=lattice_size
-    long int average_j = 1*10*10; // *=lattice_size
-    long int sampling_inter = 16; // *=lattice_size
+    long int thermal_i = 1*10*1; // *=lattice_size
+    long int average_j = 1*10*1; // *=lattice_size
+    long int sampling_inter = 1; // *=sampling_inter-rand()%sampling_inter
 
 //====================      Hysteresis T!=0                  ====================//
     long int hysteresis_MCS = 1; 
@@ -1369,7 +1369,7 @@ double CUTOFF = 0.0000000001;
 
 //====================      MonteCarlo-tools                 ====================//
 
-    int update_spin_sum(long int xyzi, double *spin_local)
+    int update_spin_sum(long int xyzi, double* restrict spin_local)
     {
         int j_S;
 
@@ -1381,7 +1381,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    double Energy_minimum(long int xyzi, double *spin_local, double *field_local)
+    double Energy_minimum(long int xyzi, double* restrict spin_local, double* restrict field_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
@@ -1418,7 +1418,7 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
-    double Energy_old(long int xyzi, double *spin_local, double *field_local)
+    double Energy_old(long int xyzi, double* restrict spin_local, double* restrict field_local)
     {
         int j_S, j_L, k_L;
         double Energy_ol=0.0;
@@ -1444,7 +1444,7 @@ double CUTOFF = 0.0000000001;
         return Energy_ol;
     }
 
-    double Energy_new(long int xyzi, double *spin_local, double *field_local)
+    double Energy_new(long int xyzi, double* restrict spin_local, double* restrict field_local)
     {
         int j_S;
         double Energy_nu=0.0, s_mod=0.0;
@@ -1731,7 +1731,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int transform_spin(long int xyzi)
+    int transform_spin(long int xyzi, double* restrict spin_new)
     {
         double Si_dot_ref = 0;
         int j_S;
@@ -1742,7 +1742,7 @@ double CUTOFF = 0.0000000001;
         }
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            spin_new[dim_S*xyzi + j_S] = spin[dim_S*xyzi + j_S] - 2 * Si_dot_ref * reflection_plane[j_S];
+            spin_new[j_S] = spin[dim_S*xyzi + j_S] - 2 * Si_dot_ref * reflection_plane[j_S];
         }
         return 0;
     }
@@ -1760,7 +1760,7 @@ double CUTOFF = 0.0000000001;
         return energy_site;
     }
 
-    double E_site_new(long int xyzi)
+    double E_site_new(long int xyzi, double* restrict spin_new)
     {
         double energy_site = 0;
 
@@ -1768,7 +1768,7 @@ double CUTOFF = 0.0000000001;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            energy_site = -(h[j_S] + h_random[xyzi*dim_S + j_S]) * spin_new[dim_S*xyzi + j_S];
+            energy_site = -(h[j_S] + h_random[xyzi*dim_S + j_S]) * spin_new[j_S];
         }
 
         return energy_site;
@@ -1788,7 +1788,7 @@ double CUTOFF = 0.0000000001;
         return energy_site;
     }
 
-    double E_bond_new(long int xyzi, int j_L, int k_L)
+    double E_bond_new(long int xyzi, int j_L, int k_L, double* restrict spin_new)
     {
         double energy_site = 0;
         double Si_dot_ref = 0;
@@ -1796,7 +1796,7 @@ double CUTOFF = 0.0000000001;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            energy_site = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin_new[dim_S*xyzi + j_S];
+            energy_site = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin_new[j_S];
         }
 
         return energy_site;
@@ -1804,8 +1804,7 @@ double CUTOFF = 0.0000000001;
 
     int nucleate_from_site(long int xyzi)
     {
-        
-        update_spin_sum(xyzi, spin_new + dim_S*xyzi);
+
         cluster[xyzi] = 1;
         int j_L, k_L;
 
@@ -1817,9 +1816,10 @@ double CUTOFF = 0.0000000001;
                 if (cluster[xyzi_nn] == 0)
                 {
                     double p_bond = 0;
-                    transform_spin(xyzi_nn);
+                    double spin_new[dim_S];
+                    transform_spin(xyzi_nn, spin_new);
                     double delta_E_bond = -E_bond_old(xyzi, j_L, k_L, xyzi_nn);
-                    delta_E_bond += E_bond_new(xyzi, j_L, k_L);
+                    delta_E_bond += E_bond_new(xyzi, j_L, k_L, spin_new);
                     if (delta_E_bond < 0)
                     {
                         if (T > 0)
@@ -1843,7 +1843,7 @@ double CUTOFF = 0.0000000001;
                         {
                             double p_site = 1;
                             double delta_E_site = -E_site_old(xyzi_nn);
-                            delta_E_site += E_site_new(xyzi_nn);
+                            delta_E_site += E_site_new(xyzi_nn, spin_new);
                             // if (delta_E_site > 0)
                             // {
                                 if (T > 0)
@@ -1860,6 +1860,7 @@ double CUTOFF = 0.0000000001;
                                 double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
                                 if (r_site < p_site*p_bond)
                                 {
+                                    update_spin_sum(xyzi, spin_new);
                                     nucleate_from_site(xyzi_nn);
                                 }
                             // }
@@ -1902,10 +1903,12 @@ double CUTOFF = 0.0000000001;
                 generate_random_axis();
                 xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()]) % no_of_sites;
                 double delta_E_site = -E_site_old(xyzi);
-                transform_spin(xyzi);
-                delta_E_site += E_site_new(xyzi);
+                double spin_new[dim_S];
+                transform_spin(xyzi, spin_new);
+                delta_E_site += E_site_new(xyzi, spin_new);
                 if (delta_E_site <= 0)
                 {
+                    update_spin_sum(xyzi, spin_new);
                     nucleate_from_site(xyzi);
                 }
                 else
@@ -1913,6 +1916,7 @@ double CUTOFF = 0.0000000001;
                     double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
                     if (r<exp(-delta_E_site/T))
                     {
+                        update_spin_sum(xyzi, spin_new);
                         nucleate_from_site(xyzi);
                     }
                 }
@@ -3069,6 +3073,7 @@ double CUTOFF = 0.0000000001;
 
     int cooling_protocol()
     {
+        omp_set_num_threads(16);
         int j_S, j_SS, j_L;
 
         // ensemble_all();
@@ -4799,7 +4804,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    double Energy_minimum_old_XY(long int xyzi, double *spin_local)
+    double Energy_minimum_old_XY(long int xyzi, double* restrict spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
@@ -4838,7 +4843,7 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
-    double Energy_minimum_new_XY(long int xyzi, double *spin_local)
+    double Energy_minimum_new_XY(long int xyzi, double* restrict spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min = 0.0;
@@ -4877,7 +4882,7 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
-    double update_to_minimum_checkerboard(long int xyzi, double *spin_local)
+    double update_to_minimum_checkerboard(long int xyzi, double* restrict spin_local)
     {
         int j_S;
         
@@ -5808,6 +5813,7 @@ double CUTOFF = 0.0000000001;
 
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start)
     {
+        omp_set_num_threads(24);
         T = 0;
 
         printf("\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
@@ -7054,7 +7060,7 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%lf\t \n", h_order, r_order, thermal_i, average_j, delta_T);
         }
-        omp_set_num_threads(16);
+        
         cooling_protocol();
         fclose(pFile_1);
         return 0;
@@ -7155,7 +7161,7 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
-        omp_set_num_threads(24);
+        
         zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
         fclose(pFile_1);
         
@@ -7635,7 +7641,7 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
-        omp_set_num_threads(24);
+        
         zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
         fclose(pFile_1);
         
@@ -7677,6 +7683,52 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
+    int for_omp_parallelization()
+    {
+        long int i, j;
+        num_of_threads = omp_get_max_threads();
+        num_of_procs = omp_get_num_procs();
+        random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
+        random_seed[0] = rand();
+        printf("No. of THREADS = %d\n", num_of_threads);
+        printf("No. of PROCESSORS = %d\n", num_of_procs);
+        for (i=1; i < num_of_threads; i++)
+        {
+            random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
+        }
+        double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
+        double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
+        
+        // for (i=num_of_threads; i>=1; i++)
+        // {
+        //     start_time_loop[i-1] = omp_get_wtime();
+        //     omp_set_num_threads(i);
+        //     printf("\n\nNo. of THREADS = %ld \n\n", i);
+        //     // field_cool_and_rotate_checkerboard(0, 1);
+        //     r_order = 1;
+        //     initialize_spin_config();
+        //     for (j=0; j<100000; j++)
+        //     {
+        //         spin[rand()%(dim_S*no_of_sites)] = (double)rand()/(double)RAND_MAX;
+        //         ensemble_m();
+        //         // ensemble_E();
+        //     }
+            
+        //     // random_initialize_and_rotate_checkerboard(0, 1);
+        //     end_time_loop[i-1] = omp_get_wtime();
+        // }
+        
+        // for (i=1; i<=num_of_threads; i++)
+        // {
+        //     printf("No. of THREADS = %ld ,\t Time elapsed = %g\n", i, end_time_loop[i-1]-start_time_loop[i-1]);
+        // }
+
+        free(start_time_loop);
+        free(end_time_loop);
+
+        return 0;
+    }
+
     int main()
     {
         
@@ -7714,43 +7766,9 @@ double CUTOFF = 0.0000000001;
 
         printf("RAND_MAX = %lf,\n sizeof(int) = %ld,\n sizeof(long) = %ld,\n sizeof(double) = %ld,\n sizeof(long int) = %ld,\n sizeof(short int) = %ld,\n sizeof(unsigned int) = %ld,\n sizeof(RAND_MAX) = %ld\n", (double)RAND_MAX, sizeof(int), sizeof(long), sizeof(double), sizeof(long int), sizeof(short int), sizeof(unsigned int), sizeof(RAND_MAX));
         
-        num_of_threads = omp_get_max_threads();
-        num_of_procs = omp_get_num_procs();
-        random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
-        random_seed[0] = rand();
-        printf("No. of THREADS = %d\n", num_of_threads);
-        printf("No. of PROCESSORS = %d\n", num_of_procs);
-        for (i=1; i < num_of_threads; i++)
-        {
-            random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
-        }
-        double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
-        double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
-        
-        // for (i=num_of_threads; i>=1; i++)
-        // {
-        //     start_time_loop[i-1] = omp_get_wtime();
-        //     omp_set_num_threads(i);
-        //     printf("\n\nNo. of THREADS = %ld \n\n", i);
-        //     // field_cool_and_rotate_checkerboard(0, 1);
-        //     r_order = 1;
-        //     initialize_spin_config();
-        //     for (j=0; j<100000; j++)
-        //     {
-        //         spin[rand()%(dim_S*no_of_sites)] = (double)rand()/(double)RAND_MAX;
-        //         ensemble_m();
-        //         // ensemble_E();
-        //     }
-            
-        //     // random_initialize_and_rotate_checkerboard(0, 1);
-        //     end_time_loop[i-1] = omp_get_wtime();
-        // }
-        
-        // for (i=1; i<=num_of_threads; i++)
-        // {
-        //     printf("No. of THREADS = %ld ,\t Time elapsed = %g\n", i, end_time_loop[i-1]-start_time_loop[i-1]);
-        // }
-        
+        for_omp_parallelization();
+        double start_time_loop[2];
+        double end_time_loop[2];
         // random_initialize_and_rotate_checkerboard(0, 1);
         start_time_loop[0] = omp_get_wtime();
         field_cool_and_rotate_checkerboard(0, 1);
@@ -7834,8 +7852,8 @@ double CUTOFF = 0.0000000001;
 
         free_memory();
         double end_time = omp_get_wtime();
-        printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", end_time_loop[0] - start_time_loop[0], Temp_max, Temp_min );
-        printf("\nEvolution time (at T=%lf) = %lf \n", end_time_loop[1] - start_time_loop[1], T );
+        printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
+        printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
         
         printf("\nCPU Time elapsed total = %lf \n", end_time-start_time);
         return 0;
