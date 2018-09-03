@@ -7729,7 +7729,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int for_omp_parallelization()
+    int for_acc_parallelization()
     {
         // Get MAX THREADS/loop gang/worker or whatever required to set random seeds
         // copyin data to GPU
