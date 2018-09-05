@@ -15,6 +15,9 @@ char output_file_0[256];
 const double pie = 3.141592625359;
 double k_B = 1;
 
+double some_rand_func_0_1;
+long int some_rand_func_int;
+
 unsigned int *random_seed;
 int num_of_threads;
 int num_of_procs;
@@ -150,6 +153,20 @@ double CUTOFF = 0.0000000001;
     int hysteresis_repeat = 1;
     long int hysteresis_MCS_multiplier = 10;
 
+//====================      declare acc variables            ====================//
+    #pragma acc declare create          ( \
+                                        spin, \
+                                        h_random, \
+                                        J_random, \
+                                        N_N_I, \
+                                        black_white_checkerboard, \
+                                        order, \
+                                        h, \
+                                        J, \
+                                        some_rand_func_0_1, \
+                                        some_rand_func_int, \
+                                        T \
+                                        )
 
 //===============================================================================//
 
@@ -224,7 +241,7 @@ double CUTOFF = 0.0000000001;
         {
             U1 = -1 + ((double) rand () / RAND_MAX) * 2;
             U2 = -1 + ((double) rand () / RAND_MAX) * 2;
-            W = custom_double_pow (U1, 2) + custom_double_pow (U2, 2);
+            W = (U1 * U1) + (U2 * U2);
         }
         while (W >= 1 || W == 0);
         
@@ -242,6 +259,7 @@ double CUTOFF = 0.0000000001;
     int initialize_h_zero()
     {
         long int i;
+        
         for(i=0; i<dim_S*no_of_sites; i=i+1)
         {
             h_random[i] = 0;
@@ -299,7 +317,7 @@ double CUTOFF = 0.0000000001;
     int initialize_J_zero()
     {
         long int i;
-        for(i=0; i<dim_L*no_of_sites; i=i+1)
+        for(i=0; i<2*dim_L*no_of_sites; i=i+1)
         {
             J_random[i] = 0;
             // h_total[i] = h; 
@@ -363,7 +381,6 @@ double CUTOFF = 0.0000000001;
         }
         N_N_I = (long int*)malloc(2*dim_L*no_of_sites*sizeof(long int));    
         
-        #pragma omp parallel for private(j_L,k_L)
         for(i=0; i<no_of_sites; i=i+1)
         {
             for(j_L=0; j_L<dim_L; j_L=j_L+1)
@@ -424,7 +441,7 @@ double CUTOFF = 0.0000000001;
         // long int black_index = 0;
         // long int white_index = 0;
         long int black_white_index[2] = { 0, 0 };
-
+        
         for (i=0; i<no_of_sites; i++)
         {
             direction_index(i);
@@ -466,10 +483,10 @@ double CUTOFF = 0.0000000001;
         long int i;
         int j_S;
 
-        for(j_S=0; j_S<dim_S; j_S=j_S+1)
+        #pragma acc parallel loop, present ( spin[0:dim_S*no_of_sites], order[0:dim_S] ) // private(j_S)
+        for(i=0; i<no_of_sites; i=i+1)
         {
-            #pragma omp parallel for
-            for(i=0; i<no_of_sites; i=i+1)
+            for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
                 spin[dim_S*i+j_S] = order[j_S];
             }
@@ -486,13 +503,13 @@ double CUTOFF = 0.0000000001;
         int j_S;
 
         initialize_ordered_spin_config();
-        #pragma omp parallel for private(j_S)
+        #pragma acc parallel loop, present( spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites] )// private(j_S)
         for(i=0; i<no_of_sites; i=i+1)
         {
             double h_mod = 0.0;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
-                h_mod = h_mod + custom_double_pow(h_random[dim_S*i+j_S], 2);
+                h_mod = h_mod + h_random[dim_S*i+j_S] * h_random[dim_S*i+j_S];
             }
             if (h_mod != 0)
             {
@@ -507,7 +524,7 @@ double CUTOFF = 0.0000000001;
                 double h_dev_mod = 0.0;
                 for(j_S=0; j_S<dim_S; j_S=j_S+1)
                 {
-                    h_dev_mod = h_dev_mod + custom_double_pow(h_dev_avg[j_S], 2);
+                    h_dev_mod = h_dev_mod + h_dev_avg[j_S] * h_dev_avg[j_S];
                 }
                 if(h_dev_mod != 0)
                 {
@@ -530,7 +547,7 @@ double CUTOFF = 0.0000000001;
         long int i;
         int j_S;
         double limit = 0.01 * dim_S;
-        #pragma omp parallel for private(j_S)
+        #pragma acc parallel loop, present( spin[0:dim_S*no_of_sites], some_rand_func_0_1 ) // private(j_S)
         for(i=0; i<no_of_sites; i=i+1)
         {
             double s_mod = 0.0;
@@ -539,8 +556,9 @@ double CUTOFF = 0.0000000001;
                 s_mod = 0.0;
                 for(j_S=0; j_S<dim_S; j_S=j_S+1)
                 {
-                    spin[dim_S*i+j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                    s_mod = s_mod + custom_double_pow(spin[dim_S*i+j_S], 2);
+                    // spin[dim_S*i+j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                    spin[dim_S*i+j_S] = (-1.0 + 2.0 * some_rand_func_0_1);
+                    s_mod = s_mod + spin[dim_S*i+j_S] * spin[dim_S*i+j_S];
                 }
             }
             while(s_mod >= 1 || s_mod <=limit);
@@ -588,7 +606,7 @@ double CUTOFF = 0.0000000001;
         {
             abs_m[j_S] = 0;
         }
-        #pragma omp parallel for private(j_S) reduction(+:abs_m[:dim_S])
+        #pragma acc parallel loop, present ( spin[0:dim_S*no_of_sites] ), copy(abs_m[0:dim_S]) // reduction(+:abs_m[:dim_S]) // private(j_S)
         for(i=0; i<no_of_sites; i=i+1)
         {
             for (j_S=0; j_S<dim_S; j_S=j_S+1)
@@ -637,7 +655,7 @@ double CUTOFF = 0.0000000001;
             m[j_S] = 0;
         }
         
-        #pragma omp parallel for private(i,j_S) reduction(+:m[:dim_S])
+        #pragma acc parallel loop, present ( spin[0:dim_S*no_of_sites] ), copy(m[0:dim_S]) // reduction(+:m[:dim_S]) // private(i,j_S) 
         for (j_S=0; j_S<dim_S; j_S++)
         {
             for(i=0; i<no_of_sites; i++)
@@ -701,7 +719,7 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
         m_abs_sum += sqrt(m_2_persite);
@@ -731,7 +749,7 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
         m_2_sum += m_2_persite;
@@ -761,10 +779,10 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
-        m_4_sum += custom_double_pow(m_2_persite, 2);
+        m_4_sum += m_2_persite * m_2_persite;
 
         return 0;
     }
@@ -856,12 +874,12 @@ double CUTOFF = 0.0000000001;
             {
                 m_ab_sum[j_S*dim_S + j_SS] += m[j_S] * m[j_SS];            
             }
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
         m_abs_sum += sqrt(m_2_persite);
         m_2_sum += m_2_persite;
-        m_4_sum += custom_double_pow(m_2_persite, 2);
+        m_4_sum += m_2_persite * m_2_persite;
 
         return 0;
     }
@@ -899,7 +917,7 @@ double CUTOFF = 0.0000000001;
         int j_L, j_S;
         E = 0;
         
-        #pragma omp parallel for private(j_L, j_S) reduction(+:E)
+        #pragma acc parallel loop reduction(+:E), present ( spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites] ), copy(E)  // private(j_L, j_S) 
         for(i=0; i<no_of_sites; i++)
         {
             for (j_S=0; j_S<dim_S; j_S++)
@@ -951,7 +969,7 @@ double CUTOFF = 0.0000000001;
 
     int sum_of_moment_E_2()
     {
-        E_2_sum += custom_double_pow(E, 2);
+        E_2_sum += E * E;
         
         return 0;
     }
@@ -1008,7 +1026,7 @@ double CUTOFF = 0.0000000001;
             Y_1[j_L_j_S_j_SS] = 0;
             Y_2[j_L_j_S_j_SS] = 0;
         }
-        #pragma omp parallel for private(j_L, j_S, j_SS) reduction(+:Y_1[:dim_S*dim_S*dim_L], Y_2[:dim_S*dim_S*dim_L])
+        #pragma acc parallel loop, present ( spin[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites] ), copy(Y_1[0:dim_S*dim_S*dim_L], Y_2[0:dim_S*dim_S*dim_L]) // reduction(+:Y_1[:dim_S*dim_S*dim_L], Y_2[:dim_S*dim_S*dim_L]) // private(j_L, j_S, j_SS) 
         for(i=0; i<no_of_sites; i++)
         {
             for (j_S=0; j_S<dim_S; j_S++)
@@ -1028,7 +1046,7 @@ double CUTOFF = 0.0000000001;
         for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
         {
             Y_1[j_L_j_S_j_SS] = Y_1[j_L_j_S_j_SS] / no_of_sites;
-            Y_2[j_L_j_S_j_SS] = custom_double_pow(Y_2[j_L_j_S_j_SS], 2) / no_of_sites;
+            Y_2[j_L_j_S_j_SS] = ( Y_2[j_L_j_S_j_SS] * Y_2[j_L_j_S_j_SS] ) / no_of_sites;
         }
         // for (j_S=0; j_S<dim_S; j_S++)
         // {
@@ -1134,7 +1152,7 @@ double CUTOFF = 0.0000000001;
         average_of_moment_E(MCS_counter);
         average_of_moment_E_2(MCS_counter);
         
-        Cv = (E_2_avg - custom_double_pow(E_avg, 2)) / custom_double_pow(T, 2);
+        Cv = (E_2_avg - E_avg * E_avg) / (T * T);
         
         return 0;
     }
@@ -1169,7 +1187,7 @@ double CUTOFF = 0.0000000001;
         average_of_moment_m_2(MCS_counter);
         average_of_moment_m_4(MCS_counter);
         
-        B = (1.0 / 2.0) * (3.0 - (m_4_avg / custom_double_pow(m_2_avg, 2)));
+        B = (1.0 / 2.0) * (3.0 - (m_4_avg / (m_2_avg * m_2_avg)));
         
         
         return 0;
@@ -1205,7 +1223,7 @@ double CUTOFF = 0.0000000001;
         average_of_moment_m_abs(MCS_counter);
         average_of_moment_m_2(MCS_counter);
         
-        X = (m_2_avg - custom_double_pow(m_abs_avg, 2)) / T;
+        X = (m_2_avg - (m_abs_avg * m_abs_avg)) / T;
         
         return 0;
     }
@@ -1357,11 +1375,11 @@ double CUTOFF = 0.0000000001;
             }
         }
         
-        Cv = (E_2_avg - custom_double_pow(E_avg, 2)) / custom_double_pow(T, 2);
+        Cv = (E_2_avg - E_avg * E_avg) / (T * T);
 
-        X = (m_2_avg - custom_double_pow(m_abs_avg, 2)) / T;
+        X = (m_2_avg - m_abs_avg * m_abs_avg) / T;
 
-        B = (1.0 / 2.0) * (3.0 - (m_4_avg / custom_double_pow(m_2_avg, 2)));
+        B = (1.0 / 2.0) * ( 3.0 - ( m_4_avg / (m_2_avg * m_2_avg) ) );
         
         
         return 0;
@@ -1369,10 +1387,25 @@ double CUTOFF = 0.0000000001;
 
 //====================      MonteCarlo-tools                 ====================//
 
-    int update_spin_sum(long int xyzi, double* restrict spin_local)
+
+    int update_spin_all(double* restrict spin_local)
     {
         int j_S;
+        long int xyzi;
+        for (xyzi=0; xyzi<no_of_sites; xyzi++)
+        {
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                spin[dim_S*xyzi + j_S] = spin_local[dim_S*xyzi + j_S];
+            }
+        }
+        return 0;
+    }
 
+    #pragma acc routine seq
+    int update_spin_single(long int xyzi, double* restrict spin_local)
+    {
+        int j_S;
         for (j_S=0; j_S<dim_S; j_S++)
         {
             spin[dim_S*xyzi + j_S] = spin_local[j_S];
@@ -1381,11 +1414,11 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
+    #pragma acc routine seq
     double Energy_minimum(long int xyzi, double* restrict spin_local, double* restrict field_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
-        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             field_local[j_S] = 0.0;
@@ -1399,6 +1432,7 @@ double CUTOFF = 0.0000000001;
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
             Energy_min = Energy_min + field_local[j_S] * field_local[j_S];
         }
+        
         if(Energy_min==0)
         {
             for (j_S=0; j_S<dim_S; j_S++)
@@ -1418,11 +1452,11 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
+    #pragma acc routine seq
     double Energy_old(long int xyzi, double* restrict spin_local, double* restrict field_local)
     {
         int j_S, j_L, k_L;
         double Energy_ol=0.0;
-        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             field_local[j_S] = 0.0;
@@ -1444,6 +1478,7 @@ double CUTOFF = 0.0000000001;
         return Energy_ol;
     }
 
+    #pragma acc routine seq
     double Energy_new(long int xyzi, double* restrict spin_local, double* restrict field_local)
     {
         int j_S;
@@ -1455,7 +1490,8 @@ double CUTOFF = 0.0000000001;
             s_mod=0.0;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
-                spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                // spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                spin_local[j_S] = (1.0 - 2.0 * some_rand_func_0_1);
                 // spin_local[j_S] = (-1.0 + 2.0 * 0.75);
                 s_mod = s_mod + spin_local[j_S] * spin_local[j_S];
             }
@@ -1482,6 +1518,7 @@ double CUTOFF = 0.0000000001;
 
 //====================      Metropolis                       ====================//
 
+    #pragma acc routine seq
     double update_probability_Metropolis(long int xyzi)
     {
         double update_prob;
@@ -1505,10 +1542,12 @@ double CUTOFF = 0.0000000001;
                 update_prob = exp(-(E_new-E_old)/T);
             }
         }
-        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+        // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+        double r;
+        r = some_rand_func_0_1;
         if(r < update_prob)
         {
-            update_spin_sum(xyzi, spin_local);
+            update_spin_single(xyzi, spin_local);
             return 1.0;
         }
         
@@ -1528,11 +1567,11 @@ double CUTOFF = 0.0000000001;
                 // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
                 // if(r < update_prob)
                 // {
-                //     update_spin_sum(site_i, 1);
+                //     update_spin_single(site_i, 1);
                 // }
                 // else
                 // {
-                //     update_spin_sum(site_i, 0);
+                //     update_spin_single(site_i, 0);
                 // }
             }
             iter--;
@@ -1548,7 +1587,7 @@ double CUTOFF = 0.0000000001;
 
         do
         {
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+            xyzi = some_rand_func_int%no_of_sites;
 
             double update_prob = update_probability_Metropolis(xyzi);
 
@@ -1556,18 +1595,18 @@ double CUTOFF = 0.0000000001;
             // if(r < update_prob)
             // {
             //     // spin[i] = -spin[i];
-            //     update_spin_sum(xyzi, 1);
+            //     update_spin_single(xyzi, 1);
             // }
             // else
             // {
-            //     update_spin_sum(xyzi, 0);
+            //     update_spin_single(xyzi, 0);
             // }
             iter--;
         }
         while (iter > 0);
         return 0;
     }
-
+    
     int checkerboard_Metropolis_sweep(long int iter)
     {
         // THIS PART IS PARALLELIZABLE. *modifications may be needed
@@ -1575,7 +1614,8 @@ double CUTOFF = 0.0000000001;
         long int i;
         while(iter > 0)
         {
-            #pragma omp parallel for 
+            #pragma acc parallel loop, present ( black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                update device( T, h[0:dim_S], J[0:dim_L] )
             for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
             {
                 long int site_index = black_white_checkerboard[black_or_white][i];
@@ -1594,6 +1634,7 @@ double CUTOFF = 0.0000000001;
 
 //====================      Glauber                          ====================//
 
+    #pragma acc routine seq
     double update_probability_Glauber(long int xyzi)
     {
         double update_prob;
@@ -1620,10 +1661,13 @@ double CUTOFF = 0.0000000001;
         {
             update_prob = 1/(1+exp((E_new-E_old)/T));
         }
-        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+        // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+        
+        double r;
+        r = some_rand_func_0_1;
         if(r < update_prob)
         {
-            update_spin_sum(xyzi, spin_local);
+            update_spin_single(xyzi, spin_local);
             return 1.0;
         }
         return 0.0;
@@ -1642,11 +1686,11 @@ double CUTOFF = 0.0000000001;
                 // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
                 // if(r < update_prob)
                 // {
-                //     update_spin_sum(site_i, 1);
+                //     update_spin_single(site_i, 1);
                 // }
                 // else
                 // {
-                //     update_spin_sum(site_i, 0);
+                //     update_spin_single(site_i, 0);
                 // }
             }
             iter--;
@@ -1662,7 +1706,7 @@ double CUTOFF = 0.0000000001;
 
         do
         {
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+            xyzi = some_rand_func_int%no_of_sites;
 
             double update_prob = update_probability_Glauber(xyzi);
 
@@ -1670,11 +1714,11 @@ double CUTOFF = 0.0000000001;
             // if(r < update_prob)
             // {
             //     // spin[i] = -spin[i];
-            //     update_spin_sum(xyzi, 1);
+            //     update_spin_single(xyzi, 1);
             // }
             // else
             // {
-            //     update_spin_sum(xyzi, 0);
+            //     update_spin_single(xyzi, 0);
             // }
             iter--;
         }
@@ -1687,9 +1731,11 @@ double CUTOFF = 0.0000000001;
         // THIS PART IS PARALLELIZABLE. *modifications may be needed
         static int black_or_white = 0;
         long int i;
+        
         while(iter > 0)
         {
-            #pragma omp parallel for 
+            #pragma acc parallel loop, present ( black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                update device( T, h[0:dim_S], J[0:dim_L])
             for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
             {
                 long int site_index = black_white_checkerboard[black_or_white][i];
@@ -1717,8 +1763,9 @@ double CUTOFF = 0.0000000001;
             s_mod = 0.0;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
-                reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                s_mod = s_mod + custom_double_pow(reflection_plane[j_S], 2);
+                // reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                reflection_plane[j_S] = (-1.0 + 2.0 * some_rand_func_0_1);
+                s_mod = s_mod + reflection_plane[j_S] * reflection_plane[j_S];
             }
         }
         while(s_mod >= 1 || s_mod <= limit);
@@ -1833,7 +1880,8 @@ double CUTOFF = 0.0000000001;
                                 p_bond = 1;
                             }
                         }
-                        double r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                        // double r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                        double r_bond = some_rand_func_0_1;
                         /* if (r_bond < p_bond)
                         {
                             nucleate_from_site(xyzi_nn);
@@ -1857,10 +1905,11 @@ double CUTOFF = 0.0000000001;
                                         p_site = 0;
                                     }
                                 }
-                                double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                                // double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                                double r_site = some_rand_func_0_1;
                                 if (r_site < p_site*p_bond)
                                 {
-                                    update_spin_sum(xyzi, spin_new);
+                                    update_spin_single(xyzi, spin_new);
                                     nucleate_from_site(xyzi_nn);
                                 }
                             // }
@@ -1901,22 +1950,23 @@ double CUTOFF = 0.0000000001;
             // do
             // {
                 generate_random_axis();
-                xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()]) % no_of_sites;
+                xyzi = some_rand_func_int % no_of_sites;
                 double delta_E_site = -E_site_old(xyzi);
                 double spin_new[dim_S];
                 transform_spin(xyzi, spin_new);
                 delta_E_site += E_site_new(xyzi, spin_new);
                 if (delta_E_site <= 0)
                 {
-                    update_spin_sum(xyzi, spin_new);
+                    update_spin_single(xyzi, spin_new);
                     nucleate_from_site(xyzi);
                 }
                 else
                 {
-                    double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                    // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                    double r = some_rand_func_0_1;
                     if (r<exp(-delta_E_site/T))
                     {
-                        update_spin_sum(xyzi, spin_new);
+                        update_spin_single(xyzi, spin_new);
                         nucleate_from_site(xyzi);
                     }
                 }
@@ -4780,36 +4830,12 @@ double CUTOFF = 0.0000000001;
 
 //====================      RFXY ZTNE                        ====================//
 
-    int update_spin_XY(long int xyzi, int new_or_min)
-    {
-        int j_S;
-        if(new_or_min==1)
-        {
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                spin[dim_S*xyzi + j_S] = spin_new[dim_S*xyzi + j_S];
-            }
-        }
-        else
-        {
-            if (new_or_min == -1)
-            {
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    spin[dim_S*xyzi + j_S] = spin_old[dim_S*xyzi + j_S];
-                }
-            }
-        }
-
-        return 0;
-    }
-
+    #pragma acc routine seq
     double Energy_minimum_old_XY(long int xyzi, double* restrict spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
         double field_local[dim_S];
-        
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -4839,16 +4865,16 @@ double CUTOFF = 0.0000000001;
                 spin_local[j_S] = field_local[j_S] / Energy_min;
             }
         }
-
+        
         return Energy_min;
     }
 
+    #pragma acc routine seq
     double Energy_minimum_new_XY(long int xyzi, double* restrict spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min = 0.0;
         double field_local[dim_S];
-        
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -4878,10 +4904,11 @@ double CUTOFF = 0.0000000001;
                 spin_local[j_S] = field_local[j_S] / Energy_min;
             }
         }
-
+        
         return Energy_min;
     }
 
+    #pragma acc routine seq
     double update_to_minimum_checkerboard(long int xyzi, double* restrict spin_local)
     {
         int j_S;
@@ -4889,12 +4916,11 @@ double CUTOFF = 0.0000000001;
         Energy_minimum_old_XY(xyzi, spin_local);
 
         double spin_diff_abs = 0.0;
-
         for (j_S=0; j_S<dim_S; j_S++)
         {
             spin_diff_abs += fabs(spin[dim_S*xyzi + j_S] - spin_local[j_S]);
         }
-        update_spin_sum(xyzi, spin_local);
+        update_spin_single(xyzi, spin_local);
         return spin_diff_abs;
     }
 
@@ -5144,14 +5170,16 @@ double CUTOFF = 0.0000000001;
                 double cutoff_local_last = cutoff_local;
                 cutoff_local = 0.0;
 
-                #pragma omp parallel 
+                #pragma acc parallel, present ( spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                    update device(T, h[0:dim_S], J[0:dim_L]), \
+                    create( spin_temp[0:dim_S*no_of_sites])
                 {
-                    #pragma omp for
+                    #pragma acc loop private(site_i)
                     for (site_i=0; site_i<no_of_sites; site_i++)
                     {
                         Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
                     }
-                    #pragma omp for reduction(+:cutoff_local)
+                    #pragma acc loop private(site_i) reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
                     {
                         cutoff_local += fabs(spin[site_i] - spin_temp[site_i]);
@@ -5237,14 +5265,16 @@ double CUTOFF = 0.0000000001;
                 double cutoff_local_last = cutoff_local;
                 cutoff_local = 0.0;
 
-                #pragma omp parallel 
+                #pragma acc parallel, present ( spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                    update device(T, h[0:dim_S], J[0:dim_L]), \
+                    create( spin_temp[0:dim_S*no_of_sites])
                 {
-                    #pragma omp for
+                    #pragma acc loop private (site_i)
                     for (site_i=0; site_i<no_of_sites; site_i++)
                     {
                         Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
                     }
-                    #pragma omp for reduction(+:cutoff_local)
+                    #pragma acc loop private (site_i) reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
                     {
                         cutoff_local += fabs(spin[site_i] - spin_temp[site_i]);
@@ -5529,9 +5559,10 @@ double CUTOFF = 0.0000000001;
                 
                 cutoff_local = 0.0;
 
-                #pragma omp parallel 
+                #pragma acc parallel, present ( black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                    update device(T, h[0:dim_S], J[0:dim_L])
                 {
-                    #pragma omp for reduction(+:cutoff_local)
+                    #pragma acc loop reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
                     {
                         long int site_index = black_white_checkerboard[black_or_white][site_i];
@@ -5540,7 +5571,7 @@ double CUTOFF = 0.0000000001;
                         cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
                     }
 
-                    #pragma omp for reduction(+:cutoff_local)
+                    #pragma acc loop reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
                     {
                         long int site_index = black_white_checkerboard[!black_or_white][site_i];
@@ -5625,9 +5656,10 @@ double CUTOFF = 0.0000000001;
                 
                 cutoff_local = 0.0;
 
-                #pragma omp parallel 
+                #pragma acc parallel, present ( black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                    update device(T, h[0:dim_S], J[0:dim_L])
                 {
-                    #pragma omp for reduction(+:cutoff_local)
+                    #pragma acc loop reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
                     {
                         long int site_index = black_white_checkerboard[black_or_white][site_i];
@@ -5636,7 +5668,7 @@ double CUTOFF = 0.0000000001;
                         cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
                     }
 
-                    #pragma omp for reduction(+:cutoff_local)
+                    #pragma acc loop reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
                     {
                         long int site_index = black_white_checkerboard[!black_or_white][site_i];
@@ -5735,14 +5767,16 @@ double CUTOFF = 0.0000000001;
                     double cutoff_local_last = cutoff_local;
                     cutoff_local = 0.0;
 
-                    #pragma omp parallel 
+                    #pragma acc parallel, present ( spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                        update device(T, h[0:dim_S], J[0:dim_L]), \
+                        create (spin_temp[0:dim_S*no_of_sites])
                     {
-                        #pragma omp for
+                        #pragma acc loop
                         for (site_i=0; site_i<no_of_sites; site_i++)
                         {
                             Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
                         }
-                        #pragma omp for reduction(+:cutoff_local)
+                        #pragma acc loop reduction(+:cutoff_local)
                         for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
                         {
                             cutoff_local += fabs(spin[site_i] - spin_temp[site_i]);
@@ -5898,9 +5932,10 @@ double CUTOFF = 0.0000000001;
                     // }
                     
 
-                    #pragma omp parallel 
+                    #pragma acc parallel, present ( black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], spin[0:dim_S*no_of_sites], h_random[0:dim_S*no_of_sites], J_random[0:2*dim_L*no_of_sites], N_N_I[0:2*dim_L*no_of_sites], some_rand_func_0_1, some_rand_func_int ), \
+                        update device(T, h[0:dim_S], J[0:dim_L])
                     {
-                        #pragma omp for reduction(+:cutoff_local)
+                        #pragma acc loop reduction(+:cutoff_local)
                         for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
                         {
                             long int site_index = black_white_checkerboard[black_or_white][site_i];
@@ -5909,7 +5944,7 @@ double CUTOFF = 0.0000000001;
                             cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
                         }
 
-                        #pragma omp for reduction(+:cutoff_local)
+                        #pragma acc loop reduction(+:cutoff_local)
                         for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
                         {
                             long int site_index = black_white_checkerboard[!black_or_white][site_i];
@@ -7655,6 +7690,20 @@ double CUTOFF = 0.0000000001;
 
     int free_memory()
     {
+        #pragma acc exit data copyout   ( \
+                                        spin[0:dim_S*no_of_sites], \
+                                        h_random[0:dim_S*no_of_sites], \
+                                        J_random[0:2*dim_L*no_of_sites], \
+                                        N_N_I[0:2*dim_L*no_of_sites], \
+                                        black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], \
+                                        order[0:dim_S], \
+                                        h[0:dim_S], \
+                                        J[0:dim_L], \
+                                        some_rand_func_0_1, \
+                                        some_rand_func_int, \
+                                        T \
+                                        )
+        
 
         free(N_N_I);
         
@@ -7732,7 +7781,24 @@ double CUTOFF = 0.0000000001;
     int for_acc_parallelization()
     {
         // Get MAX THREADS/loop gang/worker or whatever required to set random seeds
+        some_rand_func_0_1 = (double) rand() / (double) RAND_MAX;
+        some_rand_func_int = rand();
         // copyin data to GPU
+
+        #pragma acc enter data copyin   ( \
+                                        spin[0:dim_S*no_of_sites], \
+                                        h_random[0:dim_S*no_of_sites], \
+                                        J_random[0:2*dim_L*no_of_sites], \
+                                        N_N_I[0:2*dim_L*no_of_sites], \
+                                        black_white_checkerboard[0:2][0:no_of_black_white_sites[0]], \
+                                        order[0:dim_S], \
+                                        h[0:dim_S], \
+                                        J[0:dim_L], \
+                                        some_rand_func_0_1, \
+                                        some_rand_func_int, \
+                                        T \
+                                        )
+        
 
         return 0;
     }
@@ -7780,6 +7846,7 @@ double CUTOFF = 0.0000000001;
         double end_time_loop[2];
         // random_initialize_and_rotate_checkerboard(0, 1);
         start_time_loop[0] = omp_get_wtime();
+        
         field_cool_and_rotate_checkerboard(0, 1);
         end_time_loop[0] = omp_get_wtime();
         start_time_loop[1] = omp_get_wtime();
@@ -7859,6 +7926,7 @@ double CUTOFF = 0.0000000001;
             }
         } */
 
+        
         free_memory();
         double end_time = omp_get_wtime();
         printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
