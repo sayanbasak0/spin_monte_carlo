@@ -95,7 +95,7 @@ double CUTOFF = 0.0000000001;
     double T = 3.0;
     double Temp_min = 0.6;
     double Temp_max = 2.0;
-    double delta_T = 0.01;
+    double delta_T = 0.1;
 
 //====================      Magnetisation <M>                ====================//
     double m[dim_S];
@@ -224,7 +224,7 @@ double CUTOFF = 0.0000000001;
         {
             U1 = -1 + ((double) rand () / RAND_MAX) * 2;
             U2 = -1 + ((double) rand () / RAND_MAX) * 2;
-            W = custom_double_pow (U1, 2) + custom_double_pow (U2, 2);
+            W = U1*U1 + U2*U2;
         }
         while (W >= 1 || W == 0);
         
@@ -242,6 +242,7 @@ double CUTOFF = 0.0000000001;
     int initialize_h_zero()
     {
         long int i;
+
         for(i=0; i<dim_S*no_of_sites; i=i+1)
         {
             h_random[i] = 0;
@@ -343,9 +344,7 @@ double CUTOFF = 0.0000000001;
             J_dev_net[j_L] = 0;
             for(i=0; i<no_of_sites; i=i+1)
             {
-                
                 J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
-                
             }
         }
         
@@ -389,7 +388,6 @@ double CUTOFF = 0.0000000001;
         int black_white[2] = { 0, 1 };
         
         no_of_sites = 1;
-
 
         for (j_L=0; j_L<dim_L; j_L++)
         {
@@ -456,7 +454,6 @@ double CUTOFF = 0.0000000001;
                 black_white_index[1]++;
                 // white_index++;
             }
-            
         }
         return 0;
     }
@@ -466,10 +463,10 @@ double CUTOFF = 0.0000000001;
         long int i;
         int j_S;
 
-        for(j_S=0; j_S<dim_S; j_S=j_S+1)
+        #pragma omp parallel for private(j_S)
+        for(i=0; i<no_of_sites; i=i+1)
         {
-            #pragma omp parallel for
-            for(i=0; i<no_of_sites; i=i+1)
+            for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
                 spin[dim_S*i+j_S] = order[j_S];
             }
@@ -492,7 +489,7 @@ double CUTOFF = 0.0000000001;
             double h_mod = 0.0;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
-                h_mod = h_mod + custom_double_pow(h_random[dim_S*i+j_S], 2);
+                h_mod = h_mod + h_random[dim_S*i+j_S]*h_random[dim_S*i+j_S];
             }
             if (h_mod != 0)
             {
@@ -507,7 +504,7 @@ double CUTOFF = 0.0000000001;
                 double h_dev_mod = 0.0;
                 for(j_S=0; j_S<dim_S; j_S=j_S+1)
                 {
-                    h_dev_mod = h_dev_mod + custom_double_pow(h_dev_avg[j_S], 2);
+                    h_dev_mod = h_dev_mod + h_dev_avg[j_S]*h_dev_avg[j_S];
                 }
                 if(h_dev_mod != 0)
                 {
@@ -540,7 +537,7 @@ double CUTOFF = 0.0000000001;
                 for(j_S=0; j_S<dim_S; j_S=j_S+1)
                 {
                     spin[dim_S*i+j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                    s_mod = s_mod + custom_double_pow(spin[dim_S*i+j_S], 2);
+                    s_mod = s_mod + spin[dim_S*i+j_S]*spin[dim_S*i+j_S];
                 }
             }
             while(s_mod >= 1 || s_mod <=limit);
@@ -638,9 +635,9 @@ double CUTOFF = 0.0000000001;
         }
         
         #pragma omp parallel for private(i,j_S) reduction(+:m[:dim_S])
-        for (j_S=0; j_S<dim_S; j_S++)
+        for(i=0; i<no_of_sites; i++)
         {
-            for(i=0; i<no_of_sites; i++)
+            for (j_S=0; j_S<dim_S; j_S++)
             {
                 m[j_S] += spin[dim_S*i + j_S];
             }
@@ -701,7 +698,7 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
         m_abs_sum += sqrt(m_2_persite);
@@ -731,7 +728,7 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
         m_2_sum += m_2_persite;
@@ -761,10 +758,10 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
-        m_4_sum += custom_double_pow(m_2_persite, 2);
+        m_4_sum += m_2_persite * m_2_persite;
 
         return 0;
     }
@@ -856,12 +853,12 @@ double CUTOFF = 0.0000000001;
             {
                 m_ab_sum[j_S*dim_S + j_SS] += m[j_S] * m[j_SS];            
             }
-            m_2_persite += custom_double_pow(m[j_S], 2);
+            m_2_persite += m[j_S] * m[j_S];
         }
 
         m_abs_sum += sqrt(m_2_persite);
         m_2_sum += m_2_persite;
-        m_4_sum += custom_double_pow(m_2_persite, 2);
+        m_4_sum += m_2_persite * m_2_persite;
 
         return 0;
     }
@@ -951,7 +948,7 @@ double CUTOFF = 0.0000000001;
 
     int sum_of_moment_E_2()
     {
-        E_2_sum += custom_double_pow(E, 2);
+        E_2_sum += E * E;
         
         return 0;
     }
@@ -1028,7 +1025,7 @@ double CUTOFF = 0.0000000001;
         for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
         {
             Y_1[j_L_j_S_j_SS] = Y_1[j_L_j_S_j_SS] / no_of_sites;
-            Y_2[j_L_j_S_j_SS] = custom_double_pow(Y_2[j_L_j_S_j_SS], 2) / no_of_sites;
+            Y_2[j_L_j_S_j_SS] = (Y_2[j_L_j_S_j_SS] * Y_2[j_L_j_S_j_SS]) / no_of_sites;
         }
         // for (j_S=0; j_S<dim_S; j_S++)
         // {
@@ -1134,7 +1131,7 @@ double CUTOFF = 0.0000000001;
         average_of_moment_E(MCS_counter);
         average_of_moment_E_2(MCS_counter);
         
-        Cv = (E_2_avg - custom_double_pow(E_avg, 2)) / custom_double_pow(T, 2);
+        Cv = (E_2_avg - (E_avg * E_avg)) / (T * T);
         
         return 0;
     }
@@ -1169,8 +1166,7 @@ double CUTOFF = 0.0000000001;
         average_of_moment_m_2(MCS_counter);
         average_of_moment_m_4(MCS_counter);
         
-        B = (1.0 / 2.0) * (3.0 - (m_4_avg / custom_double_pow(m_2_avg, 2)));
-        
+        B = (1.0 / 2.0) * ( 3.0 - ( m_4_avg / (m_2_avg * m_2_avg) ) );
         
         return 0;
     }
@@ -1205,7 +1201,7 @@ double CUTOFF = 0.0000000001;
         average_of_moment_m_abs(MCS_counter);
         average_of_moment_m_2(MCS_counter);
         
-        X = (m_2_avg - custom_double_pow(m_abs_avg, 2)) / T;
+        X = (m_2_avg - (m_abs_avg * m_abs_avg)) / T;
         
         return 0;
     }
@@ -1357,11 +1353,11 @@ double CUTOFF = 0.0000000001;
             }
         }
         
-        Cv = (E_2_avg - custom_double_pow(E_avg, 2)) / custom_double_pow(T, 2);
+        Cv = (E_2_avg - (E_avg * E_avg)) / (T * T);
 
-        X = (m_2_avg - custom_double_pow(m_abs_avg, 2)) / T;
+        X = (m_2_avg - (m_abs_avg * m_abs_avg)) / T;
 
-        B = (1.0 / 2.0) * (3.0 - (m_4_avg / custom_double_pow(m_2_avg, 2)));
+        B = (1.0 / 2.0) * ( 3.0 - ( m_4_avg / (m_2_avg * m_2_avg) ) );
         
         
         return 0;
@@ -1369,10 +1365,24 @@ double CUTOFF = 0.0000000001;
 
 //====================      MonteCarlo-tools                 ====================//
 
-    int update_spin_sum(long int xyzi, double* restrict spin_local)
+    int update_spin_all(double* restrict spin_local)
     {
         int j_S;
-
+        long int xyzi;
+        #pragma omp parallel for private(j_S)
+        for (xyzi=0; xyzi<no_of_sites; xyzi++)
+        {
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                spin[dim_S*xyzi + j_S] = spin_local[dim_S*xyzi + j_S];
+            }
+        }
+        return 0;
+    }
+    
+    int update_spin_single(long int xyzi, double* restrict spin_local)
+    {
+        int j_S;
         for (j_S=0; j_S<dim_S; j_S++)
         {
             spin[dim_S*xyzi + j_S] = spin_local[j_S];
@@ -1508,7 +1518,7 @@ double CUTOFF = 0.0000000001;
         double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
         if(r < update_prob)
         {
-            update_spin_sum(xyzi, spin_local);
+            update_spin_single(xyzi, spin_local);
             return 1.0;
         }
         
@@ -1528,11 +1538,11 @@ double CUTOFF = 0.0000000001;
                 // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
                 // if(r < update_prob)
                 // {
-                //     update_spin_sum(site_i, 1);
+                //     update_spin_single(site_i, 1);
                 // }
                 // else
                 // {
-                //     update_spin_sum(site_i, 0);
+                //     update_spin_single(site_i, 0);
                 // }
             }
             iter--;
@@ -1543,7 +1553,6 @@ double CUTOFF = 0.0000000001;
 
     int random_Metropolis_sweep(long int iter)
     {
-
         long int xyzi;
 
         do
@@ -1556,11 +1565,11 @@ double CUTOFF = 0.0000000001;
             // if(r < update_prob)
             // {
             //     // spin[i] = -spin[i];
-            //     update_spin_sum(xyzi, 1);
+            //     update_spin_single(xyzi, 1);
             // }
             // else
             // {
-            //     update_spin_sum(xyzi, 0);
+            //     update_spin_single(xyzi, 0);
             // }
             iter--;
         }
@@ -1623,7 +1632,7 @@ double CUTOFF = 0.0000000001;
         double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
         if(r < update_prob)
         {
-            update_spin_sum(xyzi, spin_local);
+            update_spin_single(xyzi, spin_local);
             return 1.0;
         }
         return 0.0;
@@ -1642,11 +1651,11 @@ double CUTOFF = 0.0000000001;
                 // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
                 // if(r < update_prob)
                 // {
-                //     update_spin_sum(site_i, 1);
+                //     update_spin_single(site_i, 1);
                 // }
                 // else
                 // {
-                //     update_spin_sum(site_i, 0);
+                //     update_spin_single(site_i, 0);
                 // }
             }
             iter--;
@@ -1657,9 +1666,7 @@ double CUTOFF = 0.0000000001;
 
     int random_Glauber_sweep(long int iter)
     {
-
         long int xyzi;
-
         do
         {
             xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
@@ -1670,11 +1677,11 @@ double CUTOFF = 0.0000000001;
             // if(r < update_prob)
             // {
             //     // spin[i] = -spin[i];
-            //     update_spin_sum(xyzi, 1);
+            //     update_spin_single(xyzi, 1);
             // }
             // else
             // {
-            //     update_spin_sum(xyzi, 0);
+            //     update_spin_single(xyzi, 0);
             // }
             iter--;
         }
@@ -1701,7 +1708,6 @@ double CUTOFF = 0.0000000001;
             iter--;
         } 
         
-        
         return 0;
     }
 
@@ -1718,7 +1724,7 @@ double CUTOFF = 0.0000000001;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
                 reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                s_mod = s_mod + custom_double_pow(reflection_plane[j_S], 2);
+                s_mod = s_mod + (reflection_plane[j_S] * reflection_plane[j_S]);
             }
         }
         while(s_mod >= 1 || s_mod <= limit);
@@ -1860,11 +1866,10 @@ double CUTOFF = 0.0000000001;
                                 double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
                                 if (r_site < p_site*p_bond)
                                 {
-                                    update_spin_sum(xyzi, spin_new);
+                                    update_spin_single(xyzi, spin_new);
                                     nucleate_from_site(xyzi_nn);
                                 }
                             // }
-
                         }
                     }
 
@@ -1908,7 +1913,7 @@ double CUTOFF = 0.0000000001;
                 delta_E_site += E_site_new(xyzi, spin_new);
                 if (delta_E_site <= 0)
                 {
-                    update_spin_sum(xyzi, spin_new);
+                    update_spin_single(xyzi, spin_new);
                     nucleate_from_site(xyzi);
                 }
                 else
@@ -1916,7 +1921,7 @@ double CUTOFF = 0.0000000001;
                     double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
                     if (r<exp(-delta_E_site/T))
                     {
-                        update_spin_sum(xyzi, spin_new);
+                        update_spin_single(xyzi, spin_new);
                         nucleate_from_site(xyzi);
                     }
                 }
@@ -2049,8 +2054,6 @@ double CUTOFF = 0.0000000001;
             printf("\n");
         }
         printf("\n"); */
-
-        
         
         return 0;
     }
@@ -2127,7 +2130,6 @@ double CUTOFF = 0.0000000001;
         }
         printf("\n"); */
         
-        
         return 0;
     }
 
@@ -2198,8 +2200,7 @@ double CUTOFF = 0.0000000001;
             printf("\n");
         }
         printf("\n");
-        */    
-
+        */
 
         return 0;
     }
@@ -2276,7 +2277,6 @@ double CUTOFF = 0.0000000001;
         }
         printf("\n");
         */
-        
 
         return 0;
     }
@@ -3073,7 +3073,9 @@ double CUTOFF = 0.0000000001;
 
     int cooling_protocol()
     {
+        #ifdef _OPENMP
         omp_set_num_threads(16);
+        #endif
         int j_S, j_SS, j_L;
 
         // ensemble_all();
@@ -4780,36 +4782,11 @@ double CUTOFF = 0.0000000001;
 
 //====================      RFXY ZTNE                        ====================//
 
-    int update_spin_XY(long int xyzi, int new_or_min)
-    {
-        int j_S;
-        if(new_or_min==1)
-        {
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                spin[dim_S*xyzi + j_S] = spin_new[dim_S*xyzi + j_S];
-            }
-        }
-        else
-        {
-            if (new_or_min == -1)
-            {
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    spin[dim_S*xyzi + j_S] = spin_old[dim_S*xyzi + j_S];
-                }
-            }
-        }
-
-        return 0;
-    }
-
     double Energy_minimum_old_XY(long int xyzi, double* restrict spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
         double field_local[dim_S];
-        
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -4894,7 +4871,7 @@ double CUTOFF = 0.0000000001;
         {
             spin_diff_abs += fabs(spin[dim_S*xyzi + j_S] - spin_local[j_S]);
         }
-        update_spin_sum(xyzi, spin_local);
+        update_spin_single(xyzi, spin_local);
         return spin_diff_abs;
     }
 
@@ -5526,7 +5503,6 @@ double CUTOFF = 0.0000000001;
             
             do 
             {
-                
                 cutoff_local = 0.0;
 
                 #pragma omp parallel 
@@ -5684,7 +5660,7 @@ double CUTOFF = 0.0000000001;
 
         double cutoff_local = 0.0;
         int j_S, j_L;
-        double *m_last = (double*)malloc(dim_S*sizeof(double));
+        double m_last[dim_S];
         for (j_S=0; j_S<dim_S; j_S++)
         {
             m_last[j_S] = 2;
@@ -5813,7 +5789,9 @@ double CUTOFF = 0.0000000001;
 
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start)
     {
+        #ifdef _OPENMP
         omp_set_num_threads(24);
+        #endif
         T = 0;
 
         printf("\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
@@ -5821,7 +5799,7 @@ double CUTOFF = 0.0000000001;
 
         double cutoff_local = 0.0;
         int j_S, j_L;
-        double *m_last = (double*)malloc(dim_S*sizeof(double));
+        double m_last[dim_S];
         for (j_S=0; j_S<dim_S; j_S++)
         {
             m_last[j_S] = 2;
@@ -5873,31 +5851,6 @@ double CUTOFF = 0.0000000001;
                     // double cutoff_local_last = cutoff_local;
                     cutoff_local = 0.0;
 
-                    // #pragma omp parallel 
-                    // {
-                    //     #pragma omp for reduction(+:cutoff_local)
-                    //     for (site_i=0; site_i<no_of_black_sites; site_i++)
-                    //     {
-                    //         long int site_index = black_white_checkerboard[0][site_i];
-                    //         double spin_local[dim_S];
-
-                    //         cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
-                    //     }
-                    // }
-
-                    // ensemble_m();
-                    // printf("blam = %lf,", m[jj_S]);
-                    // printf("blac=%.17g\n", cutoff_local);
-                    // if (cutoff_local == cutoff_local_last)
-                    // {
-                    //     break;
-                    // }
-                    // else
-                    // {
-                    //     cutoff_local_last = cutoff_local;
-                    // }
-                    
-
                     #pragma omp parallel 
                     {
                         #pragma omp for reduction(+:cutoff_local)
@@ -5917,19 +5870,7 @@ double CUTOFF = 0.0000000001;
 
                             cutoff_local += update_to_minimum_checkerboard(site_index, spin_local);
                         }
-                        
                     }
-                    // ensemble_m();
-                    // printf("blam = %lf,", m[jj_S]);
-                    // printf("blac=%.17g\n", cutoff_local);
-                    
-                    // black_or_white = !black_or_white;
-                    
-                    // if (cutoff_local == cutoff_local_last)
-                    // {
-                    //     break;
-                    // }
-                    
                 }
                 while (cutoff_local > CUTOFF); // 10^-10
 
@@ -7685,12 +7626,13 @@ double CUTOFF = 0.0000000001;
 
     int for_omp_parallelization()
     {
+        printf("\nOpenMP Active.\n");
         long int i, j;
         num_of_threads = omp_get_max_threads();
         num_of_procs = omp_get_num_procs();
         random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
         random_seed[0] = rand();
-        printf("No. of THREADS = %d\n", num_of_threads);
+        printf("\nNo. of THREADS = %d\n", num_of_threads);
         printf("No. of PROCESSORS = %d\n", num_of_procs);
         for (i=1; i < num_of_threads; i++)
         {
@@ -7766,12 +7708,14 @@ double CUTOFF = 0.0000000001;
 
         printf("RAND_MAX = %lf,\n sizeof(int) = %ld,\n sizeof(long) = %ld,\n sizeof(double) = %ld,\n sizeof(long int) = %ld,\n sizeof(short int) = %ld,\n sizeof(unsigned int) = %ld,\n sizeof(RAND_MAX) = %ld\n", (double)RAND_MAX, sizeof(int), sizeof(long), sizeof(double), sizeof(long int), sizeof(short int), sizeof(unsigned int), sizeof(RAND_MAX));
         
+        #ifdef _OPENMP
         for_omp_parallelization();
+        #endif
         double start_time_loop[2];
         double end_time_loop[2];
-        // random_initialize_and_rotate_checkerboard(0, 1);
         start_time_loop[0] = omp_get_wtime();
         field_cool_and_rotate_checkerboard(0, 1);
+        // random_initialize_and_rotate_checkerboard(0, 1);
         end_time_loop[0] = omp_get_wtime();
         start_time_loop[1] = omp_get_wtime();
         // evolution_at_T(100);
