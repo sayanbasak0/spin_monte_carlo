@@ -69,18 +69,18 @@ set style line 6 lt 1 lc rgb "#00D0D0" lw 2 pt 12 ps 1.5
 set style line 7 lt 1 lc rgb "#B200B2" lw 2 pt 5 ps 1.5
 
 # Name our output file
-set output "h_mag_xy_abs_T0.01.png"
+set output "h_mag_xy_abs_T0.0.png"
 
 # Put X and Y labels
 set xlabel "h_x/J"
-set ylabel "|<M_x/M_y>|"
+set ylabel "|<M_x>|;|<M_y>|"
 
 # Set the range of our x and y axes
 set xrange [0:0.25]
 set yrange [-0.1:1]
 
 # Give the plot a title
-set title "Magnetisation vs Field upon cooling (T=0.01)"
+set title "Magnetisation vs Field upon cooling (T=0.0)"
 
 # Put the legend at the bottom left of the plot
 set key right center
@@ -92,10 +92,10 @@ set key right center
 # t "Test 1" = title "Test 1" will go in the legend
 # The rest of the lines plot columns 3, 5 and 7
 plot \
-"m_T0.01_vs_h.dat" u 10:4:5 w yerrorbars ls 1 t "|<M_x>|", \
-"m_T0.01_vs_h.dat" u 10:6:7 w yerrorbars ls 2 t "|<M_y>|", \
-"m_T0.01_vs_h.dat" u 10:4 w lines ls 1 notitle, \
-"m_T0.01_vs_h.dat" u 10:6 w lines ls 2 notitle
+"m_T0.0_vs_h.dat" u 2:4:5 w yerrorbars ls 1 t "|<M_x>|", \
+"m_T0.0_vs_h.dat" u 2:6:7 w yerrorbars ls 2 t "|<M_y>|", \
+"m_T0.0_vs_h.dat" u 2:4 w lines ls 1 notitle, \
+"m_T0.0_vs_h.dat" u 2:6 w lines ls 2 notitle
 
 # This is important because it closes our output file.
 set output 

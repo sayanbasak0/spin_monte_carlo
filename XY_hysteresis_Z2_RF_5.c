@@ -86,16 +86,16 @@ double CUTOFF = 0.0000000001;
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double delta_h = 0.01, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
+    double delta_h = 2.0, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
 
 //====================      Temperature                      ====================//
     double T = 3.0;
-    double Temp_min = 0.6;
+    double Temp_min = 0.0;
     double Temp_max = 2.0;
-    double delta_T = 0.1;
+    double delta_T = 0.05;
 
 //====================      Magnetisation <M>                ====================//
     double m[dim_S];
@@ -139,9 +139,9 @@ double CUTOFF = 0.0000000001;
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10*1; // *=lattice_size
-    long int average_j = 1*10*1; // *=lattice_size
-    long int sampling_inter = 1; // *=sampling_inter-rand()%sampling_inter
+    long int thermal_i = 1*10*10*10; // *=lattice_size
+    long int average_j = 1*10*10; // *=lattice_size
+    long int sampling_inter = 16; // *=sampling_inter-rand()%sampling_inter
 
 //====================      Hysteresis T!=0                  ====================//
     long int hysteresis_MCS = 1; 
@@ -6779,7 +6779,7 @@ double CUTOFF = 0.0000000001;
         }
         
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(sigma_h[0]/5.0);
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
         double h_theta = 0.0;
@@ -7004,7 +7004,7 @@ double CUTOFF = 0.0000000001;
         
         cooling_protocol();
         fclose(pFile_1);
-        return 0;
+        // return 0;
 
         // rotate field
         char output_file_2[256];

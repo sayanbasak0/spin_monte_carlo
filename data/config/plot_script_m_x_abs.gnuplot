@@ -69,7 +69,7 @@ set style line 6 lt 1 lc rgb "#00D0D0" lw 2 pt 12 ps 1.5
 set style line 7 lt 1 lc rgb "#B200B2" lw 2 pt 5 ps 1.5
 
 # Name our output file
-set output "mag_x_abs.png"
+set output "mag_x_abs_2.png"
 
 # Put X and Y labels
 set xlabel "T/J"
@@ -91,13 +91,24 @@ set key right top
 # ls 1 = use our defined linestyle 1
 # t "Test 1" = title "Test 1" will go in the legend
 # The rest of the lines plot columns 3, 5 and 7
-plot "mean_std_abs_0.000000_c.dat" u 1:4:5 w yerrorbars ls 1 t "h_x = 0.0", \
-"mean_std_abs_0.007812_c.dat" u 1:4:5 w yerrorbars ls 2 t "h_x = R_x/64", \
-"mean_std_abs_0.015625_c.dat" u 1:4:5 w yerrorbars ls 3 t "h_x = R_x/32", \
-"mean_std_abs_0.031250_c.dat" u 1:4:5 w yerrorbars ls 4 t "h_x = R_x/16", \
-"mean_std_abs_0.062500_c.dat" u 1:4:5 w yerrorbars ls 5 t "h_x = R_x/8", \
-"mean_std_abs_0.125000_c.dat" u 1:4:5 w yerrorbars ls 6 t "h_x = R_x/4", \
-"mean_std_abs_0.250000_c.dat" u 1:4:5 w yerrorbars ls 7 t "h_x = R_x/2"
+plot "mean_std_abs_0.031250_c.dat" u 1:4:5 w yerrorbars ls 4 t "old sim, h_x = R_x/16", \
+"mean_std_abs_0.062500_c.dat" u 1:4:5 w yerrorbars ls 5 t "old sim, h_x = R_x/8", \
+"mean_std_abs_0.050000_c.dat" u 1:4:5 w yerrorbars ls 1 t "new sim, h_x = R_x/10", \
+"mean_std_abs_0.071429_c.dat" u 1:4:5 w yerrorbars ls 2 t "new sim, h_x = R_x/7", \
+"mean_std_abs_0.083333_c.dat" u 1:4:5 w yerrorbars ls 3 t "new sim, h_x = R_x/6", \
+"mean_std_abs_0.100000_c.dat" u 1:4:5 w yerrorbars ls 6 t "new sim, h_x = R_x/5", \
+"mean_std_abs_0.050000_c.dat" u 1:4 w l ls 1 notitle, \
+"mean_std_abs_0.071429_c.dat" u 1:4 w l ls 2 notitle, \
+"mean_std_abs_0.083333_c.dat" u 1:4 w l ls 3 notitle, \
+"mean_std_abs_0.100000_c.dat" u 1:4 w l ls 6 notitle, \
+
+# "mean_std_abs_0.000000_c.dat" u 1:4:5 w yerrorbars ls 1 t "h_x = 0.0", \
+# "mean_std_abs_0.007812_c.dat" u 1:4:5 w yerrorbars ls 2 t "h_x = R_x/64", \
+# "mean_std_abs_0.015625_c.dat" u 1:4:5 w yerrorbars ls 3 t "h_x = R_x/32", \
+# "mean_std_abs_0.031250_c.dat" u 1:4:5 w yerrorbars ls 4 t "h_x = R_x/16", \
+# "mean_std_abs_0.062500_c.dat" u 1:4:5 w yerrorbars ls 5 t "h_x = R_x/8", \
+# "mean_std_abs_0.125000_c.dat" u 1:4:5 w yerrorbars ls 6 t "h_x = R_x/4", \
+# "mean_std_abs_0.250000_c.dat" u 1:4:5 w yerrorbars ls 7 t "h_x = R_x/2"
 
 # This is important because it closes our output file.
 set output 
