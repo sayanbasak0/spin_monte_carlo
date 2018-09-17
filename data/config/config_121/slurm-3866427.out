@@ -1,0 +1,1642 @@
++ cd /home/sbasak/Exercises/OpenMP/XY_code/Z2/rotating_field/trial/config/config_121
++ export OMP_NUM_THREADS=28
++ OMP_NUM_THREADS=28
++ ./a_32.out
+nearest neighbor initialized. 
+h loaded. 
+J loaded. 
+L = 128, dim_L = 2, dim_S = 2
+hysteresis_MCS_multiplier = 10, hysteresis_MCS_max = 100
+RAND_MAX = 2147483647.000000,
+ sizeof(int) = 4,
+ sizeof(long) = 8,
+ sizeof(double) = 8,
+ sizeof(long int) = 8,
+ sizeof(short int) = 2,
+ sizeof(unsigned int) = 4,
+ sizeof(RAND_MAX) = 4
+No. of THREADS = 28
+No. of PROCESSORS = 28
+
+0.058610,0.021566
+order = ({1.000000-->-1.000000,0.000000}, 0, 1)
+Initial Magnetisation = (0.058610,0.021566), Energy = 0.027679 
+Cooling... 
+T=2.000000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.005230,-0.006986), Energy = -0.551512 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.015740,-0.034402), Energy = -0.580059 
+<M> = (0.014832,0.000033), <E> = -0.605521 
+
+T=1.990000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.024035,0.034418), Energy = -0.632291 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.008030,0.007612), Energy = -0.642578 
+<M> = (0.016590,-0.001684), <E> = -0.609683 
+
+T=1.980000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.007408,0.012470), Energy = -0.630987 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.042581,0.004533), Energy = -0.620508 
+<M> = (0.015544,-0.001159), <E> = -0.613686 
+
+T=1.970000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.014375,0.041531), Energy = -0.627429 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.004541,-0.051849), Energy = -0.618350 
+<M> = (0.016225,-0.002193), <E> = -0.617743 
+
+T=1.960000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.024219,-0.026410), Energy = -0.654126 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.011418,-0.003589), Energy = -0.614805 
+<M> = (0.016901,-0.000308), <E> = -0.621023 
+
+T=1.950000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.010364,-0.000270), Energy = -0.612239 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.058973,-0.008229), Energy = -0.637154 
+<M> = (0.018165,-0.000405), <E> = -0.624168 
+
+T=1.940000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.056947,-0.013367), Energy = -0.613244 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.056180,0.036790), Energy = -0.605725 
+<M> = (0.016863,0.000157), <E> = -0.627543 
+
+T=1.930000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.018655,0.008917), Energy = -0.633657 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.062563,0.019142), Energy = -0.620207 
+<M> = (0.016310,0.000981), <E> = -0.630351 
+
+T=1.920000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.011595,0.038984), Energy = -0.656098 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.016115,-0.018616), Energy = -0.646256 
+<M> = (0.017502,-0.001636), <E> = -0.635153 
+
+T=1.910000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.022832,0.003603), Energy = -0.653468 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.000829,-0.019946), Energy = -0.674470 
+<M> = (0.017815,-0.001557), <E> = -0.639432 
+
+T=1.900000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.093595,0.095360), Energy = -0.635628 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.033634,0.001619), Energy = -0.636080 
+<M> = (0.017848,-0.003156), <E> = -0.643619 
+
+T=1.890000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.013261,0.019898), Energy = -0.651187 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.016548,0.017487), Energy = -0.637386 
+<M> = (0.018199,-0.002537), <E> = -0.647547 
+
+T=1.880000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.031695,-0.024915), Energy = -0.642160 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.030106,0.013028), Energy = -0.665758 
+<M> = (0.019465,-0.000988), <E> = -0.651443 
+
+T=1.870000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.008165,0.041557), Energy = -0.653355 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.035668,0.006052), Energy = -0.643478 
+<M> = (0.019335,0.002214), <E> = -0.654584 
+
+T=1.860000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.003375,0.022823), Energy = -0.628433 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.042787,-0.015452), Energy = -0.648529 
+<M> = (0.018241,-0.000189), <E> = -0.658698 
+
+T=1.850000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.003548,0.096335), Energy = -0.669235 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.044196,-0.031356), Energy = -0.693134 
+<M> = (0.018307,0.000014), <E> = -0.662962 
+
+T=1.840000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.005535,0.021213), Energy = -0.664070 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.053205,-0.003995), Energy = -0.668325 
+<M> = (0.020391,-0.001948), <E> = -0.667785 
+
+T=1.830000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.086704,-0.002569), Energy = -0.668400 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.017233,0.041663), Energy = -0.648822 
+<M> = (0.019137,-0.003148), <E> = -0.671969 
+
+T=1.820000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.020112,0.030563), Energy = -0.682506 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.049403,-0.021831), Energy = -0.667764 
+<M> = (0.020266,-0.001891), <E> = -0.677023 
+
+T=1.810000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.006809,0.020965), Energy = -0.697374 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.010717,0.037570), Energy = -0.653953 
+<M> = (0.023011,-0.001815), <E> = -0.681158 
+
+T=1.800000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.017029,0.000814), Energy = -0.672808 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.031490,0.038305), Energy = -0.704448 
+<M> = (0.022977,0.000068), <E> = -0.684912 
+
+T=1.790000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.032799,-0.038130), Energy = -0.685074 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.021178,-0.054300), Energy = -0.692886 
+<M> = (0.020939,0.000373), <E> = -0.689087 
+
+T=1.780000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.016193,-0.008149), Energy = -0.690891 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.051301,-0.002153), Energy = -0.697934 
+<M> = (0.020709,0.001194), <E> = -0.693183 
+
+T=1.770000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.042239,0.035921), Energy = -0.706150 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.018167,0.074841), Energy = -0.694113 
+<M> = (0.022451,-0.003158), <E> = -0.698432 
+
+T=1.760000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.023459,0.021830), Energy = -0.755389 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.103299,-0.042125), Energy = -0.719793 
+<M> = (0.022334,-0.001085), <E> = -0.703964 
+
+T=1.750000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.004212,0.010742), Energy = -0.692442 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.071707,-0.000754), Energy = -0.676274 
+<M> = (0.021618,-0.002829), <E> = -0.708707 
+
+T=1.740000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.049618,0.018561), Energy = -0.693930 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.028802,-0.023319), Energy = -0.715288 
+<M> = (0.023524,-0.002824), <E> = -0.713260 
+
+T=1.730000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.055650,-0.044923), Energy = -0.721771 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.028739,-0.046200), Energy = -0.722911 
+<M> = (0.025861,-0.000919), <E> = -0.717941 
+
+T=1.720000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.022421,-0.049652), Energy = -0.708195 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.025987,0.026586), Energy = -0.742882 
+<M> = (0.024456,0.001246), <E> = -0.722286 
+
+T=1.710000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.041744,-0.052683), Energy = -0.759998 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.046483,-0.015141), Energy = -0.741527 
+<M> = (0.024184,-0.000471), <E> = -0.726906 
+
+T=1.700000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.042874,0.005908), Energy = -0.731441 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.031330,0.018922), Energy = -0.749706 
+<M> = (0.025142,-0.000512), <E> = -0.732554 
+
+T=1.690000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.034520,0.037762), Energy = -0.758895 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.032391,-0.061299), Energy = -0.732415 
+<M> = (0.026108,-0.000717), <E> = -0.737901 
+
+T=1.680000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.013505,-0.032158), Energy = -0.742332 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.010086,-0.096739), Energy = -0.737627 
+<M> = (0.025355,-0.003585), <E> = -0.744170 
+
+T=1.670000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.013186,0.013365), Energy = -0.747114 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.038221,-0.066789), Energy = -0.780840 
+<M> = (0.027694,-0.001750), <E> = -0.749380 
+
+T=1.660000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.028745,-0.009261), Energy = -0.759165 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.052125,-0.039172), Energy = -0.769115 
+<M> = (0.028824,-0.001775), <E> = -0.754527 
+
+T=1.650000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.022507,-0.032853), Energy = -0.749034 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.021339,0.071710), Energy = -0.757320 
+<M> = (0.028596,0.001207), <E> = -0.758938 
+
+T=1.640000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.075024,0.064845), Energy = -0.774615 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.085640,-0.047126), Energy = -0.760066 
+<M> = (0.027825,0.001288), <E> = -0.764442 
+
+T=1.630000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.031701,0.011070), Energy = -0.779547 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.046353,0.020096), Energy = -0.727490 
+<M> = (0.029724,0.000237), <E> = -0.770402 
+
+T=1.620000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.054268,-0.090142), Energy = -0.766068 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.105287,-0.030538), Energy = -0.782489 
+<M> = (0.030247,-0.001119), <E> = -0.776652 
+
+T=1.610000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.048982,0.039715), Energy = -0.797335 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.015627,0.074723), Energy = -0.800711 
+<M> = (0.029520,-0.002855), <E> = -0.782792 
+
+T=1.600000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.025637,-0.026484), Energy = -0.840895 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.006815,-0.026184), Energy = -0.773464 
+<M> = (0.030526,-0.005241), <E> = -0.789066 
+
+T=1.590000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.005188,0.034133), Energy = -0.782453 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.057040,0.021050), Energy = -0.793495 
+<M> = (0.031429,-0.001663), <E> = -0.794995 
+
+T=1.580000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.025552,-0.010631), Energy = -0.771439 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.021532,-0.047679), Energy = -0.851958 
+<M> = (0.034706,-0.001005), <E> = -0.800642 
+
+T=1.570000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.032463,0.024241), Energy = -0.836476 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.035682,0.019399), Energy = -0.824935 
+<M> = (0.033333,0.000445), <E> = -0.806142 
+
+T=1.560000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.073071,-0.058163), Energy = -0.844229 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.005339,-0.007668), Energy = -0.775368 
+<M> = (0.033576,0.001516), <E> = -0.811751 
+
+T=1.550000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.032841,-0.021967), Energy = -0.775685 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.020785,0.004244), Energy = -0.812563 
+<M> = (0.035096,0.000349), <E> = -0.819047 
+
+T=1.540000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.008183,0.073115), Energy = -0.815921 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.029593,-0.084785), Energy = -0.846030 
+<M> = (0.035919,-0.000902), <E> = -0.825871 
+
+T=1.530000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.072037,-0.013582), Energy = -0.879703 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.045439,0.026374), Energy = -0.842462 
+<M> = (0.035625,-0.004861), <E> = -0.832937 
+
+T=1.520000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.056905,0.067313), Energy = -0.836137 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.003133,-0.025529), Energy = -0.827321 
+<M> = (0.037652,-0.002832), <E> = -0.839851 
+
+T=1.510000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.043698,-0.003756), Energy = -0.874051 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.016134,0.000799), Energy = -0.823276 
+<M> = (0.041469,-0.000805), <E> = -0.846505 
+
+T=1.500000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.106313,-0.097298), Energy = -0.872040 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (-0.004199,-0.068262), Energy = -0.842948 
+<M> = (0.040436,0.003031), <E> = -0.852377 
+
+T=1.490000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.028940,0.016490), Energy = -0.832483 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.034271,0.108460), Energy = -0.865537 
+<M> = (0.040416,0.002062), <E> = -0.858761 
+
+T=1.480000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.059331,-0.007906), Energy = -0.840092 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.046779,-0.011179), Energy = -0.853034 
+<M> = (0.038880,0.002475), <E> = -0.866514 
+
+T=1.470000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.063569,0.006255), Energy = -0.889518 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.068307,-0.025356), Energy = -0.882691 
+<M> = (0.043410,-0.000549), <E> = -0.874104 
+
+T=1.460000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.043057,0.084295), Energy = -0.872349 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.041845,-0.000618), Energy = -0.846073 
+<M> = (0.043406,-0.002062), <E> = -0.882474 
+
+T=1.450000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.072386,0.040247), Energy = -0.906609 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.007938,-0.019895), Energy = -0.883648 
+<M> = (0.045560,-0.005659), <E> = -0.890149 
+
+T=1.440000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.067406,-0.050382), Energy = -0.910269 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.072399,-0.059390), Energy = -0.915699 
+<M> = (0.048804,-0.006119), <E> = -0.896996 
+
+T=1.430000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.025717,-0.076546), Energy = -0.913479 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.040476,0.001048), Energy = -0.908467 
+<M> = (0.049722,-0.000192), <E> = -0.903994 
+
+T=1.420000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.137428,0.071132), Energy = -0.920889 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.041762,-0.031715), Energy = -0.896888 
+<M> = (0.048957,0.002329), <E> = -0.911432 
+
+T=1.410000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.056538,0.016999), Energy = -0.949892 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.012384,-0.000049), Energy = -0.926710 
+<M> = (0.046753,0.005795), <E> = -0.918524 
+
+T=1.400000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.063805,-0.029201), Energy = -0.897204 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.044828,0.085402), Energy = -0.887320 
+<M> = (0.051288,-0.002866), <E> = -0.928304 
+
+T=1.390000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.022126,-0.008854), Energy = -0.959771 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.084324,-0.007726), Energy = -0.955560 
+<M> = (0.053098,-0.005357), <E> = -0.936937 
+
+T=1.380000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.054038,-0.030043), Energy = -0.936249 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.058009,-0.061370), Energy = -0.909590 
+<M> = (0.053476,-0.009449), <E> = -0.945739 
+
+T=1.370000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (-0.004917,-0.040768), Energy = -0.946507 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.011391,-0.029984), Energy = -0.920691 
+<M> = (0.055267,-0.009521), <E> = -0.953718 
+
+T=1.360000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.031933,0.059110), Energy = -0.982759 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.119266,0.065018), Energy = -0.981434 
+<M> = (0.059534,-0.003067), <E> = -0.962031 
+
+T=1.350000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.084380,0.104455), Energy = -0.975577 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.042605,0.085139), Energy = -0.965552 
+<M> = (0.061501,0.006045), <E> = -0.969363 
+
+T=1.340000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.132101,0.048222), Energy = -1.031388 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.111148,-0.046938), Energy = -1.007963 
+<M> = (0.059440,0.005083), <E> = -0.978458 
+
+T=1.330000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.112471,-0.017247), Energy = -0.995559 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.114293,-0.060201), Energy = -0.999927 
+<M> = (0.059873,0.001334), <E> = -0.987857 
+
+T=1.320000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.089681,-0.028357), Energy = -0.997715 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.058030,-0.023557), Energy = -0.965728 
+<M> = (0.067465,-0.004460), <E> = -0.997950 
+
+T=1.310000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.117917,-0.039584), Energy = -1.041905 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.026128,0.055533), Energy = -1.032355 
+<M> = (0.067971,-0.009484), <E> = -1.007985 
+
+T=1.300000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.045639,0.000930), Energy = -0.984968 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.127428,0.010494), Energy = -1.066045 
+<M> = (0.068941,-0.006093), <E> = -1.018057 
+
+T=1.290000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.081163,-0.009960), Energy = -1.020025 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.061224,-0.043336), Energy = -1.004278 
+<M> = (0.075782,-0.005857), <E> = -1.027988 
+
+T=1.280000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.077395,0.026959), Energy = -1.055711 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.081626,-0.029521), Energy = -1.045974 
+<M> = (0.074904,0.003254), <E> = -1.035885 
+
+T=1.270000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.035067,0.016129), Energy = -1.040387 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.012786,-0.001730), Energy = -1.028716 
+<M> = (0.075859,0.005859), <E> = -1.044676 
+
+T=1.260000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.006293,-0.023924), Energy = -1.034365 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.066118,0.018942), Energy = -1.046005 
+<M> = (0.076947,0.006781), <E> = -1.055233 
+
+T=1.250000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.046202,-0.076882), Energy = -1.103299 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.025967,0.087488), Energy = -1.056587 
+<M> = (0.082668,-0.009732), <E> = -1.066317 
+
+T=1.240000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.070735,-0.016729), Energy = -1.113062 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.018476,0.016771), Energy = -1.042135 
+<M> = (0.082995,-0.002254), <E> = -1.077300 
+
+T=1.230000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.072542,0.068408), Energy = -1.100326 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.074300,-0.121481), Energy = -1.025288 
+<M> = (0.087744,-0.016304), <E> = -1.088522 
+
+T=1.220000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.119448,-0.078603), Energy = -1.080269 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.078173,-0.100421), Energy = -1.126464 
+<M> = (0.088692,-0.011540), <E> = -1.098060 
+
+T=1.210000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.109602,0.024787), Energy = -1.065196 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.072026,-0.033425), Energy = -1.126800 
+<M> = (0.094364,-0.008021), <E> = -1.109342 
+
+T=1.200000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.221011,-0.062575), Energy = -1.136728 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.099247,0.050853), Energy = -1.146514 
+<M> = (0.096815,0.004963), <E> = -1.119404 
+
+T=1.190000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.135084,0.034684), Energy = -1.112679 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.111635,-0.054179), Energy = -1.141451 
+<M> = (0.095697,-0.001382), <E> = -1.129117 
+
+T=1.180000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.075721,-0.057077), Energy = -1.134966 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.113473,-0.011162), Energy = -1.097373 
+<M> = (0.102819,0.000112), <E> = -1.141133 
+
+T=1.170000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.044132,0.125943), Energy = -1.165606 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.077117,0.118267), Energy = -1.157606 
+<M> = (0.106674,-0.000741), <E> = -1.153358 
+
+T=1.160000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.149134,-0.182153), Energy = -1.198905 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.100528,-0.108738), Energy = -1.161001 
+<M> = (0.109464,-0.018329), <E> = -1.165766 
+
+T=1.150000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.099723,-0.092231), Energy = -1.218285 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.092320,0.032169), Energy = -1.181557 
+<M> = (0.112222,-0.013116), <E> = -1.178034 
+
+T=1.140000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.056344,-0.081223), Energy = -1.186945 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.152397,-0.042002), Energy = -1.176573 
+<M> = (0.118538,-0.015650), <E> = -1.189089 
+
+T=1.130000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.043088,0.040883), Energy = -1.193492 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.118503,0.081300), Energy = -1.200387 
+<M> = (0.122179,-0.002118), <E> = -1.198318 
+
+T=1.120000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.150933,0.056720), Energy = -1.215731 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.091356,-0.115780), Energy = -1.215149 
+<M> = (0.124178,0.004093), <E> = -1.211161 
+
+T=1.110000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.193574,-0.076785), Energy = -1.216891 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.145062,0.043475), Energy = -1.242119 
+<M> = (0.127201,0.002442), <E> = -1.221444 
+
+T=1.100000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.109926,-0.134714), Energy = -1.245334 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.118890,-0.085057), Energy = -1.239592 
+<M> = (0.136215,0.010946), <E> = -1.235655 
+
+T=1.090000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.120915,-0.033104), Energy = -1.266569 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.080717,0.003689), Energy = -1.257077 
+<M> = (0.130517,-0.031311), <E> = -1.248190 
+
+T=1.080000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.118360,-0.027094), Energy = -1.261268 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.145229,0.050732), Energy = -1.250872 
+<M> = (0.134791,-0.040306), <E> = -1.259507 
+
+T=1.070000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.157052,0.071074), Energy = -1.277322 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.106607,0.147747), Energy = -1.247201 
+<M> = (0.146043,-0.031008), <E> = -1.274109 
+
+T=1.060000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.170532,0.099580), Energy = -1.286354 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.155603,-0.258729), Energy = -1.308666 
+<M> = (0.150029,-0.024137), <E> = -1.285861 
+
+T=1.050000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.181090,-0.080091), Energy = -1.326702 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.159511,-0.031489), Energy = -1.282367 
+<M> = (0.156984,-0.034538), <E> = -1.295308 
+
+T=1.040000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.134235,0.116812), Energy = -1.294204 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.098377,-0.027623), Energy = -1.303708 
+<M> = (0.148171,0.039820), <E> = -1.307569 
+
+T=1.030000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.135982,-0.086945), Energy = -1.290328 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.145247,0.041823), Energy = -1.341027 
+<M> = (0.160581,-0.022457), <E> = -1.321553 
+
+T=1.020000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.180381,-0.036781), Energy = -1.300067 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.126708,0.141936), Energy = -1.348956 
+<M> = (0.161128,-0.021055), <E> = -1.333139 
+
+T=1.010000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.079702,-0.155056), Energy = -1.342205 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.215699,-0.175576), Energy = -1.362049 
+<M> = (0.162468,-0.171811), <E> = -1.349568 
+
+T=1.000000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.179227,-0.179391), Energy = -1.362241 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.292617,-0.070238), Energy = -1.367967 
+<M> = (0.170020,-0.032708), <E> = -1.361020 
+
+T=0.990000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.140015,-0.101639), Energy = -1.378645 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.198660,-0.234754), Energy = -1.375330 
+<M> = (0.182927,-0.147282), <E> = -1.373843 
+
+T=0.980000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.147007,0.149369), Energy = -1.380546 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.241445,0.181061), Energy = -1.398449 
+<M> = (0.185833,0.138743), <E> = -1.385451 
+
+T=0.970000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.125943,-0.004667), Energy = -1.361880 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.156120,0.091481), Energy = -1.431271 
+<M> = (0.181277,0.153159), <E> = -1.397040 
+
+T=0.960000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.165113,-0.071108), Energy = -1.426204 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.222458,0.339104), Energy = -1.394550 
+<M> = (0.168922,0.314031), <E> = -1.415149 
+
+T=0.950000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.066432,-0.468119), Energy = -1.421410 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.232286,0.052343), Energy = -1.393561 
+<M> = (0.171919,-0.208532), <E> = -1.425088 
+
+T=0.940000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.192468,-0.093570), Energy = -1.459621 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.134868,-0.359615), Energy = -1.425516 
+<M> = (0.164494,-0.407342), <E> = -1.439907 
+
+T=0.930000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.250796,-0.106059), Energy = -1.434351 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.138392,-0.408524), Energy = -1.451816 
+<M> = (0.169793,-0.408722), <E> = -1.452538 
+
+T=0.920000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188125,-0.471117), Energy = -1.489904 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.168016,-0.509629), Energy = -1.454367 
+<M> = (0.180621,-0.487311), <E> = -1.465906 
+
+T=0.910000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.200064,-0.504617), Energy = -1.478676 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.158292,-0.476810), Energy = -1.472518 
+<M> = (0.185754,-0.489193), <E> = -1.474821 
+
+T=0.900000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.178401,-0.498500), Energy = -1.475402 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.259641,-0.371156), Energy = -1.470558 
+<M> = (0.182713,-0.510121), <E> = -1.486436 
+
+T=0.890000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.159497,-0.539852), Energy = -1.494340 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.238389,-0.510626), Energy = -1.485001 
+<M> = (0.167169,-0.524688), <E> = -1.495479 
+
+T=0.880000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.178357,-0.594832), Energy = -1.516127 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.243703,-0.577448), Energy = -1.511420 
+<M> = (0.180425,-0.545212), <E> = -1.507302 
+
+T=0.870000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.169562,-0.600575), Energy = -1.545780 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.193792,-0.533764), Energy = -1.522485 
+<M> = (0.171930,-0.565702), <E> = -1.518702 
+
+T=0.860000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.199483,-0.617195), Energy = -1.542969 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.190670,-0.565623), Energy = -1.529758 
+<M> = (0.160825,-0.581016), <E> = -1.528859 
+
+T=0.850000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.095163,-0.582404), Energy = -1.522624 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.140243,-0.586513), Energy = -1.533949 
+<M> = (0.169155,-0.577274), <E> = -1.537431 
+
+T=0.840000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.150830,-0.653591), Energy = -1.572599 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.191617,-0.628485), Energy = -1.569757 
+<M> = (0.177795,-0.583897), <E> = -1.546229 
+
+T=0.830000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.158314,-0.568595), Energy = -1.556059 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.202308,-0.582282), Energy = -1.554331 
+<M> = (0.187045,-0.584977), <E> = -1.554192 
+
+T=0.820000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.161069,-0.603702), Energy = -1.558948 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.211696,-0.601925), Energy = -1.549233 
+<M> = (0.180560,-0.597139), <E> = -1.562698 
+
+T=0.810000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.171806,-0.637000), Energy = -1.556781 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.176626,-0.578801), Energy = -1.554308 
+<M> = (0.177722,-0.610871), <E> = -1.572010 
+
+T=0.800000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.178434,-0.647614), Energy = -1.585258 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.162670,-0.630716), Energy = -1.574413 
+<M> = (0.174006,-0.615675), <E> = -1.580649 
+
+T=0.790000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.106037,-0.655164), Energy = -1.593486 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.151734,-0.636265), Energy = -1.611609 
+<M> = (0.169756,-0.628173), <E> = -1.590055 
+
+T=0.780000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.194230,-0.625042), Energy = -1.587915 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.161816,-0.625302), Energy = -1.591829 
+<M> = (0.164326,-0.636105), <E> = -1.598063 
+
+T=0.770000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.234195,-0.600227), Energy = -1.604105 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.123239,-0.622840), Energy = -1.590626 
+<M> = (0.181942,-0.635026), <E> = -1.605173 
+
+T=0.760000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.174172,-0.637679), Energy = -1.598142 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.247171,-0.649723), Energy = -1.626381 
+<M> = (0.181136,-0.636051), <E> = -1.612606 
+
+T=0.750000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.208404,-0.625685), Energy = -1.617615 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.146640,-0.656241), Energy = -1.619597 
+<M> = (0.180256,-0.639765), <E> = -1.619627 
+
+T=0.740000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.170985,-0.668292), Energy = -1.638415 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.153211,-0.653267), Energy = -1.630209 
+<M> = (0.175062,-0.648359), <E> = -1.627004 
+
+T=0.730000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.203488,-0.615996), Energy = -1.627924 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.168544,-0.661844), Energy = -1.627933 
+<M> = (0.171446,-0.657397), <E> = -1.635388 
+
+T=0.720000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.185870,-0.638664), Energy = -1.626430 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.157495,-0.666845), Energy = -1.636527 
+<M> = (0.172906,-0.660019), <E> = -1.642790 
+
+T=0.710000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.191690,-0.667159), Energy = -1.645299 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.123440,-0.691711), Energy = -1.665938 
+<M> = (0.166025,-0.669111), <E> = -1.650398 
+
+T=0.700000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.132369,-0.709636), Energy = -1.661381 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.148215,-0.661862), Energy = -1.645838 
+<M> = (0.167260,-0.673513), <E> = -1.657585 
+
+T=0.690000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.189236,-0.658479), Energy = -1.657612 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.128891,-0.716717), Energy = -1.664571 
+<M> = (0.177932,-0.673637), <E> = -1.664254 
+
+T=0.680000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.125677,-0.670015), Energy = -1.662579 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.147592,-0.704440), Energy = -1.684984 
+<M> = (0.178528,-0.674074), <E> = -1.670622 
+
+T=0.670000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.190990,-0.664138), Energy = -1.666456 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.232560,-0.671821), Energy = -1.687725 
+<M> = (0.178480,-0.677635), <E> = -1.677582 
+
+T=0.660000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.118604,-0.711483), Energy = -1.680909 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.145787,-0.680523), Energy = -1.688685 
+<M> = (0.179884,-0.680399), <E> = -1.684485 
+
+T=0.650000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.132830,-0.701759), Energy = -1.691182 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.129725,-0.709445), Energy = -1.683998 
+<M> = (0.167476,-0.691906), <E> = -1.691861 
+
+T=0.640000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.163451,-0.718439), Energy = -1.715391 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.212896,-0.687690), Energy = -1.704988 
+<M> = (0.169369,-0.698718), <E> = -1.698914 
+
+T=0.630000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.186056,-0.697908), Energy = -1.704291 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.131412,-0.695254), Energy = -1.704874 
+<M> = (0.165219,-0.703907), <E> = -1.705532 
+
+T=0.620000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.133076,-0.719544), Energy = -1.714898 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.247437,-0.687188), Energy = -1.716065 
+<M> = (0.172390,-0.703280), <E> = -1.711792 
+
+T=0.610000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.180358,-0.722135), Energy = -1.720681 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.161096,-0.694780), Energy = -1.715295 
+<M> = (0.176329,-0.701389), <E> = -1.717756 
+
+T=0.600000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.164641,-0.697977), Energy = -1.726111 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.222372,-0.708639), Energy = -1.729232 
+<M> = (0.174314,-0.705969), <E> = -1.724029 
+
+T=0.590000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.154281,-0.708047), Energy = -1.725688 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.185173,-0.715361), Energy = -1.733915 
+<M> = (0.179933,-0.708847), <E> = -1.730536 
+
+T=0.580000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.239530,-0.707961), Energy = -1.751204 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.197242,-0.711350), Energy = -1.740734 
+<M> = (0.171080,-0.716927), <E> = -1.737227 
+
+T=0.570000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.154807,-0.723325), Energy = -1.743152 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.218833,-0.683802), Energy = -1.737564 
+<M> = (0.175389,-0.719108), <E> = -1.743746 
+
+T=0.560000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.139285,-0.737704), Energy = -1.750377 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.183196,-0.722348), Energy = -1.750572 
+<M> = (0.162783,-0.726328), <E> = -1.750303 
+
+T=0.550000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.174053,-0.727876), Energy = -1.766317 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.187824,-0.721557), Energy = -1.755752 
+<M> = (0.170457,-0.731074), <E> = -1.756479 
+
+T=0.540000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.172329,-0.714789), Energy = -1.765084 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.205848,-0.721644), Energy = -1.754782 
+<M> = (0.181635,-0.727312), <E> = -1.762275 
+
+T=0.530000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.193087,-0.727611), Energy = -1.770492 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.162957,-0.740765), Energy = -1.773542 
+<M> = (0.178685,-0.728788), <E> = -1.767983 
+
+T=0.520000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.161744,-0.726970), Energy = -1.771826 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.159945,-0.736559), Energy = -1.766706 
+<M> = (0.180868,-0.731071), <E> = -1.774214 
+
+T=0.510000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.155679,-0.745773), Energy = -1.778568 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.200059,-0.738622), Energy = -1.784548 
+<M> = (0.169777,-0.739865), <E> = -1.780387 
+
+T=0.500000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.145646,-0.771215), Energy = -1.795712 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.160472,-0.741280), Energy = -1.788591 
+<M> = (0.168556,-0.744770), <E> = -1.786738 
+
+T=0.490000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.119428,-0.761740), Energy = -1.788770 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.190883,-0.750563), Energy = -1.790759 
+<M> = (0.164360,-0.750449), <E> = -1.792989 
+
+T=0.480000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.242164,-0.726599), Energy = -1.806118 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.152840,-0.730344), Energy = -1.787380 
+<M> = (0.170439,-0.754517), <E> = -1.798682 
+
+T=0.470000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.202854,-0.748013), Energy = -1.806661 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.176049,-0.756670), Energy = -1.812357 
+<M> = (0.173427,-0.752541), <E> = -1.804483 
+
+T=0.460000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.174132,-0.761148), Energy = -1.805542 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.167449,-0.760692), Energy = -1.802562 
+<M> = (0.176816,-0.752116), <E> = -1.810036 
+
+T=0.450000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.212495,-0.755664), Energy = -1.821767 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.209969,-0.744345), Energy = -1.813120 
+<M> = (0.180894,-0.753640), <E> = -1.815925 
+
+T=0.440000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.150315,-0.773060), Energy = -1.823705 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.177568,-0.758832), Energy = -1.825782 
+<M> = (0.181725,-0.760527), <E> = -1.821766 
+
+T=0.430000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.118337,-0.784800), Energy = -1.828395 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.153546,-0.753366), Energy = -1.824002 
+<M> = (0.173879,-0.766516), <E> = -1.827768 
+
+T=0.420000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.166470,-0.765359), Energy = -1.829203 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.171878,-0.769077), Energy = -1.838006 
+<M> = (0.160462,-0.775059), <E> = -1.833904 
+
+T=0.410000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.237557,-0.761049), Energy = -1.843741 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.148507,-0.775788), Energy = -1.836883 
+<M> = (0.170779,-0.774239), <E> = -1.839693 
+
+T=0.400000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188481,-0.765808), Energy = -1.840651 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.165919,-0.788458), Energy = -1.847175 
+<M> = (0.175394,-0.774886), <E> = -1.845126 
+
+T=0.390000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.191557,-0.778497), Energy = -1.848627 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.165463,-0.785485), Energy = -1.842528 
+<M> = (0.176610,-0.776888), <E> = -1.850665 
+
+T=0.380000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.159259,-0.771792), Energy = -1.849304 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.187994,-0.775161), Energy = -1.857870 
+<M> = (0.174820,-0.776078), <E> = -1.856194 
+
+T=0.370000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.211078,-0.788560), Energy = -1.870160 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.187618,-0.769033), Energy = -1.859413 
+<M> = (0.181428,-0.781653), <E> = -1.861733 
+
+T=0.360000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.187432,-0.795520), Energy = -1.869017 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.179786,-0.784398), Energy = -1.863744 
+<M> = (0.177808,-0.785111), <E> = -1.867658 
+
+T=0.350000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.169711,-0.767245), Energy = -1.869231 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.152339,-0.783546), Energy = -1.868724 
+<M> = (0.178054,-0.788177), <E> = -1.873300 
+
+T=0.340000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.190380,-0.792025), Energy = -1.879713 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.209242,-0.793760), Energy = -1.879234 
+<M> = (0.166065,-0.797172), <E> = -1.879137 
+
+T=0.330000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.137931,-0.812360), Energy = -1.886021 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.180251,-0.805596), Energy = -1.886925 
+<M> = (0.171188,-0.797932), <E> = -1.884569 
+
+T=0.320000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.191309,-0.786690), Energy = -1.888378 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.192287,-0.804490), Energy = -1.895617 
+<M> = (0.173323,-0.797446), <E> = -1.890010 
+
+T=0.310000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.197428,-0.794901), Energy = -1.890211 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.170763,-0.794215), Energy = -1.891419 
+<M> = (0.174645,-0.799358), <E> = -1.895284 
+
+T=0.300000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.197316,-0.800638), Energy = -1.902435 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.185752,-0.791902), Energy = -1.901031 
+<M> = (0.176780,-0.802033), <E> = -1.900875 
+
+T=0.290000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188171,-0.810512), Energy = -1.908258 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.189718,-0.808354), Energy = -1.906741 
+<M> = (0.180219,-0.804755), <E> = -1.906387 
+
+T=0.280000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.159394,-0.806662), Energy = -1.911324 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.163359,-0.807797), Energy = -1.907633 
+<M> = (0.173825,-0.808448), <E> = -1.911848 
+
+T=0.270000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.167015,-0.825899), Energy = -1.919128 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.179426,-0.824261), Energy = -1.916808 
+<M> = (0.168887,-0.814639), <E> = -1.917549 
+
+T=0.260000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.132118,-0.827664), Energy = -1.924096 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.168444,-0.812738), Energy = -1.924637 
+<M> = (0.174835,-0.816688), <E> = -1.922943 
+
+T=0.250000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188089,-0.812638), Energy = -1.930508 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.189575,-0.817974), Energy = -1.934520 
+<M> = (0.171746,-0.818470), <E> = -1.928119 
+
+T=0.240000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.175837,-0.798140), Energy = -1.934042 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.175537,-0.826547), Energy = -1.933950 
+<M> = (0.180234,-0.819954), <E> = -1.933385 
+
+T=0.230000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.162927,-0.825964), Energy = -1.937895 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.150550,-0.828987), Energy = -1.939840 
+<M> = (0.177774,-0.820073), <E> = -1.938779 
+
+T=0.220000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.190938,-0.822014), Energy = -1.941798 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.194057,-0.818921), Energy = -1.940837 
+<M> = (0.178347,-0.824567), <E> = -1.944007 
+
+T=0.210000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.167164,-0.827338), Energy = -1.948603 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.168133,-0.829171), Energy = -1.950291 
+<M> = (0.172417,-0.829008), <E> = -1.949448 
+
+T=0.200000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188462,-0.828209), Energy = -1.953859 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.173892,-0.832959), Energy = -1.951469 
+<M> = (0.178711,-0.830185), <E> = -1.954765 
+
+T=0.190000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.160634,-0.832247), Energy = -1.960040 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.165925,-0.837821), Energy = -1.962908 
+<M> = (0.173181,-0.834998), <E> = -1.960122 
+
+T=0.180000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.168465,-0.838036), Energy = -1.968144 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.167314,-0.838610), Energy = -1.968050 
+<M> = (0.175599,-0.835834), <E> = -1.965387 
+
+T=0.170000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.155890,-0.849880), Energy = -1.966014 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.166962,-0.841990), Energy = -1.967936 
+<M> = (0.177322,-0.838516), <E> = -1.970530 
+
+T=0.160000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.158417,-0.851491), Energy = -1.977305 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.160236,-0.848851), Energy = -1.977293 
+<M> = (0.175712,-0.841139), <E> = -1.975724 
+
+T=0.150000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.209187,-0.829058), Energy = -1.979894 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.179497,-0.845485), Energy = -1.981314 
+<M> = (0.179467,-0.842943), <E> = -1.980978 
+
+T=0.140000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188800,-0.840151), Energy = -1.986001 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.181977,-0.844345), Energy = -1.985934 
+<M> = (0.175908,-0.846108), <E> = -1.986175 
+
+T=0.130000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.186072,-0.847985), Energy = -1.993761 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.156836,-0.842803), Energy = -1.990996 
+<M> = (0.176751,-0.848857), <E> = -1.991394 
+
+T=0.120000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.191962,-0.848375), Energy = -1.996160 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.189647,-0.847617), Energy = -1.996193 
+<M> = (0.175278,-0.851342), <E> = -1.996595 
+
+T=0.110000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.188100,-0.850929), Energy = -2.002277 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.186950,-0.855596), Energy = -2.002390 
+<M> = (0.176770,-0.854094), <E> = -2.001745 
+
+T=0.100000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.163761,-0.855622), Energy = -2.009487 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.174813,-0.857332), Energy = -2.006683 
+<M> = (0.173577,-0.856628), <E> = -2.006858 
+
+T=0.090000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.176385,-0.862982), Energy = -2.011309 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.181537,-0.865137), Energy = -2.010857 
+<M> = (0.176458,-0.858752), <E> = -2.011970 
+
+T=0.080000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.165447,-0.863374), Energy = -2.017070 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.169813,-0.858028), Energy = -2.018349 
+<M> = (0.180034,-0.860048), <E> = -2.017029 
+
+T=0.070000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.170158,-0.867429), Energy = -2.022050 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.171813,-0.865137), Energy = -2.022348 
+<M> = (0.176802,-0.864602), <E> = -2.022165 
+
+T=0.060000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.172516,-0.867192), Energy = -2.026368 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.173606,-0.867387), Energy = -2.026957 
+<M> = (0.179087,-0.866503), <E> = -2.027267 
+
+T=0.050000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.176929,-0.866625), Energy = -2.032931 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.182453,-0.863659), Energy = -2.032429 
+<M> = (0.177624,-0.869205), <E> = -2.032328 
+
+T=0.040000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.173929,-0.872434), Energy = -2.037646 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.174410,-0.868394), Energy = -2.037084 
+<M> = (0.177733,-0.871993), <E> = -2.037419 
+
+T=0.030000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.177772,-0.873770), Energy = -2.042565 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.179665,-0.870122), Energy = -2.042493 
+<M> = (0.176104,-0.874656), <E> = -2.042470 
+
+T=0.020000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.177875,-0.877315), Energy = -2.047418 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.176353,-0.877818), Energy = -2.047770 
+<M> = (0.174942,-0.877334), <E> = -2.047476 
+
+T=0.010000	 Thermalizing iterations... 
+Done.
+Thermalized Magnetisation = (0.177478,-0.878006), Energy = -2.052426 
+Averaging iterations... h=0.015625,0.000000
+Done.
+Final: Magnetisation = (0.176568,-0.878663), Energy = -2.052516 
+<M> = (0.178501,-0.878889), <E> = -2.052483 
+Final Magnetisation = (0.176568,-0.878663), Energy = -2.052516 
+------------------------
+
+Updating all (first)black/(then)white checkerboard sites simultaneously.. 
+
+ztne RFXY h rotating with |h|=0.015625 at T=0.000000..
+loop 1
+
+loop 2
+
+CPU  Start Time = 5611173.005850 
+
+CPU  End Time = 5619811.296308 
+
+CPU Time elapsed total = 8638.290458 
+
+real	143m58.318s
+user	2447m15.738s
+sys	1m16.523s

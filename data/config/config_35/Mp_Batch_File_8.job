@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -N 1
+#SBATCH -p RM
+#SBATCH --ntasks-per-node 28
+#SBATCH -t 48:00:00
+# echo commands to stdout 
+set -x
+
+# move to your appropriate pylon5 directory
+# this job assumes:
+#  - all input data is stored in this directory
+#  - all output should be stored in this directory
+cd /home/sbasak/Exercises/OpenMP/XY_code/Z2/rotating_field/trial/config/config_35
+
+# run OpenMP program
+export OMP_NUM_THREADS=28
+time ./a_8.out
