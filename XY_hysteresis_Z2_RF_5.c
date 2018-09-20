@@ -82,11 +82,11 @@ double CUTOFF = 0.0000000001;
 
 //====================      on-site field (h)                ====================//
     double h[dim_S] = { 0.0, 0.0 }; // h[0] = 0.1; // h[dim_S]
-    double sigma_h[dim_S] = { 0.50, 0.00 }; 
+    double sigma_h[dim_S] = { 0.10, 0.10 }; 
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double delta_h = 2.0, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
+    double del_h = 0.0001, h_i_max = 0.0, h_i_min = 0.0, del_phi = 0.0001; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -3074,8 +3074,23 @@ double CUTOFF = 0.0000000001;
     int cooling_protocol()
     {
         #ifdef _OPENMP
-        omp_set_num_threads(16);
+        if (num_of_threads<=16)
+        {
+            omp_set_num_threads(num_of_threads);
+        }
+        else 
+        {
+            if (num_of_threads<=24)
+            {
+                omp_set_num_threads(16);
+            }
+            else
+            {
+                omp_set_num_threads(num_of_threads-4);
+            }
+        }
         #endif
+        
         int j_S, j_SS, j_L;
 
         // ensemble_all();
@@ -3139,6 +3154,24 @@ double CUTOFF = 0.0000000001;
 
     int heating_protocol()
     {
+        #ifdef _OPENMP
+        if (num_of_threads<=16)
+        {
+            omp_set_num_threads(num_of_threads);
+        }
+        else 
+        {
+            if (num_of_threads<=24)
+            {
+                omp_set_num_threads(16);
+            }
+            else
+            {
+                omp_set_num_threads(num_of_threads-4);
+            }
+        }
+        #endif
+
         int j_S, j_SS, j_L;
 
         // ensemble_all();
@@ -3448,6 +3481,7 @@ double CUTOFF = 0.0000000001;
         int j_S, j_L;
         double h_start = order[jj_S]*(h_max+h_i_max);
         double h_end = -h_start;
+        double delta_h = del_h;
 
         // delta_h = (2*order[jj_S]-1)*delta_h;
 
@@ -3758,6 +3792,7 @@ double CUTOFF = 0.0000000001;
     {
         T = 0;
         h[0] = h_i_max;
+        double delta_h = del_h;
         order[0] = 1;
         h_order = 0;
         r_order = 0;
@@ -4069,6 +4104,7 @@ double CUTOFF = 0.0000000001;
         
         T = 0;
         h[0] = h_i_max;
+        double delta_h = del_h;
         order[0] = 1;
         h_order = 0;
         r_order = 0;
@@ -4403,6 +4439,7 @@ double CUTOFF = 0.0000000001;
         
         T = 0;
         h[0] = h_i_max;
+        double delta_h = del_h;
         order[0] = 1;
         h_order = 0;
         r_order = 0;
@@ -4877,6 +4914,23 @@ double CUTOFF = 0.0000000001;
 
     int zero_temp_RFXY_hysteresis_axis(int jj_S, double order_start)
     {
+        #ifdef _OPENMP
+        if (num_of_threads<=16)
+        {
+            omp_set_num_threads(num_of_threads);
+        }
+        else 
+        {
+            if (num_of_threads<=20)
+            {
+                omp_set_num_threads(16);
+            }
+            else
+            {
+                omp_set_num_threads(num_of_threads-4);
+            }
+        }
+        #endif
         double cutoff_local = 0.0;
         int j_S, j_L;
         T = 0;
@@ -4896,7 +4950,28 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(h_max+h_i_max);
+
+        double h_start;
+        double delta_h;
+        double sum_sigma_h_jj_S = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S != jj_S)
+            {
+                sum_sigma_h_jj_S += sigma_h[j_S];
+            }
+        }
+        if (sum_sigma_h_jj_S > 0.0)
+        {
+            h_start = order[jj_S]*(sigma_h[jj_S]);
+            delta_h = sigma_h[jj_S]*del_h;
+        }
+        else
+        {
+            h_start = order[jj_S]*(h_max);
+            delta_h = h_max*del_h;
+        }
+
         double h_end = -h_start;
         h_order = 0;
         r_order = 0;
@@ -5173,8 +5248,18 @@ double CUTOFF = 0.0000000001;
                 order[j_S] = 0;
             }
         }
-        h_start = order[jj_S]*(h_max+h_i_max);
+        if (sum_sigma_h_jj_S > 0.0)
+        {
+            h_start = order[jj_S]*(sigma_h[jj_S]);
+        }
+        else
+        {
+            h_start = order[jj_S]*(h_max);
+        }
         h_end = -h_start;
+        h_order = 0;
+        r_order = 0;
+        initialize_spin_config();
 
         ensemble_m();
         ensemble_E();
@@ -5261,6 +5346,24 @@ double CUTOFF = 0.0000000001;
 
     int zero_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start)
     {
+        #ifdef _OPENMP
+        if (num_of_threads<=16)
+        {
+            omp_set_num_threads(num_of_threads);
+        }
+        else 
+        {
+            if (num_of_threads<=20)
+            {
+                omp_set_num_threads(16);
+            }
+            else
+            {
+                omp_set_num_threads(num_of_threads-4);
+            }
+        }
+        #endif
+        
         double cutoff_local = 0.0;
         int j_S, j_L;
         T = 0;
@@ -5280,7 +5383,28 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(h_max+h_i_max);
+        // double h_start = order[jj_S]*(h_max+h_i_max);
+        double h_start;
+        double delta_h;
+        double sum_sigma_h_jj_S = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S != jj_S)
+            {
+                sum_sigma_h_jj_S += sigma_h[j_S];
+            }
+        }
+        if (sum_sigma_h_jj_S > 0.0)
+        {
+            h_start = order[jj_S]*(sigma_h[jj_S]);
+            delta_h = sigma_h[jj_S]*del_h;
+        }
+        else
+        {
+            h_start = order[jj_S]*(h_max);
+            delta_h = h_max*del_h;
+        }
+
         double h_end = -h_start;
         h_order = 0;
         r_order = 0;
@@ -5560,9 +5684,20 @@ double CUTOFF = 0.0000000001;
                 order[j_S] = 0;
             }
         }
-        h_start = order[jj_S]*(h_max+h_i_max);
+        // h_start = order[jj_S]*(h_max+h_i_max);
+        if (sum_sigma_h_jj_S > 0.0)
+        {
+            h_start = order[jj_S]*(sigma_h[jj_S]);
+        }
+        else
+        {
+            h_start = order[jj_S]*(h_max);
+        }
         h_end = -h_start;
-
+        h_order = 0;
+        r_order = 0;
+        initialize_spin_config();
+        
         ensemble_m();
         ensemble_E();
         
@@ -5651,7 +5786,26 @@ double CUTOFF = 0.0000000001;
 
     int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start, double h_start)
     {
+        #ifdef _OPENMP
+        if (num_of_threads<=16)
+        {
+            omp_set_num_threads(num_of_threads);
+        }
+        else 
+        {
+            if (num_of_threads<=20)
+            {
+                omp_set_num_threads(16);
+            }
+            else
+            {
+                omp_set_num_threads(num_of_threads-4);
+            }
+        }
+        #endif
+
         T = 0;
+        double delta_phi = del_phi;
         
         printf("\nUpdating all sites simultaneously.. \n");
         fprintf(pFile_1, "\nUpdating all sites simultaneously.. \n");
@@ -5681,7 +5835,7 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         
-        double h_theta = 0;
+        double h_phi = 0;
         printf("\nztne RFXY h rotating with |h|=%lf at T=%lf..", h_start, T);
 
         long int site_i;
@@ -5692,17 +5846,17 @@ double CUTOFF = 0.0000000001;
         while (repeat_cond)
         {
 
-            for (h_theta = 0.0; h_theta * order[jj_S] <= 1.0; h_theta = h_theta + order[jj_S] * delta_h)
+            for (h_phi = 0.0; h_phi * order[jj_S] <= 1.0; h_phi = h_phi + order[jj_S] * delta_phi)
             {
                 if (jj_S == 0)
                 {
-                    h[0] = h_start * cos(2*pie*h_theta);
-                    h[1] = h_start * sin(2*pie*h_theta);
+                    h[0] = h_start * cos(2*pie*h_phi);
+                    h[1] = h_start * sin(2*pie*h_phi);
                 }
                 else
                 {
-                    h[0] = -h_start * sin(2*pie*h_theta);
-                    h[1] = h_start * cos(2*pie*h_theta);
+                    h[0] = -h_start * sin(2*pie*h_phi);
+                    h[1] = h_start * cos(2*pie*h_phi);
                 }
                 
                 cutoff_local = -0.1;
@@ -5743,7 +5897,7 @@ double CUTOFF = 0.0000000001;
                 printf("\nblam = %lf", m[jj_S]);
                 printf("\n");
 
-                fprintf(pFile_1, "%lf\t ", h_theta);
+                fprintf(pFile_1, "%lf\t ", h_phi);
                 fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
@@ -5754,13 +5908,13 @@ double CUTOFF = 0.0000000001;
                 fprintf(pFile_1, "\n");
                 
                 // ----------------------------------------------//
-                // if (h_theta * order[jj_S] + delta_h > 1.0)
+                // if (h_phi * order[jj_S] + delta_phi > 1.0)
                 // {
                 //     for(j_S=0; j_S<dim_S; j_S++)
                 //     {
                 //         if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
                 //         {
-                //             h_theta = -delta_h* order[jj_S];
+                //             h_phi = -delta_phi* order[jj_S];
                 //         }
                 //         m_last[j_S] = m[j_S];
                 //     }
@@ -5790,9 +5944,25 @@ double CUTOFF = 0.0000000001;
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start)
     {
         #ifdef _OPENMP
-        omp_set_num_threads(24);
+        if (num_of_threads<=16)
+        {
+            omp_set_num_threads(num_of_threads);
+        }
+        else 
+        {
+            if (num_of_threads<=20)
+            {
+                omp_set_num_threads(16);
+            }
+            else
+            {
+                omp_set_num_threads(num_of_threads-4);
+            }
+        }
         #endif
+
         T = 0;
+        double delta_phi = del_phi;
 
         printf("\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
         fprintf(pFile_1, "\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
@@ -5820,7 +5990,7 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         
-        double h_theta = 0;
+        double h_phi = 0;
         printf("\nztne RFXY h rotating with |h|=%lf at T=%lf..", h_start, T);
 
         long int site_i;
@@ -5831,18 +6001,18 @@ double CUTOFF = 0.0000000001;
         while (repeat_cond)
         {
 
-            for (h_theta = 0.0; h_theta * order[jj_S] <= 1.0; h_theta = h_theta + order[jj_S] * delta_h)
+            for (h_phi = 0.0; h_phi * order[jj_S] <= 1.0; h_phi = h_phi + order[jj_S] * delta_phi)
             {
                 
                 if (jj_S == 0)
                 {
-                    h[0] = h_start * cos(2*pie*h_theta);
-                    h[1] = h_start * sin(2*pie*h_theta);
+                    h[0] = h_start * cos(2*pie*h_phi);
+                    h[1] = h_start * sin(2*pie*h_phi);
                 }
                 else
                 {
-                    h[0] = -h_start * sin(2*pie*h_theta);
-                    h[1] = h_start * cos(2*pie*h_theta);
+                    h[0] = -h_start * sin(2*pie*h_phi);
+                    h[1] = h_start * cos(2*pie*h_phi);
                 }
 
                 cutoff_local = -0.1;
@@ -5881,7 +6051,7 @@ double CUTOFF = 0.0000000001;
                 // printf("\nblam = %lf", m[jj_S]);
                 // printf("\n");
 
-                fprintf(pFile_1, "%lf\t ", h_theta);
+                fprintf(pFile_1, "%lf\t ", h_phi);
                 fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
@@ -5892,13 +6062,13 @@ double CUTOFF = 0.0000000001;
                 fprintf(pFile_1, "\n");
                 
                 // ----------------------------------------------//
-                // if (h_theta * order[jj_S] + delta_h > 1.0)
+                // if (h_phi * order[jj_S] + delta_phi > 1.0)
                 // {
                 //     for(j_S=0; j_S<dim_S; j_S++)
                 //     {
                 //         if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
                 //         {
-                //             h_theta = -delta_h* order[jj_S];
+                //             h_phi = -delta_phi* order[jj_S];
                 //         }
                 //         m_last[j_S] = m[j_S];
                 //     }
@@ -5928,6 +6098,7 @@ double CUTOFF = 0.0000000001;
     int ordered_initialize_and_rotate(int jj_S, double order_start)
     {
         T = 0;
+        
         double cutoff_local = 0.0;
         int j_S, j_L;
         
@@ -5947,7 +6118,8 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         double h_start = order[jj_S]*(sigma_h[0]/4.0);
-        double h_theta = 0;
+        double h_phi = 0;
+        double delta_phi = del_phi;
         h_order = 0;
         r_order = 0;
         initialize_spin_config();
@@ -6065,14 +6237,14 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "_%lf}.dat", delta_phi);
             
         }
         pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
-            fprintf(pFile_1, "theta(h[:])\t ");
+            fprintf(pFile_1, "phi(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
             fprintf(pFile_1, "h[1]\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6158,7 +6330,7 @@ double CUTOFF = 0.0000000001;
                 }
                 fprintf(pFile_1, "%lf", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
         long int site_i;
         T = 0;
@@ -6174,6 +6346,7 @@ double CUTOFF = 0.0000000001;
     int ordered_initialize_and_rotate_checkerboard(int jj_S, double order_start)
     {
         T = 0;
+        
         double cutoff_local = 0.0;
         int j_S, j_L;
         
@@ -6193,7 +6366,8 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         double h_start = order[jj_S]*(sigma_h[0]/4.0);
-        double h_theta = 0;
+        double h_phi = 0;
+        double delta_phi = del_phi;
         h_order = 0;
         r_order = 0;
         initialize_spin_config();
@@ -6311,14 +6485,14 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "_%lf}.dat", delta_phi);
             
         }
         pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
-            fprintf(pFile_1, "theta(h[:])\t ");
+            fprintf(pFile_1, "phi(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
             fprintf(pFile_1, "h[1]\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6404,7 +6578,7 @@ double CUTOFF = 0.0000000001;
                 }
                 fprintf(pFile_1, "%lf", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
         long int site_i;
         T = 0;
@@ -6440,7 +6614,8 @@ double CUTOFF = 0.0000000001;
         // start from h[0] or h[1] != 0
         double h_start = order[jj_S]*(sigma_h[0]/4.0);
         h[jj_S] = h_start;
-        double h_theta = 0;
+        double h_phi = 0;
+        double delta_phi = del_phi;
         h_order = 0;
         r_order = 1;
         initialize_spin_config();
@@ -6558,7 +6733,7 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "_%lf}.dat", delta_phi);
         }
         pFile_1 = fopen(output_file_0, "a");
 
@@ -6663,7 +6838,7 @@ double CUTOFF = 0.0000000001;
         // rotate field
         // print column header
         {
-            fprintf(pFile_1, "\ntheta(h[:])\t ");
+            fprintf(pFile_1, "\nphi(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
             fprintf(pFile_1, "h[1]\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6749,7 +6924,7 @@ double CUTOFF = 0.0000000001;
                 }
                 fprintf(pFile_1, "%lf", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
         zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
         fclose(pFile_1);
@@ -6782,7 +6957,8 @@ double CUTOFF = 0.0000000001;
         double h_start = order[jj_S]*(sigma_h[0]/5.0);
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
-        double h_theta = 0.0;
+        double h_phi = 0.0;
+        double delta_phi = del_phi;
         h_order = 0;
         r_order = 1;
         initialize_spin_config();
@@ -6900,7 +7076,7 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}_c", delta_h);
+            pos += sprintf(pos, "_%lf}_c", delta_phi);
         }
         char output_file_1[256];
         strcpy(output_file_1, output_file_0);
@@ -7014,7 +7190,7 @@ double CUTOFF = 0.0000000001;
         pFile_1 = fopen(output_file_2, "a");
         // print column header
         {
-            fprintf(pFile_1, "\ntheta(h[:])\t ");
+            fprintf(pFile_1, "\nphi(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
             fprintf(pFile_1, "h[1]\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7100,7 +7276,7 @@ double CUTOFF = 0.0000000001;
                 }
                 fprintf(pFile_1, "%lf", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
         
         zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
@@ -7130,7 +7306,8 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         double h_start = order[jj_S]*(sigma_h[0]/4.0);
-        double h_theta = 0;
+        double h_phi = 0;
+        double delta_phi = del_phi;
         h_order = 0;
         r_order = 1;
         initialize_spin_config();
@@ -7248,13 +7425,13 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "_%lf}.dat", delta_phi);
         }
         pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         {
-            fprintf(pFile_1, "theta(h[:])\t ");
+            fprintf(pFile_1, "phi(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
             fprintf(pFile_1, "h[1]\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7340,7 +7517,7 @@ double CUTOFF = 0.0000000001;
                 }
                 fprintf(pFile_1, "%lf", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
         zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
         fclose(pFile_1);
@@ -7370,7 +7547,8 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         double h_start = order[jj_S]*(sigma_h[0]/4.0);
-        double h_theta = 0;
+        double h_phi = 0;
+        double delta_phi = del_phi;
         h_order = 0;
         r_order = 1;
         initialize_spin_config();
@@ -7488,13 +7666,13 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "_%lf}.dat", delta_phi);
         }
         pFile_1 = fopen(output_file_0, "a");
 
         // print column header
         { 
-            fprintf(pFile_1, "theta(h[:])\t ");
+            fprintf(pFile_1, "phi(h[:])\t ");
             fprintf(pFile_1, "h[0]\t ");
             fprintf(pFile_1, "h[1]\t ");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7580,7 +7758,7 @@ double CUTOFF = 0.0000000001;
                 }
                 fprintf(pFile_1, "%lf", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
         
         zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
@@ -7714,14 +7892,14 @@ double CUTOFF = 0.0000000001;
         double start_time_loop[2];
         double end_time_loop[2];
         start_time_loop[0] = omp_get_wtime();
-        field_cool_and_rotate_checkerboard(0, 1);
+        zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
+        // field_cool_and_rotate_checkerboard(0, 1);
         // random_initialize_and_rotate_checkerboard(0, 1);
         end_time_loop[0] = omp_get_wtime();
         start_time_loop[1] = omp_get_wtime();
+        zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
         // evolution_at_T(100);
         end_time_loop[1] = omp_get_wtime();
-        // zero_temp_RFXY_hysteresis_axis(0, -1);
-        // zero_temp_RFXY_hysteresis_axis(1, 1);
 
         
         
@@ -7796,8 +7974,10 @@ double CUTOFF = 0.0000000001;
 
         free_memory();
         double end_time = omp_get_wtime();
-        printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
-        printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
+        // printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
+        printf("\nHysteresis along x ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[0] - start_time_loop[0] );
+        printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
+        // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
         
         printf("\nCPU Time elapsed total = %lf \n", end_time-start_time);
         return 0;
