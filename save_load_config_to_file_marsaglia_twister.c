@@ -19,7 +19,7 @@ long int no_of_sites = 1;
 long int *N_N_I;
 
 double *h_random;
-double sigma_h[dim_S] = { 0.0050, 0.00 }; // only parameter for distribution
+double sigma_h[dim_S] = { 0.30, 0.30 }; // only parameter for distribution
 
 double h_i_max = 0.0, h_i_min = 0.0; // for hysteresis
 double h[dim_S] = { 0.0, 0.0 }; 

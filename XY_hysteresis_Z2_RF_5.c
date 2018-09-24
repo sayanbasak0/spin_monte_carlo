@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
+#include "mt19937-64.h"
 #include <omp.h>
 
 #define dim_L 2
@@ -82,11 +83,11 @@ double CUTOFF = 0.0000000001;
 
 //====================      on-site field (h)                ====================//
     double h[dim_S] = { 0.0, 0.0 }; // h[0] = 0.1; // h[dim_S]
-    double sigma_h[dim_S] = { 0.10, 0.10 }; 
+    double sigma_h[dim_S] = { 0.50, 0.00 }; 
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double del_h = 0.0001, h_i_max = 0.0, h_i_min = 0.0, del_phi = 0.0001; // for hysteresis
+    double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0, del_phi = 1.001; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -139,8 +140,8 @@ double CUTOFF = 0.0000000001;
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10*10*10; // *=lattice_size
-    long int average_j = 1*10*10; // *=lattice_size
+    long int thermal_i = 128*10*10*10; // ! *=lattice_size
+    long int average_j = 128*10*10; // ! *=lattice_size
     long int sampling_inter = 16; // *=sampling_inter-rand()%sampling_inter
 
 //====================      Hysteresis T!=0                  ====================//
@@ -2352,7 +2353,7 @@ double CUTOFF = 0.0000000001;
 
         while(average_iter)
         {
-            Monte_Carlo_Sweep(sampling_inter-rand()%sampling_inter);
+            Monte_Carlo_Sweep(sampling_inter-genrand64_int64()%sampling_inter);
             // random_Wolff_sweep(1);
             ensemble_m();
             ensemble_E();
@@ -3086,7 +3087,7 @@ double CUTOFF = 0.0000000001;
             }
             else
             {
-                omp_set_num_threads(num_of_threads-4);
+                omp_set_num_threads(num_of_threads-8);
             }
         }
         #endif
@@ -3167,7 +3168,7 @@ double CUTOFF = 0.0000000001;
             }
             else
             {
-                omp_set_num_threads(num_of_threads-4);
+                omp_set_num_threads(num_of_threads-8);
             }
         }
         #endif
@@ -4953,18 +4954,19 @@ double CUTOFF = 0.0000000001;
 
         double h_start;
         double delta_h;
-        double sum_sigma_h_jj_S = 0.0;
+        double sigma_h_trnsvrs = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
         {
             if (j_S != jj_S)
             {
-                sum_sigma_h_jj_S += sigma_h[j_S];
+                sigma_h_trnsvrs += sigma_h[j_S] * sigma_h[j_S];
             }
         }
-        if (sum_sigma_h_jj_S > 0.0)
+        sigma_h_trnsvrs = sqrt(sigma_h_trnsvrs);
+        if (sigma_h_trnsvrs > 0.0)
         {
-            h_start = order[jj_S]*(sigma_h[jj_S]);
-            delta_h = sigma_h[jj_S]*del_h;
+            h_start = order[jj_S]*(sigma_h_trnsvrs);
+            delta_h = sigma_h_trnsvrs*del_h;
         }
         else
         {
@@ -5248,9 +5250,9 @@ double CUTOFF = 0.0000000001;
                 order[j_S] = 0;
             }
         }
-        if (sum_sigma_h_jj_S > 0.0)
+        if (sigma_h_trnsvrs > 0.0)
         {
-            h_start = order[jj_S]*(sigma_h[jj_S]);
+            h_start = order[jj_S]*(sigma_h_trnsvrs);
         }
         else
         {
@@ -5386,18 +5388,19 @@ double CUTOFF = 0.0000000001;
         // double h_start = order[jj_S]*(h_max+h_i_max);
         double h_start;
         double delta_h;
-        double sum_sigma_h_jj_S = 0.0;
+        double sigma_h_trnsvrs = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
         {
             if (j_S != jj_S)
             {
-                sum_sigma_h_jj_S += sigma_h[j_S];
+                sigma_h_trnsvrs += sigma_h[j_S] * sigma_h[j_S];
             }
         }
-        if (sum_sigma_h_jj_S > 0.0)
+        sigma_h_trnsvrs = sqrt(sigma_h_trnsvrs);
+        if (sigma_h_trnsvrs > 0.0)
         {
-            h_start = order[jj_S]*(sigma_h[jj_S]);
-            delta_h = sigma_h[jj_S]*del_h;
+            h_start = order[jj_S]*(sigma_h_trnsvrs);
+            delta_h = sigma_h_trnsvrs*del_h;
         }
         else
         {
@@ -5685,9 +5688,9 @@ double CUTOFF = 0.0000000001;
             }
         }
         // h_start = order[jj_S]*(h_max+h_i_max);
-        if (sum_sigma_h_jj_S > 0.0)
+        if (sigma_h_trnsvrs > 0.0)
         {
-            h_start = order[jj_S]*(sigma_h[jj_S]);
+            h_start = order[jj_S]*(sigma_h_trnsvrs);
         }
         else
         {
@@ -6954,7 +6957,7 @@ double CUTOFF = 0.0000000001;
         }
         
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/5.0);
+        double h_start = order[jj_S]*(sigma_h[0]/7.0);
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
         double h_phi = 0.0;
@@ -7809,12 +7812,14 @@ double CUTOFF = 0.0000000001;
         num_of_threads = omp_get_max_threads();
         num_of_procs = omp_get_num_procs();
         random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
-        random_seed[0] = rand();
+        init_genrand64( (unsigned long long) rand() );
+        
         printf("\nNo. of THREADS = %d\n", num_of_threads);
         printf("No. of PROCESSORS = %d\n", num_of_procs);
-        for (i=1; i < num_of_threads; i++)
+        for (i=0; i < num_of_threads; i++)
         {
-            random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
+            // random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
+            random_seed[i] = genrand64_int64();
         }
         double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
@@ -7851,7 +7856,7 @@ double CUTOFF = 0.0000000001;
 
     int main()
     {
-        
+        srand(time(NULL));
         double start_time = omp_get_wtime();
         int j_L, j_S;
         // no_of_sites = custom_int_pow(lattice_size, dim_L);
@@ -7860,11 +7865,11 @@ double CUTOFF = 0.0000000001;
         initialize_nearest_neighbor_index();
         printf("nearest neighbor initialized. \n");
         
-        load_h_config();
-        printf("h loaded. \n");
-
         load_J_config();
         printf("J loaded. \n");
+
+        load_h_config();
+        printf("h loaded. \n");
         
         spin = (double*)malloc(dim_S*no_of_sites*sizeof(double));
         cluster = (int*)malloc(no_of_sites*sizeof(int));
@@ -7875,14 +7880,14 @@ double CUTOFF = 0.0000000001;
         field_site = (double*)malloc(dim_S*no_of_sites*sizeof(double));
         long int i, j;
 
-        thermal_i = thermal_i*lattice_size[0];
-        average_j = average_j*lattice_size[0];
+        // thermal_i = thermal_i*lattice_size[0];
+        // average_j = average_j*lattice_size[0];
         
         printf("L = %d, dim_L = %d, dim_S = %d\n", lattice_size[0], dim_L, dim_S); 
         
         printf("hysteresis_MCS_multiplier = %ld, hysteresis_MCS_max = %ld\n", hysteresis_MCS_multiplier, hysteresis_MCS_max); 
 
-        srand(time(NULL));
+        // srand(time(NULL));
 
         printf("RAND_MAX = %lf,\n sizeof(int) = %ld,\n sizeof(long) = %ld,\n sizeof(double) = %ld,\n sizeof(long int) = %ld,\n sizeof(short int) = %ld,\n sizeof(unsigned int) = %ld,\n sizeof(RAND_MAX) = %ld\n", (double)RAND_MAX, sizeof(int), sizeof(long), sizeof(double), sizeof(long int), sizeof(short int), sizeof(unsigned int), sizeof(RAND_MAX));
         
@@ -7892,12 +7897,12 @@ double CUTOFF = 0.0000000001;
         double start_time_loop[2];
         double end_time_loop[2];
         start_time_loop[0] = omp_get_wtime();
-        zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
-        // field_cool_and_rotate_checkerboard(0, 1);
+        field_cool_and_rotate_checkerboard(0, 1);
+        // zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
         // random_initialize_and_rotate_checkerboard(0, 1);
         end_time_loop[0] = omp_get_wtime();
         start_time_loop[1] = omp_get_wtime();
-        zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
+        // zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
         // evolution_at_T(100);
         end_time_loop[1] = omp_get_wtime();
 
@@ -7974,9 +7979,9 @@ double CUTOFF = 0.0000000001;
 
         free_memory();
         double end_time = omp_get_wtime();
-        // printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
-        printf("\nHysteresis along x ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[0] - start_time_loop[0] );
-        printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
+        printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
+        // printf("\nHysteresis along x ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[0] - start_time_loop[0] );
+        // printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
         // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
         
         printf("\nCPU Time elapsed total = %lf \n", end_time-start_time);
