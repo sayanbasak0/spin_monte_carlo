@@ -6957,7 +6957,7 @@ double CUTOFF = 0.0000000001;
         }
         
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/8.0);
+        double h_start = order[jj_S]*(sigma_h[0]/10.0);
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
         double h_phi = 0.0;
