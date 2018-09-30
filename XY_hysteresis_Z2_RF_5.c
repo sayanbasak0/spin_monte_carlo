@@ -10,7 +10,7 @@
 #define dim_L 2
 #define dim_S 2
 
-FILE *pFile_1;
+FILE *pFile_1, *pFile_2;
 char output_file_0[256];
 
 const double pie = 3.141592625359;
@@ -27,7 +27,7 @@ double CUTOFF = 0.0000000001;
 //====================      Variables                        ====================//
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 16, 16 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -93,9 +93,9 @@ double CUTOFF = 0.0000000001;
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
 
 //====================      Temperature                      ====================//
-    double T = 3.0;
-    double Temp_min = 0.0;
-    double Temp_max = 2.0;
+    double T = 3.00;
+    double Temp_min = 1.00;
+    double Temp_max = 2.00;
     double delta_T = 0.05;
 
 //====================      Magnetisation <M>                ====================//
@@ -1983,7 +1983,61 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-//====================      Save J, h                        ====================//
+//====================      Save J, h, Spin                  ====================//
+
+    int save_spin_config()
+    {
+        long int i;
+        int j_S, j_L;
+
+        char output_file_1[128];
+        char *pos = output_file_1;
+        pos += sprintf(pos, "Spin_%lf_", T);
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, "-");
+            }
+            pos += sprintf(pos, "%lf", h[j_S]);
+        }
+        pos += sprintf(pos, "_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "x");
+            }
+            pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, ".dat");
+            
+        pFile_2 = fopen(output_file_1, "w"); // opens new file for writing
+        
+        for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_2, "%le ", spin[dim_S*i + j_S]);
+            }
+            fprintf(pFile_2, "\n");
+        }
+
+        fclose(pFile_2);
+        printf("Saved spin config. Output file name: %s\n", output_file_1);
+
+        /* for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                printf("|%le|", spin[dim_S*i + j_S]);
+            }
+            printf("\n");
+        }
+        printf("\n"); */
+        
+        return 0;
+    }
 
     int save_h_config()
     {
@@ -2134,7 +2188,68 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-//====================      Load J, h                        ====================//
+//====================      Load J, h, Spin                  ====================//
+
+    int load_spin_config()
+    {
+        long int i;
+        int j_S, j_L;
+
+        char input_file_1[128];
+        char *pos = input_file_1;
+        pos += sprintf(pos, "Spin_%lf_", T);
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, "-");
+            }
+            pos += sprintf(pos, "%lf", h[j_S]);
+        }
+        pos += sprintf(pos, "_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "x");
+            }
+            pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, ".dat");
+            
+        pFile_2 = fopen(input_file_1, "r"); // opens old file for writing
+        
+        if (pFile_2 == NULL)
+        {
+            initialize_spin_config();
+            printf("Initialized spin config. Input file name: %s\n", input_file_1);
+        }
+        else
+        {
+            for (i = 0; i < no_of_sites; i++)
+            {
+                for (j_S = 0; j_S<dim_S; j_S++)
+                {
+                    fscanf(pFile_2, "%le ", &spin[dim_S*i + j_S]);
+                }
+            }
+            fclose(pFile_2);
+            printf("Loaded spin config. Input file name: %s\n", input_file_1);
+        }
+
+
+        /* for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                printf("|%le|", spin[dim_S*i + j_S]);
+            }
+            printf("\n");
+        }
+        printf("\n"); */
+        
+        return 0;
+    }
 
     int load_h_config()
     {
@@ -3233,11 +3348,25 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int zfc_zfh_or_both(int c_h_b)
+    int zfc_zfh_or_both(int c_h_ch_hc)
     {
         int j_S, j_SS, j_L;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            h[j_S] = 0;
+        }
         
-        initialize_spin_config();
+        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
+        {
+            T = Temp_max;
+            load_spin_config();
+        }
+        if (c_h_ch_hc == 1 || c_h_ch_hc == 3)
+        {
+            T = Temp_min;
+            load_spin_config();
+        }
+        
         printf("order = ({%lf", order[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
@@ -3428,14 +3557,19 @@ double CUTOFF = 0.0000000001;
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%lf\t \n", h_order, r_order, thermal_i, average_j, delta_T);
         }
 
-        if (c_h_b == 0 || c_h_b == 2)
+        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
         {
             cooling_protocol();
         }
-        if (c_h_b == 1 || c_h_b == 2)
+        if (c_h_ch_hc == 1 || c_h_ch_hc == 2 || c_h_ch_hc == 3)
         {
             heating_protocol();
         }
+        if (c_h_ch_hc == 3)
+        {
+            cooling_protocol();
+        }
+        
 
         fclose(pFile_1);
         
@@ -3477,15 +3611,32 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int hysteresis_protocol(int jj_S)
+    int hysteresis_protocol(int jj_S, double order_start)
     {
         int j_S, j_L;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            if (j_S == jj_S)
+            {
+                order[j_S] = order_start;
+            }
+            else
+            {
+                order[j_S] = 0;
+            }
+        }
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            h[j_S] = 0;
+        }
         double h_start = order[jj_S]*(h_max+h_i_max);
         double h_end = -h_start;
         double delta_h = del_h;
-
+        
+        h[jj_S] = h_start;
         // delta_h = (2*order[jj_S]-1)*delta_h;
-
+        h_order = 0;
+        r_order = 0;
         initialize_spin_config();
         ensemble_m();
         ensemble_E();
@@ -6596,6 +6747,7 @@ double CUTOFF = 0.0000000001;
 
     int field_cool_and_rotate(int jj_S, double order_start)
     {
+        T = Temp_max;
         // random initialization
         int j_S, j_L;
         
@@ -6621,7 +6773,7 @@ double CUTOFF = 0.0000000001;
         double delta_phi = del_phi;
         h_order = 0;
         r_order = 1;
-        initialize_spin_config();
+        load_spin_config();
         
         ensemble_m();
         ensemble_E();
@@ -6937,6 +7089,7 @@ double CUTOFF = 0.0000000001;
 
     int field_cool_and_rotate_checkerboard(int jj_S, double order_start)
     {
+        T = Temp_max;
         // random initialization
         int j_S, j_L;
         
@@ -6964,7 +7117,7 @@ double CUTOFF = 0.0000000001;
         double delta_phi = del_phi;
         h_order = 0;
         r_order = 1;
-        initialize_spin_config();
+        load_spin_config();
                 
         ensemble_m();
         ensemble_E();
@@ -7183,108 +7336,115 @@ double CUTOFF = 0.0000000001;
         
         cooling_protocol();
         fclose(pFile_1);
+        save_spin_config();
         // return 0;
 
         // rotate field
-        char output_file_2[256];
-        strcpy(output_file_2, output_file_0);
-        strcat(output_file_2, "_r.dat");
-        
-        pFile_1 = fopen(output_file_2, "a");
-        // print column header
+        if ( T > 0.005 )
         {
-            fprintf(pFile_1, "\nphi(h[:])\t ");
-            fprintf(pFile_1, "h[0]\t ");
-            fprintf(pFile_1, "h[1]\t ");
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "<m[%d]>\t ", j_S);
-            }
-            fprintf(pFile_1, "<E>\t dim_{Lat}=%d\t L=", dim_L);
-            for (j_L=0; j_L<dim_L; j_L++)
-            {
-                if (j_L)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%d", lattice_size[j_L]);
-            }
-            fprintf(pFile_1, "\t J=");
-            for (j_L=0; j_L<dim_L; j_L++)
-            {
-                if (j_L)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%lf", J[j_L]);
-            }
-            fprintf(pFile_1, "\t {/Symbol s}_J=");
-            for (j_L=0; j_L<dim_L; j_L++)
-            {
-                if (j_L)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
-            }
-            fprintf(pFile_1, "\t <J_{ij}>=");
-            for (j_L=0; j_L<dim_L; j_L++)
-            {
-                if (j_L)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
-            }
-            fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                if (j_S)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                if (j_S==jj_S)
-                {
-                    fprintf(pFile_1, "-");
-                }
-                else
-                {
-                    fprintf(pFile_1, "%lf", h[j_S]);
-                }
-            }
-            fprintf(pFile_1, "\t {/Symbol s}_h=");
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                if (j_S)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
-            }
-            fprintf(pFile_1, "\t <h_i>=");
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                if (j_S)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
-            }
-            fprintf(pFile_1, "\t order=");
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                if (j_S)
-                {
-                    fprintf(pFile_1, ",");
-                }
-                fprintf(pFile_1, "%lf", order[j_S]);
-            }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            return 0;
         }
-        
-        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
-        fclose(pFile_1);
-        
+        else
+        {
+            char output_file_2[256];
+            strcpy(output_file_2, output_file_0);
+            strcat(output_file_2, "_r.dat");
+            
+            pFile_1 = fopen(output_file_2, "a");
+            // print column header
+            {
+                fprintf(pFile_1, "\nphi(h[:])\t ");
+                fprintf(pFile_1, "h[0]\t ");
+                fprintf(pFile_1, "h[1]\t ");
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_1, "<m[%d]>\t ", j_S);
+                }
+                fprintf(pFile_1, "<E>\t dim_{Lat}=%d\t L=", dim_L);
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    if (j_L)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%d", lattice_size[j_L]);
+                }
+                fprintf(pFile_1, "\t J=");
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    if (j_L)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%lf", J[j_L]);
+                }
+                fprintf(pFile_1, "\t {/Symbol s}_J=");
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    if (j_L)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                }
+                fprintf(pFile_1, "\t <J_{ij}>=");
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    if (j_L)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                }
+                fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    if (j_S)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    if (j_S==jj_S)
+                    {
+                        fprintf(pFile_1, "-");
+                    }
+                    else
+                    {
+                        fprintf(pFile_1, "%lf", h[j_S]);
+                    }
+                }
+                fprintf(pFile_1, "\t {/Symbol s}_h=");
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    if (j_S)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                }
+                fprintf(pFile_1, "\t <h_i>=");
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    if (j_S)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                }
+                fprintf(pFile_1, "\t order=");
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    if (j_S)
+                    {
+                        fprintf(pFile_1, ",");
+                    }
+                    fprintf(pFile_1, "%lf", order[j_S]);
+                }
+                fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            }
+            
+            zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
+            fclose(pFile_1);
+        }
         return 0;
     }
 
@@ -7952,7 +8112,7 @@ double CUTOFF = 0.0000000001;
                 {
                     for(order[j_S]=-1; order[j_S]<2; order[j_S]=order[j_S]+2)
                     {
-                        hysteresis_protocol(j_S);
+                        hysteresis_protocol(j_S, order[j_S]);
                     }
                     order[j_S] = 0;
                 }
@@ -7973,7 +8133,7 @@ double CUTOFF = 0.0000000001;
                     order[j_S] = 0;
                 }
                 order[0] = 1;
-                hysteresis_protocol(0);
+                hysteresis_protocol(0, order[0]);
             }
         } */
 
