@@ -12,7 +12,7 @@
 #define dim_L 2
 #define dim_S 2
 
-FILE *pFile_1;
+FILE *pFile_1, *pFile_2;
 char output_file_0[256];
 
 const double pie = 3.141592625359;
@@ -99,9 +99,9 @@ double CUTOFF = 0.0000000001;
 
 //====================      Temperature                      ====================//
     double T = 3.0;
-    double Temp_min = 0.6;
+    double Temp_min = 0.0;
     double Temp_max = 2.0;
-    double delta_T = 0.01;
+    double delta_T = 0.1;
 
 //====================      Magnetisation <M>                ====================//
     double m[dim_S];
@@ -145,7 +145,7 @@ double CUTOFF = 0.0000000001;
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 1*10*1; // *=lattice_size
+    long int thermal_i = 1*10*1*1; // *=lattice_size
     long int average_j = 1*10*1; // *=lattice_size
     long int sampling_inter = 1; // *=sampling_inter-rand()%sampling_inter
 
@@ -1455,6 +1455,7 @@ double CUTOFF = 0.0000000001;
     int update_spin_single(long int xyzi, double* restrict spin_local)
     {
         int j_S;
+        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             spin[dim_S*xyzi + j_S] = spin_local[j_S];
@@ -1468,6 +1469,7 @@ double CUTOFF = 0.0000000001;
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
+        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             field_local[j_S] = 0.0;
@@ -1479,11 +1481,12 @@ double CUTOFF = 0.0000000001;
                 }
             }
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
-            Energy_min = Energy_min + field_local[j_S] * field_local[j_S];
+            Energy_min += field_local[j_S] * field_local[j_S];
         }
         
         if(Energy_min==0)
         {
+            
             for (j_S=0; j_S<dim_S; j_S++)
             {
                 spin_local[j_S] = spin[dim_S*xyzi + j_S];
@@ -1492,6 +1495,7 @@ double CUTOFF = 0.0000000001;
         else
         {
             Energy_min = -sqrt(Energy_min);
+            
             for (j_S=0; j_S<dim_S; j_S++)
             {
                 spin_local[j_S] = field_local[j_S] / Energy_min;
@@ -1506,6 +1510,7 @@ double CUTOFF = 0.0000000001;
     {
         int j_S, j_L, k_L;
         double Energy_ol=0.0;
+        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             field_local[j_S] = 0.0;
@@ -1521,7 +1526,7 @@ double CUTOFF = 0.0000000001;
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
             // field_site[dim_S*xyzi + j_S] = field_local[j_S];
             // spin_old[dim_S*xyzi + j_S] = spin[dim_S*xyzi + j_S];
-            Energy_ol = Energy_ol + field_local[j_S] * spin[dim_S*xyzi + j_S];
+            Energy_ol += field_local[j_S] * spin[dim_S*xyzi + j_S];
         }
         
         return Energy_ol;
@@ -1537,6 +1542,7 @@ double CUTOFF = 0.0000000001;
         do
         {
             s_mod=0.0;
+            
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
                 // spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
@@ -1554,12 +1560,13 @@ double CUTOFF = 0.0000000001;
         //     spin_new[0] = -spin_new[0];
         // }
         // Energy_nu = Energy_nu + field_site[0] * spin_new[0];
+        
         for(j_S=0; j_S<dim_S; j_S++)
         {
             spin_local[j_S] = spin_local[j_S] / s_mod;
             // spin_new[dim_S*xyzi + j_S] = spin_local[j_S];
             // Energy_nu = Energy_nu + field_site[dim_S*xyzi + j_S] * spin_local[j_S];
-            Energy_nu = Energy_nu + field_local[j_S] * spin_local[j_S];
+            Energy_nu += field_local[j_S] * spin_local[j_S];
         }
         
         return Energy_nu;
@@ -1671,7 +1678,7 @@ double CUTOFF = 0.0000000001;
                             some_rand_func_0_1, \
                             some_rand_func_int \
                         ), \
-                update device ( T, h[0:dim_S], J[0:dim_L] )
+                copyin ( T, h[0:dim_S], J[0:dim_L] )
             for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
             {
                 long int site_index = black_white_checkerboard[black_or_white][i];
@@ -1797,7 +1804,7 @@ double CUTOFF = 0.0000000001;
                             some_rand_func_0_1, \
                             some_rand_func_int \
                         ), \
-                update device ( T, h[0:dim_S], J[0:dim_L] )
+                copyin ( T, h[0:dim_S], J[0:dim_L] )
             for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
             {
                 long int site_index = black_white_checkerboard[black_or_white][i];
@@ -2087,14 +2094,68 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-//====================      Save J, h                        ====================//
+//====================      Save J, h, Spin                  ====================//
+
+    int save_spin_config()
+    {
+        long int i;
+        int j_S, j_L;
+
+        char output_file_1[128];
+        char *pos = output_file_1;
+        pos += sprintf(pos, "Spin_%lf_", T);
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, "-");
+            }
+            pos += sprintf(pos, "%lf", h[j_S]);
+        }
+        pos += sprintf(pos, "_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "x");
+            }
+            pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, ".dat");
+            
+        pFile_2 = fopen(output_file_1, "w"); // opens new file for writing
+        
+        for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_2, "%le ", spin[dim_S*i + j_S]);
+            }
+            fprintf(pFile_2, "\n");
+        }
+
+        fclose(pFile_2);
+        printf("Saved spin config. Output file name: %s\n", output_file_1);
+
+        /* for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                printf("|%le|", spin[dim_S*i + j_S]);
+            }
+            printf("\n");
+        }
+        printf("\n"); */
+        
+        return 0;
+    }
 
     int save_h_config()
     {
         long int i;
         int j_S, j_L;
         h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-
+        
         initialize_h_random_gaussian();
 
         char output_file_1[128];
@@ -2238,7 +2299,68 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-//====================      Load J, h                        ====================//
+//====================      Load J, h, Spin                  ====================//
+
+    int load_spin_config()
+    {
+        long int i;
+        int j_S, j_L;
+
+        char input_file_1[128];
+        char *pos = input_file_1;
+        pos += sprintf(pos, "Spin_%lf_", T);
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, "-");
+            }
+            pos += sprintf(pos, "%lf", h[j_S]);
+        }
+        pos += sprintf(pos, "_");
+        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        {
+            if (j_L) 
+            {
+                pos += sprintf(pos, "x");
+            }
+            pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, ".dat");
+            
+        pFile_2 = fopen(input_file_1, "r"); // opens old file for writing
+        
+        if (pFile_2 == NULL)
+        {
+            initialize_spin_config();
+            printf("Initialized spin config. Input file name: %s\n", input_file_1);
+        }
+        else
+        {
+            for (i = 0; i < no_of_sites; i++)
+            {
+                for (j_S = 0; j_S<dim_S; j_S++)
+                {
+                    fscanf(pFile_2, "%le ", &spin[dim_S*i + j_S]);
+                }
+            }
+            fclose(pFile_2);
+            printf("Loaded spin config. Input file name: %s\n", input_file_1);
+        }
+
+
+        /* for (i = 0; i < no_of_sites; i++)
+        {
+            for (j_S = 0; j_S<dim_S; j_S++)
+            {
+                printf("|%le|", spin[dim_S*i + j_S]);
+            }
+            printf("\n");
+        }
+        printf("\n"); */
+        
+        return 0;
+    }
 
     int load_h_config()
     {
@@ -2268,7 +2390,7 @@ double CUTOFF = 0.0000000001;
         pos += sprintf(pos, ".dat");
         
         pFile_1 = fopen(input_file_1, "r"); // opens file for reading
-
+        
         if (pFile_1 == NULL)
         {
             save_h_config(); // creates file for later
@@ -5236,7 +5358,7 @@ double CUTOFF = 0.0000000001;
                                 some_rand_func_0_1, \
                                 some_rand_func_int \
                             ), \
-                    update device ( T, h[0:dim_S], J[0:dim_L] ), \
+                    copyin ( T, h[0:dim_S], J[0:dim_L] ), \
                     create ( spin_temp[0:dim_S*no_of_sites] )
                 {
                     #pragma acc loop
@@ -5339,7 +5461,7 @@ double CUTOFF = 0.0000000001;
                                 some_rand_func_0_1, \
                                 some_rand_func_int \
                             ), \
-                    update device ( T, h[0:dim_S], J[0:dim_L] ), \
+                    copyin ( T, h[0:dim_S], J[0:dim_L] ), \
                     create ( spin_temp[0:dim_S*no_of_sites] )
                 {
                     #pragma acc loop
@@ -5641,7 +5763,7 @@ double CUTOFF = 0.0000000001;
                                 some_rand_func_0_1, \
                                 some_rand_func_int \
                             ), \
-                    update device ( T, h[0:dim_S], J[0:dim_L] )
+                    copyin ( T, h[0:dim_S], J[0:dim_L] )
                 {
                     #pragma acc loop reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
@@ -5747,7 +5869,7 @@ double CUTOFF = 0.0000000001;
                                 some_rand_func_0_1, \
                                 some_rand_func_int \
                             ), \
-                    update device ( T, h[0:dim_S], J[0:dim_L] )
+                    copyin ( T, h[0:dim_S], J[0:dim_L] )
                 {
                     #pragma acc loop reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
@@ -5866,7 +5988,7 @@ double CUTOFF = 0.0000000001;
                                     some_rand_func_0_1, \
                                     some_rand_func_int \
                                 ), \
-                        update device ( T, h[0:dim_S], J[0:dim_L] ), \
+                        copyin ( T, h[0:dim_S], J[0:dim_L] ), \
                         create ( spin_temp[0:dim_S*no_of_sites] )
                     {
                         #pragma acc loop
@@ -6017,7 +6139,7 @@ double CUTOFF = 0.0000000001;
                                     some_rand_func_0_1, \
                                     some_rand_func_int \
                                 ), \
-                        update device ( T, h[0:dim_S], J[0:dim_L] )
+                        copyin ( T, h[0:dim_S], J[0:dim_L] )
                     {
                         #pragma acc loop reduction(+:cutoff_local)
                         for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
@@ -6952,7 +7074,7 @@ double CUTOFF = 0.0000000001;
         h_order = 0;
         r_order = 1;
         initialize_spin_config();
-                
+        printf("\nCheck!\n");
         ensemble_m();
         ensemble_E();
         
@@ -7803,7 +7925,7 @@ double CUTOFF = 0.0000000001;
 
         return 0;
     }
-
+    #ifdef _OPENMP
     int for_omp_parallelization()
     {
         printf("\nOpenMP Active.\n");
@@ -7852,12 +7974,13 @@ double CUTOFF = 0.0000000001;
 
         return 0;
     }
+    #endif
 
     int for_acc_parallelization()
     {
         printf("\nOpenACC Active.\n");
         // Get MAX THREADS/loop gang/worker or whatever required to set random seeds
-        some_rand_func_0_1 = (double) rand() / (double) RAND_MAX;
+        some_rand_func_0_1 = 0.7; //= (double) rand() / (double) RAND_MAX;
         some_rand_func_int = rand();
         // copyin data to GPU
 
@@ -7874,15 +7997,17 @@ double CUTOFF = 0.0000000001;
                                         some_rand_func_int, \
                                         T \
                                         )
-        
+        printf("\nData copied.\n");        
 
         return 0;
     }
 
     int main()
     {
-        
+        srand(time(NULL));
+        #ifdef _OPENMP
         double start_time = omp_get_wtime();
+        #endif
         int j_L, j_S;
         // no_of_sites = custom_int_pow(lattice_size, dim_L);
         initialize_checkerboard_sites();
@@ -7910,9 +8035,7 @@ double CUTOFF = 0.0000000001;
         
         printf("L = %d, dim_L = %d, dim_S = %d\n", lattice_size[0], dim_L, dim_S); 
         
-        printf("hysteresis_MCS_multiplier = %ld, hysteresis_MCS_max = %ld\n", hysteresis_MCS_multiplier, hysteresis_MCS_max); 
-
-        srand(time(NULL));
+        printf("hysteresis_MCS_multiplier = %ld, hysteresis_MCS_max = %ld\n", hysteresis_MCS_multiplier, hysteresis_MCS_max);
 
         printf("RAND_MAX = %lf,\n sizeof(int) = %ld,\n sizeof(long) = %ld,\n sizeof(double) = %ld,\n sizeof(long int) = %ld,\n sizeof(short int) = %ld,\n sizeof(unsigned int) = %ld,\n sizeof(RAND_MAX) = %ld\n", (double)RAND_MAX, sizeof(int), sizeof(long), sizeof(double), sizeof(long int), sizeof(short int), sizeof(unsigned int), sizeof(RAND_MAX));
         
@@ -7922,15 +8045,22 @@ double CUTOFF = 0.0000000001;
         #ifdef _OPENACC
         for_acc_parallelization();
         #endif
+
+        #ifdef _OPENMP
         double start_time_loop[2];
         double end_time_loop[2];
         start_time_loop[0] = omp_get_wtime();
+        #endif
         field_cool_and_rotate_checkerboard(0, 1);
         // random_initialize_and_rotate_checkerboard(0, 1);
+        #ifdef _OPENMP
         end_time_loop[0] = omp_get_wtime();
         start_time_loop[1] = omp_get_wtime();
+        #endif
         // evolution_at_T(100);
+        #ifdef _OPENMP
         end_time_loop[1] = omp_get_wtime();
+        #endif
         // zero_temp_RFXY_hysteresis_axis(0, -1);
         // zero_temp_RFXY_hysteresis_axis(1, 1);
 
@@ -8007,11 +8137,13 @@ double CUTOFF = 0.0000000001;
 
         
         free_memory();
+        #ifdef _OPENMP
         double end_time = omp_get_wtime();
         printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
         printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
         
         printf("\nCPU Time elapsed total = %lf \n", end_time-start_time);
+        #endif
         return 0;
     }
 
