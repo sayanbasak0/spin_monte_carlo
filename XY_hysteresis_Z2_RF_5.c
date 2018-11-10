@@ -27,7 +27,7 @@ double CUTOFF = 0.0000000001;
 //====================      Variables                        ====================//
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 16, 16 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -94,7 +94,7 @@ double CUTOFF = 0.0000000001;
 
 //====================      Temperature                      ====================//
     double T = 3.00;
-    double Temp_min = 1.00;
+    double Temp_min = 0.02;
     double Temp_max = 2.00;
     double delta_T = 0.05;
 
@@ -661,6 +661,32 @@ double CUTOFF = 0.0000000001;
         
         return 0;
     }
+    
+    int ensemble_m_vec_abs()
+    {
+        long int i; 
+        int j_S;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            m[j_S] = 0;
+        }
+        
+        #pragma omp parallel for private(i,j_S) reduction(+:m[:dim_S])
+        for(i=0; i<no_of_sites; i++)
+        {
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                m[j_S] += spin[dim_S*i + j_S];
+            }
+        }
+
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            m[j_S] = fabs(m[j_S]) / no_of_sites;
+        }
+        
+        return 0;
+    }
 
     int sum_of_moment_m()
     {
@@ -820,7 +846,65 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
+
     int set_sum_of_moment_m_higher_0()
+    {
+        int j_S, j_SS;
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            for (j_SS=0; j_SS<dim_S; j_SS++)
+            {
+                m_ab_sum[j_S*dim_S + j_SS] = 0;
+                m_ab_avg[j_S*dim_S + j_SS] = 1;
+            }
+        }
+
+        m_2_sum = 0;
+        m_2_avg = 1;
+        m_4_sum = 0;
+        m_4_avg = 1;
+
+        return 0;
+    }
+
+    int sum_of_moment_m_higher()
+    {
+        int j_S, j_SS, j_L;
+        double m_2_persite = 0;
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            for (j_SS=0; j_SS<dim_S; j_SS++)
+            {
+                m_ab_sum[j_S*dim_S + j_SS] += m[j_S] * m[j_SS];            
+            }
+            m_2_persite += m[j_S] * m[j_S];
+        }
+
+        m_2_sum += m_2_persite;
+        m_4_sum += m_2_persite * m_2_persite;
+
+        return 0;
+    }
+
+    int average_of_moment_m_higher(double MCS_counter)
+    {
+        int j_S, j_SS, j_L;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            for (j_SS=0; j_SS<dim_S; j_SS++)
+            {
+                m_ab_avg[j_S*dim_S + j_SS] = m_ab_sum[j_S*dim_S + j_SS] / MCS_counter;
+            }
+        }
+        m_2_avg = m_2_sum / MCS_counter;
+        m_4_avg = m_4_sum / MCS_counter;
+        
+        return 0;
+    }
+
+    int set_sum_of_moment_m_all_0()
     {
         int j_S, j_SS;
         
@@ -842,7 +926,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int sum_of_moment_m_higher()
+    int sum_of_moment_m_all()
     {
         int j_S, j_SS, j_L;
         double m_2_persite = 0;
@@ -864,7 +948,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int average_of_moment_m_higher(double MCS_counter)
+    int average_of_moment_m_all(double MCS_counter)
     {
         int j_S, j_SS, j_L;
         for (j_S=0; j_S<dim_S; j_S++)
@@ -877,6 +961,118 @@ double CUTOFF = 0.0000000001;
         m_abs_avg = m_abs_sum / MCS_counter;
         m_2_avg = m_2_sum / MCS_counter;
         m_4_avg = m_4_sum / MCS_counter;
+        
+        return 0;
+    }
+
+//====================      Binder Parameter                 ====================//
+
+    int set_sum_of_moment_B_0()
+    {
+        set_sum_of_moment_m_2_0();
+        set_sum_of_moment_m_4_0();
+
+        return 0;
+    }
+
+    int ensemble_B()
+    {
+        ensemble_m();
+        
+        return 0;
+    }
+
+    int sum_of_moment_B()
+    {
+        sum_of_moment_m_2();
+        sum_of_moment_m_4();
+        
+        return 0;
+    }
+
+    int average_of_moment_B(double MCS_counter)
+    {
+        average_of_moment_m_2(MCS_counter);
+        average_of_moment_m_4(MCS_counter);
+        
+        B = (1.0 / 2.0) * ( 3.0 - ( m_4_avg / (m_2_avg * m_2_avg) ) );
+        
+        return 0;
+    }
+
+//====================      Susceptibity                     ====================//
+
+    int set_sum_of_moment_X_0()
+    {
+        set_sum_of_moment_m_abs_0();
+        set_sum_of_moment_m_2_0();
+
+        return 0;
+    }
+
+    int ensemble_X()
+    {
+        ensemble_m();
+
+        return 0;
+    }
+
+    int sum_of_moment_X()
+    {
+        sum_of_moment_m_abs();
+        sum_of_moment_m_2();
+        
+        return 0;
+    }
+
+    int average_of_moment_X(double MCS_counter)
+    {
+        average_of_moment_m_abs(MCS_counter);
+        average_of_moment_m_2(MCS_counter);
+        
+        X = (m_2_avg - (m_abs_avg * m_abs_avg)) / T;
+        
+        return 0;
+    }
+
+//====================      Susceptibility tensor            ====================//
+
+    int set_sum_of_moment_X_ab_0()
+    {
+        set_sum_of_moment_m_0();
+        set_sum_of_moment_m_ab_0();
+
+        return 0;
+    }
+
+    int ensemble_X_ab()
+    {
+        ensemble_m();
+        
+        return 0;
+    }
+
+    int sum_of_moment_X_ab()
+    {
+        sum_of_moment_m();
+        sum_of_moment_m_ab();
+        
+        return 0;
+    }
+
+    int average_of_moment_X_ab(double MCS_counter)
+    {
+        average_of_moment_m(MCS_counter);
+        average_of_moment_m_ab(MCS_counter);
+        
+        int j_S, j_SS, j_L;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            for (j_SS=0; j_SS<dim_S; j_SS++)
+            {
+                X_ab[j_S*dim_S + j_SS] = (m_ab_avg[j_S*dim_S + j_SS] - m_avg[j_S] * m_avg[j_SS]) / T;
+            }
+        }
         
         return 0;
     }
@@ -957,6 +1153,40 @@ double CUTOFF = 0.0000000001;
     int average_of_moment_E_2(double MCS_counter)
     {
         E_2_avg = E_2_sum / MCS_counter;
+        
+        return 0;
+    }
+//====================      Specific Heat                    ====================//
+
+    int set_sum_of_moment_Cv_0()
+    {
+        set_sum_of_moment_E_0();
+        set_sum_of_moment_E_2_0();
+
+        return 0;
+    }
+
+    int ensemble_Cv()
+    {
+        ensemble_E();
+
+        return 0;
+    }
+
+    int sum_of_moment_Cv()
+    {
+        sum_of_moment_E();
+        sum_of_moment_E_2();
+        
+        return 0;
+    }
+
+    int average_of_moment_Cv(double MCS_counter)
+    {
+        average_of_moment_E(MCS_counter);
+        average_of_moment_E_2(MCS_counter);
+        
+        Cv = (E_2_avg - (E_avg * E_avg)) / (T * T);
         
         return 0;
     }
@@ -1102,153 +1332,6 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-//====================      Specific Heat                    ====================//
-
-    int set_sum_of_moment_Cv_0()
-    {
-        set_sum_of_moment_E_0();
-        set_sum_of_moment_E_2_0();
-
-        return 0;
-    }
-
-    int ensemble_Cv()
-    {
-        ensemble_E();
-
-        return 0;
-    }
-
-    int sum_of_moment_Cv()
-    {
-        sum_of_moment_E();
-        sum_of_moment_E_2();
-        
-        return 0;
-    }
-
-    int average_of_moment_Cv(double MCS_counter)
-    {
-        average_of_moment_E(MCS_counter);
-        average_of_moment_E_2(MCS_counter);
-        
-        Cv = (E_2_avg - (E_avg * E_avg)) / (T * T);
-        
-        return 0;
-    }
-
-//====================      Binder Parameter                 ====================//
-
-    int set_sum_of_moment_B_0()
-    {
-        set_sum_of_moment_m_2_0();
-        set_sum_of_moment_m_4_0();
-
-        return 0;
-    }
-
-    int ensemble_B()
-    {
-        ensemble_m();
-        
-        return 0;
-    }
-
-    int sum_of_moment_B()
-    {
-        sum_of_moment_m_2();
-        sum_of_moment_m_4();
-        
-        return 0;
-    }
-
-    int average_of_moment_B(double MCS_counter)
-    {
-        average_of_moment_m_2(MCS_counter);
-        average_of_moment_m_4(MCS_counter);
-        
-        B = (1.0 / 2.0) * ( 3.0 - ( m_4_avg / (m_2_avg * m_2_avg) ) );
-        
-        return 0;
-    }
-
-//====================      Susceptibity                     ====================//
-
-    int set_sum_of_moment_X_0()
-    {
-        set_sum_of_moment_m_abs_0();
-        set_sum_of_moment_m_2_0();
-
-        return 0;
-    }
-
-    int ensemble_X()
-    {
-        ensemble_m();
-
-        return 0;
-    }
-
-    int sum_of_moment_X()
-    {
-        sum_of_moment_m_abs();
-        sum_of_moment_m_2();
-        
-        return 0;
-    }
-
-    int average_of_moment_X(double MCS_counter)
-    {
-        average_of_moment_m_abs(MCS_counter);
-        average_of_moment_m_2(MCS_counter);
-        
-        X = (m_2_avg - (m_abs_avg * m_abs_avg)) / T;
-        
-        return 0;
-    }
-
-//====================      Susceptibility tensor            ====================//
-
-    int set_sum_of_moment_X_ab_0()
-    {
-        set_sum_of_moment_m_0();
-        set_sum_of_moment_m_ab_0();
-
-        return 0;
-    }
-
-    int ensemble_X_ab()
-    {
-        ensemble_m();
-        
-        return 0;
-    }
-
-    int sum_of_moment_X_ab()
-    {
-        sum_of_moment_m();
-        sum_of_moment_m_ab();
-        
-        return 0;
-    }
-
-    int average_of_moment_X_ab(double MCS_counter)
-    {
-        average_of_moment_m(MCS_counter);
-        average_of_moment_m_ab(MCS_counter);
-        
-        int j_S, j_SS, j_L;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                X_ab[j_S*dim_S + j_SS] = (m_ab_avg[j_S*dim_S + j_SS] - m_avg[j_S] * m_avg[j_SS]) / T;
-            }
-        }
-        
-        return 0;
-    }
-
 //====================      Helicity tensor                  ====================//
 
     int set_sum_of_moment_Y_ab_mu_0()
@@ -1366,7 +1449,7 @@ double CUTOFF = 0.0000000001;
 
 //====================      MonteCarlo-tools                 ====================//
 
-    int update_spin_all(double* restrict spin_local)
+    int update_spin_all(double* __restrict__ spin_local)
     {
         int j_S;
         long int xyzi;
@@ -1381,7 +1464,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
     
-    int update_spin_single(long int xyzi, double* restrict spin_local)
+    int update_spin_single(long int xyzi, double* __restrict__ spin_local)
     {
         int j_S;
         for (j_S=0; j_S<dim_S; j_S++)
@@ -1392,7 +1475,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    double Energy_minimum(long int xyzi, double* restrict spin_local, double* restrict field_local)
+    double Energy_minimum(long int xyzi, double* __restrict__ spin_local, double* __restrict__ field_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
@@ -1429,7 +1512,7 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
-    double Energy_old(long int xyzi, double* restrict spin_local, double* restrict field_local)
+    double Energy_old(long int xyzi, double* __restrict__ spin_local, double* __restrict__ field_local)
     {
         int j_S, j_L, k_L;
         double Energy_ol=0.0;
@@ -1455,7 +1538,7 @@ double CUTOFF = 0.0000000001;
         return Energy_ol;
     }
 
-    double Energy_new(long int xyzi, double* restrict spin_local, double* restrict field_local)
+    double Energy_new(long int xyzi, double* __restrict__ spin_local, double* __restrict__ field_local)
     {
         int j_S;
         double Energy_nu=0.0, s_mod=0.0;
@@ -1738,7 +1821,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int transform_spin(long int xyzi, double* restrict spin_new)
+    int transform_spin(long int xyzi, double* __restrict__ spin_new)
     {
         double Si_dot_ref = 0;
         int j_S;
@@ -1767,7 +1850,7 @@ double CUTOFF = 0.0000000001;
         return energy_site;
     }
 
-    double E_site_new(long int xyzi, double* restrict spin_new)
+    double E_site_new(long int xyzi, double* __restrict__ spin_new)
     {
         double energy_site = 0;
 
@@ -1795,7 +1878,7 @@ double CUTOFF = 0.0000000001;
         return energy_site;
     }
 
-    double E_bond_new(long int xyzi, int j_L, int k_L, double* restrict spin_new)
+    double E_bond_new(long int xyzi, int j_L, int k_L, double* __restrict__ spin_new)
     {
         double energy_site = 0;
         double Si_dot_ref = 0;
@@ -2230,7 +2313,7 @@ double CUTOFF = 0.0000000001;
             {
                 for (j_S = 0; j_S<dim_S; j_S++)
                 {
-                    fscanf(pFile_2, "%le ", &spin[dim_S*i + j_S]);
+                    fscanf(pFile_2, "%le", &spin[dim_S*i + j_S]);
                 }
             }
             fclose(pFile_2);
@@ -2456,8 +2539,9 @@ double CUTOFF = 0.0000000001;
         // set_sum_of_moment_Y_ab_mu_0();
         
         set_sum_of_moment_m_0();
-        set_sum_of_moment_m_abs_0();
-        set_sum_of_moment_E_0();
+        set_sum_of_moment_m_higher_0();
+        // set_sum_of_moment_m_abs_0();
+        // set_sum_of_moment_E_0();
 
         printf("Averaging iterations... h=%lf", h[0]);
         for (j_S=1; j_S<dim_S; j_S++)
@@ -2470,12 +2554,16 @@ double CUTOFF = 0.0000000001;
         {
             Monte_Carlo_Sweep(sampling_inter-genrand64_int64()%sampling_inter);
             // random_Wolff_sweep(1);
-            ensemble_m();
-            ensemble_E();
+            // ensemble_m();
+            ensemble_m_vec_abs();
+            // ensemble_B();
+            // ensemble_E();
             // ensemble_Y_ab_mu();
             sum_of_moment_m();
-            sum_of_moment_m_abs();
-            sum_of_moment_E();
+            sum_of_moment_m_higher();
+            // sum_of_moment_B();
+            // sum_of_moment_m_abs();
+            // sum_of_moment_E();
             // sum_of_moment_Y_ab_mu();
             MCS_counter = MCS_counter + 1;
             
@@ -2484,8 +2572,10 @@ double CUTOFF = 0.0000000001;
         printf("Done.\n");
 
         average_of_moment_m(MCS_counter);
-        average_of_moment_m_abs(MCS_counter);
-        average_of_moment_E(MCS_counter);
+        average_of_moment_m_higher(MCS_counter);
+        // average_of_moment_B(MCS_counter);
+        // average_of_moment_m_abs(MCS_counter);
+        // average_of_moment_E(MCS_counter);
         // average_of_moment_Y_ab_mu(MCS_counter);
 
         printf("Final: Magnetisation = (%lf", m[0]);
@@ -2493,6 +2583,7 @@ double CUTOFF = 0.0000000001;
         {
             printf(",%lf", m[j_S]);
         }
+        // printf("), Energy = %lf \n", E);
         printf("), Energy = %lf \n", E);
 
         printf("<M> = (%lf", m_avg[0]);
@@ -2501,6 +2592,7 @@ double CUTOFF = 0.0000000001;
             printf(",%lf", m_avg[j_S]);
         }
         printf("), <E> = %lf \n", E_avg);
+        printf(", Binder = %lf \n", B);
         /* 
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -3190,22 +3282,25 @@ double CUTOFF = 0.0000000001;
     int cooling_protocol()
     {
         #ifdef _OPENMP
-        if (num_of_threads<=16)
-        {
             omp_set_num_threads(num_of_threads);
-        }
-        else 
-        {
-            if (num_of_threads<=24)
-            {
-                omp_set_num_threads(16);
-            }
-            else
-            {
-                omp_set_num_threads(num_of_threads-8);
-            }
-        }
         #endif
+        // #ifdef _OPENMP
+        // if (num_of_threads<=16)
+        // {
+        //     omp_set_num_threads(num_of_threads);
+        // }
+        // else 
+        // {
+        //     if (num_of_threads<=24)
+        //     {
+        //         omp_set_num_threads(16);
+        //     }
+        //     else
+        //     {
+        //         omp_set_num_threads(num_of_threads-8);
+        //     }
+        // }
+        // #endif
         
         int j_S, j_SS, j_L;
 
@@ -3231,12 +3326,23 @@ double CUTOFF = 0.0000000001;
             // pFile_1 = fopen(output_file_0, "a");
 
             fprintf(pFile_1, "%lf\t ", T);
-            fprintf(pFile_1, "%lf\t ", m_abs_avg);
+            // fprintf(pFile_1, "%lf\t ", m_abs_avg);
 
             for(j_S=0; j_S<dim_S; j_S++)
             {
                 fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
             } 
+            
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                for(j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    fprintf(pFile_1, "%lf\t ", m_ab_avg[j_S*dim_S+j_SS]);
+                }
+            }
+            fprintf(pFile_1, "%lf\t ", m_2_avg);
+            fprintf(pFile_1, "%lf\t ", m_4_avg);
+
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
                 for (j_SS=0; j_SS<dim_S; j_SS++)
@@ -3248,7 +3354,7 @@ double CUTOFF = 0.0000000001;
                 }
             } */
 
-            fprintf(pFile_1, "%lf\t ", E_avg);    
+            // fprintf(pFile_1, "%lf\t ", E_avg);    
             fprintf(pFile_1, "\n");
             // fclose(pFile_1);
         }
@@ -3271,22 +3377,25 @@ double CUTOFF = 0.0000000001;
     int heating_protocol()
     {
         #ifdef _OPENMP
-        if (num_of_threads<=16)
-        {
             omp_set_num_threads(num_of_threads);
-        }
-        else 
-        {
-            if (num_of_threads<=24)
-            {
-                omp_set_num_threads(16);
-            }
-            else
-            {
-                omp_set_num_threads(num_of_threads-8);
-            }
-        }
         #endif
+        // #ifdef _OPENMP
+        // if (num_of_threads<=16)
+        // {
+        //     omp_set_num_threads(num_of_threads);
+        // }
+        // else 
+        // {
+        //     if (num_of_threads<=24)
+        //     {
+        //         omp_set_num_threads(16);
+        //     }
+        //     else
+        //     {
+        //         omp_set_num_threads(num_of_threads-8);
+        //     }
+        // }
+        // #endif
 
         int j_S, j_SS, j_L;
 
@@ -4971,7 +5080,7 @@ double CUTOFF = 0.0000000001;
 
 //====================      RFXY ZTNE                        ====================//
 
-    double Energy_minimum_old_XY(long int xyzi, double* restrict spin_local)
+    double Energy_minimum_old_XY(long int xyzi, double* __restrict__ spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min=0.0;
@@ -5009,7 +5118,7 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
-    double Energy_minimum_new_XY(long int xyzi, double* restrict spin_local)
+    double Energy_minimum_new_XY(long int xyzi, double* __restrict__ spin_local)
     {
         int j_S, j_L, k_L;
         double Energy_min = 0.0;
@@ -5048,7 +5157,7 @@ double CUTOFF = 0.0000000001;
         return Energy_min;
     }
 
-    double update_to_minimum_checkerboard(long int xyzi, double* restrict spin_local)
+    double update_to_minimum_checkerboard(long int xyzi, double* __restrict__ spin_local)
     {
         int j_S;
         
@@ -5067,22 +5176,25 @@ double CUTOFF = 0.0000000001;
     int zero_temp_RFXY_hysteresis_axis(int jj_S, double order_start)
     {
         #ifdef _OPENMP
-        if (num_of_threads<=16)
-        {
             omp_set_num_threads(num_of_threads);
-        }
-        else 
-        {
-            if (num_of_threads<=20)
-            {
-                omp_set_num_threads(16);
-            }
-            else
-            {
-                omp_set_num_threads(num_of_threads-4);
-            }
-        }
         #endif
+        // #ifdef _OPENMP
+        // if (num_of_threads<=16)
+        // {
+        //     omp_set_num_threads(num_of_threads);
+        // }
+        // else 
+        // {
+        //     if (num_of_threads<=20)
+        //     {
+        //         omp_set_num_threads(16);
+        //     }
+        //     else
+        //     {
+        //         omp_set_num_threads(num_of_threads-4);
+        //     }
+        // }
+        // #endif
         double cutoff_local = 0.0;
         int j_S, j_L;
         T = 0;
@@ -5500,22 +5612,25 @@ double CUTOFF = 0.0000000001;
     int zero_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start)
     {
         #ifdef _OPENMP
-        if (num_of_threads<=16)
-        {
             omp_set_num_threads(num_of_threads);
-        }
-        else 
-        {
-            if (num_of_threads<=20)
-            {
-                omp_set_num_threads(16);
-            }
-            else
-            {
-                omp_set_num_threads(num_of_threads-4);
-            }
-        }
         #endif
+        // #ifdef _OPENMP
+        // if (num_of_threads<=16)
+        // {
+        //     omp_set_num_threads(num_of_threads);
+        // }
+        // else 
+        // {
+        //     if (num_of_threads<=20)
+        //     {
+        //         omp_set_num_threads(16);
+        //     }
+        //     else
+        //     {
+        //         omp_set_num_threads(num_of_threads-4);
+        //     }
+        // }
+        // #endif
         
         double cutoff_local = 0.0;
         int j_S, j_L;
@@ -5941,22 +6056,25 @@ double CUTOFF = 0.0000000001;
     int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start, double h_start)
     {
         #ifdef _OPENMP
-        if (num_of_threads<=16)
-        {
             omp_set_num_threads(num_of_threads);
-        }
-        else 
-        {
-            if (num_of_threads<=20)
-            {
-                omp_set_num_threads(16);
-            }
-            else
-            {
-                omp_set_num_threads(num_of_threads-4);
-            }
-        }
         #endif
+        // #ifdef _OPENMP
+        // if (num_of_threads<=16)
+        // {
+        //     omp_set_num_threads(num_of_threads);
+        // }
+        // else 
+        // {
+        //     if (num_of_threads<=20)
+        //     {
+        //         omp_set_num_threads(16);
+        //     }
+        //     else
+        //     {
+        //         omp_set_num_threads(num_of_threads-4);
+        //     }
+        // }
+        // #endif
 
         T = 0;
         double delta_phi = del_phi;
@@ -6098,22 +6216,25 @@ double CUTOFF = 0.0000000001;
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start)
     {
         #ifdef _OPENMP
-        if (num_of_threads<=16)
-        {
             omp_set_num_threads(num_of_threads);
-        }
-        else 
-        {
-            if (num_of_threads<=20)
-            {
-                omp_set_num_threads(16);
-            }
-            else
-            {
-                omp_set_num_threads(num_of_threads-4);
-            }
-        }
         #endif
+        // #ifdef _OPENMP
+        // if (num_of_threads<=16)
+        // {
+        //     omp_set_num_threads(num_of_threads);
+        // }
+        // else 
+        // {
+        //     if (num_of_threads<=20)
+        //     {
+        //         omp_set_num_threads(16);
+        //     }
+        //     else
+        //     {
+        //         omp_set_num_threads(num_of_threads-4);
+        //     }
+        // }
+        // #endif
 
         T = 0;
         double delta_phi = del_phi;
@@ -7091,7 +7212,7 @@ double CUTOFF = 0.0000000001;
     {
         T = Temp_max;
         // random initialization
-        int j_S, j_L;
+        int j_S, j_L, j_SS;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -7110,7 +7231,8 @@ double CUTOFF = 0.0000000001;
         }
         
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/7.0);
+        // double h_start = order[jj_S]*(sigma_h[0]/10.0);
+        double h_start = 0.0;
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
         double h_phi = 0.0;
@@ -7244,11 +7366,23 @@ double CUTOFF = 0.0000000001;
         // print column header
         {
             
-            fprintf(pFile_1, "T\t |m|\t ");
+            fprintf(pFile_1, "T\t ");
+            // fprintf(pFile_1, "|m|\t ");
             for (j_S=0; j_S<dim_S; j_S++)
             {
                 fprintf(pFile_1, "<m[%d]>\t ", j_S);
             } 
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                for (j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    fprintf(pFile_1, "<m[%d]m[%d]>\t ", j_S, j_SS);
+                }
+            } 
+            fprintf(pFile_1, "<m^2>\t ");
+            fprintf(pFile_1, "<m^4>\t ");
+
+            
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
                 for (j_SS=0; j_SS<dim_S; j_SS++)
@@ -7259,7 +7393,8 @@ double CUTOFF = 0.0000000001;
                     }
                 }
             } */
-            fprintf(pFile_1, "<E>\t dim_{Lat}=%d\t L=", dim_L);
+            // fprintf(pFile_1, "<E>\t ");
+            fprintf(pFile_1, "dim_{Lat}=%d\t L=", dim_L);
             for (j_L=0; j_L<dim_L; j_L++)
             {
                 if (j_L)
