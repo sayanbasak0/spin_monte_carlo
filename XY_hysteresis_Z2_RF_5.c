@@ -103,12 +103,19 @@ double CUTOFF = 0.0000000001;
     double abs_m[dim_S];
     double m_sum[dim_S];
     double m_avg[dim_S];
+
     double m_abs_sum = 0;
     double m_abs_avg = 0;
     double m_2_sum = 0;
     double m_2_avg = 0;
+    double m_2_vec_sum[dim_S] = { 0 };
+    double m_2_vec_avg[dim_S] = { 0 };
+
     double m_4_sum = 0;
     double m_4_avg = 0;
+    double m_4_vec_sum[dim_S] = { 0 };
+    double m_4_vec_avg[dim_S] = { 0 };
+
     double m_ab[dim_S*dim_S] = { 0 };
     double m_ab_sum[dim_S*dim_S] = { 0 };
     double m_ab_avg[dim_S*dim_S] = { 0 };
@@ -138,6 +145,8 @@ double CUTOFF = 0.0000000001;
 
 //====================      Binder Parameter B               ====================//
     double B = 0;
+    double Bx = 0;
+    double By = 0;
 
 //====================      MC-update iterations             ====================//
     long int thermal_i = 128*10*10*10; // ! *=lattice_size
@@ -846,7 +855,6 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-
     int set_sum_of_moment_m_higher_0()
     {
         int j_S, j_SS;
@@ -964,6 +972,49 @@ double CUTOFF = 0.0000000001;
         
         return 0;
     }
+
+    int set_sum_of_moment_m_vec_0()
+    {
+        int j_S, j_SS;
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            m_2_vec_sum[j_S] = 0;
+            m_2_vec_avg[j_S] = 1;
+            m_4_vec_sum[j_S] = 0;
+            m_4_vec_avg[j_S] = 1;
+        }
+
+        return 0;
+    }
+
+    int sum_of_moment_m_vec()
+    {
+        int j_S, j_SS, j_L;
+        double m_2_vec_persite = 0;
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            m_2_vec_persite = m[j_S] * m[j_S];
+            m_2_vec_sum[j_S] += m_2_vec_persite;
+            m_4_vec_sum[j_S] += m_2_vec_persite * m_2_vec_persite;;
+        }
+
+        return 0;
+    }
+
+    int average_of_moment_m_vec(double MCS_counter)
+    {
+        int j_S, j_SS, j_L;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            m_2_vec_avg[j_S] = m_2_vec_sum[j_S] / MCS_counter;
+            m_4_vec_avg[j_S] = m_4_vec_sum[j_S] / MCS_counter;
+        }
+        
+        return 0;
+    }
+
 
 //====================      Binder Parameter                 ====================//
 
@@ -2538,8 +2589,9 @@ double CUTOFF = 0.0000000001;
         
         // set_sum_of_moment_Y_ab_mu_0();
         
-        set_sum_of_moment_m_0();
-        set_sum_of_moment_m_higher_0();
+        // set_sum_of_moment_m_0();
+        // set_sum_of_moment_m_higher_0();
+        set_sum_of_moment_m_vec_0();
         // set_sum_of_moment_m_abs_0();
         // set_sum_of_moment_E_0();
 
@@ -2554,13 +2606,14 @@ double CUTOFF = 0.0000000001;
         {
             Monte_Carlo_Sweep(sampling_inter-genrand64_int64()%sampling_inter);
             // random_Wolff_sweep(1);
-            // ensemble_m();
-            ensemble_m_vec_abs();
+            ensemble_m();
+            // ensemble_m_vec_abs();
             // ensemble_B();
             // ensemble_E();
             // ensemble_Y_ab_mu();
-            sum_of_moment_m();
-            sum_of_moment_m_higher();
+            sum_of_moment_m_vec();
+            // sum_of_moment_m();
+            // sum_of_moment_m_higher();
             // sum_of_moment_B();
             // sum_of_moment_m_abs();
             // sum_of_moment_E();
@@ -2571,8 +2624,9 @@ double CUTOFF = 0.0000000001;
         }
         printf("Done.\n");
 
-        average_of_moment_m(MCS_counter);
-        average_of_moment_m_higher(MCS_counter);
+        // average_of_moment_m(MCS_counter);
+        // average_of_moment_m_higher(MCS_counter);
+        average_of_moment_m_vec(MCS_counter);
         // average_of_moment_B(MCS_counter);
         // average_of_moment_m_abs(MCS_counter);
         // average_of_moment_E(MCS_counter);
@@ -3328,20 +3382,26 @@ double CUTOFF = 0.0000000001;
             fprintf(pFile_1, "%lf\t ", T);
             // fprintf(pFile_1, "%lf\t ", m_abs_avg);
 
+            // for(j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+            // } 
+
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+                fprintf(pFile_1, "%lf\t ", m_2_vec_avg[j_S]);
+                fprintf(pFile_1, "%lf\t ", m_4_vec_avg[j_S]);
             } 
             
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                for(j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    fprintf(pFile_1, "%lf\t ", m_ab_avg[j_S*dim_S+j_SS]);
-                }
-            }
-            fprintf(pFile_1, "%lf\t ", m_2_avg);
-            fprintf(pFile_1, "%lf\t ", m_4_avg);
+            // for(j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     for(j_SS=0; j_SS<dim_S; j_SS++)
+            //     {
+            //         fprintf(pFile_1, "%lf\t ", m_ab_avg[j_S*dim_S+j_SS]);
+            //     }
+            // }
+            // fprintf(pFile_1, "%lf\t ", m_2_avg);
+            // fprintf(pFile_1, "%lf\t ", m_4_avg);
 
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -7368,20 +7428,24 @@ double CUTOFF = 0.0000000001;
             
             fprintf(pFile_1, "T\t ");
             // fprintf(pFile_1, "|m|\t ");
+            // for (j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     fprintf(pFile_1, "<m[%d]>\t ", j_S);
+            // } 
+            // for (j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     for (j_SS=0; j_SS<dim_S; j_SS++)
+            //     {
+            //         fprintf(pFile_1, "<m[%d]m[%d]>\t ", j_S, j_SS);
+            //     }
+            // } 
+            // fprintf(pFile_1, "<m^2>\t ");
+            // fprintf(pFile_1, "<m^4>\t ");
             for (j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "<m[%d]>\t ", j_S);
+                fprintf(pFile_1, "<m[%d]^2>\t ", j_S);
+                fprintf(pFile_1, "<m[%d]^4>\t ", j_S);
             } 
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                for (j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    fprintf(pFile_1, "<m[%d]m[%d]>\t ", j_S, j_SS);
-                }
-            } 
-            fprintf(pFile_1, "<m^2>\t ");
-            fprintf(pFile_1, "<m^4>\t ");
-
             
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -7475,7 +7539,7 @@ double CUTOFF = 0.0000000001;
         // return 0;
 
         // rotate field
-        if ( T > 0.005 )
+        if ( Temp_min > 0.005 )
         {
             return 0;
         }
