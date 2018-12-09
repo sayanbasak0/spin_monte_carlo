@@ -27,7 +27,7 @@ double CUTOFF = 0.0000000001;
 //====================      Variables                        ====================//
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 100, 100 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -87,7 +87,7 @@ double CUTOFF = 0.0000000001;
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0, del_phi = 1.001; // for hysteresis
+    double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0, del_phi = 0.0001; // for hysteresis
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -153,11 +153,11 @@ double CUTOFF = 0.0000000001;
     long int average_j = 128*10*10; // ! *=lattice_size
     long int sampling_inter = 16; // *=sampling_inter-rand()%sampling_inter
 
-//====================      Hysteresis T!=0                  ====================//
+//====================      Hysteresis                       ====================//
     long int hysteresis_MCS = 1; 
     long int hysteresis_MCS_min = 1; 
     long int hysteresis_MCS_max = 100;
-    int hysteresis_repeat = 1;
+    int hysteresis_repeat = 16;
     long int hysteresis_MCS_multiplier = 10;
 
 
@@ -2156,8 +2156,8 @@ double CUTOFF = 0.0000000001;
             }
             fprintf(pFile_2, "\n");
         }
-
         fclose(pFile_2);
+
         printf("Saved spin config. Output file name: %s\n", output_file_1);
 
         /* for (i = 0; i < no_of_sites; i++)
@@ -2205,19 +2205,19 @@ double CUTOFF = 0.0000000001;
             
         pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
         
-        fprintf(pFile_1, "%lf ", h_i_min);
+        fprintf(pFile_1, "%le ", h_i_min);
         printf( "\nh_i_min=%lf ", h_i_min);
         // fprintf(pFile_1, "\n");
-        fprintf(pFile_1, "%lf ", h_i_max);
+        fprintf(pFile_1, "%le ", h_i_max);
         printf( "h_i_max=%lf \n", h_i_max);
         fprintf(pFile_1, "\n");
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf ", h[j_S]);
-            fprintf(pFile_1, "%lf ", sigma_h[j_S]);
+            fprintf(pFile_1, "%le ", h[j_S]);
+            fprintf(pFile_1, "%le ", sigma_h[j_S]);
             printf( "sigma_h[%d]=%lf \n", j_S, sigma_h[j_S]);
-            fprintf(pFile_1, "%lf ", h_dev_avg[j_S]);
+            fprintf(pFile_1, "%le ", h_dev_avg[j_S]);
             printf( "h_dev_avg[%d]=%lf \n", j_S, h_dev_avg[j_S]);
             fprintf(pFile_1, "\n");
         }
@@ -2227,7 +2227,7 @@ double CUTOFF = 0.0000000001;
         {
             for (j_S = 0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf ", h_random[dim_S*i + j_S]);
+                fprintf(pFile_1, "%le ", h_random[dim_S*i + j_S]);
             }
             fprintf(pFile_1, "\n");
             
@@ -2279,16 +2279,16 @@ double CUTOFF = 0.0000000001;
         
         pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
         
-        fprintf(pFile_1, "%lf ", J_i_min);
+        fprintf(pFile_1, "%le ", J_i_min);
         // fprintf(pFile_1, "\n");
-        fprintf(pFile_1, "%lf ", J_i_max);
+        fprintf(pFile_1, "%le ", J_i_max);
         fprintf(pFile_1, "\n");
 
         for (j_L=0; j_L<dim_L; j_L++)
         {
-            fprintf(pFile_1, "%lf ", J[j_L]);
-            fprintf(pFile_1, "%lf ", sigma_J[j_L]);
-            fprintf(pFile_1, "%lf ", J_dev_avg[j_L]);
+            fprintf(pFile_1, "%le ", J[j_L]);
+            fprintf(pFile_1, "%le ", sigma_J[j_L]);
+            fprintf(pFile_1, "%le ", J_dev_avg[j_L]);
             fprintf(pFile_1, "\n");
         }
         fprintf(pFile_1, "\n");
@@ -2299,7 +2299,7 @@ double CUTOFF = 0.0000000001;
             {
                 for (k_L = 0; k_L<2; k_L++)
                 {
-                    fprintf(pFile_1, "%lf ", J_random[2*dim_L*i + 2*j_L + k_L]);
+                    fprintf(pFile_1, "%le ", J_random[2*dim_L*i + 2*j_L + k_L]);
                 }
             }
             fprintf(pFile_1, "\n");
@@ -2589,9 +2589,9 @@ double CUTOFF = 0.0000000001;
         
         // set_sum_of_moment_Y_ab_mu_0();
         
-        // set_sum_of_moment_m_0();
-        // set_sum_of_moment_m_higher_0();
-        set_sum_of_moment_m_vec_0();
+        set_sum_of_moment_m_0();
+        set_sum_of_moment_m_higher_0();
+        // set_sum_of_moment_m_vec_0();
         // set_sum_of_moment_m_abs_0();
         // set_sum_of_moment_E_0();
 
@@ -2611,9 +2611,9 @@ double CUTOFF = 0.0000000001;
             // ensemble_B();
             // ensemble_E();
             // ensemble_Y_ab_mu();
-            sum_of_moment_m_vec();
-            // sum_of_moment_m();
-            // sum_of_moment_m_higher();
+            // sum_of_moment_m_vec();
+            sum_of_moment_m();
+            sum_of_moment_m_higher();
             // sum_of_moment_B();
             // sum_of_moment_m_abs();
             // sum_of_moment_E();
@@ -2624,9 +2624,9 @@ double CUTOFF = 0.0000000001;
         }
         printf("Done.\n");
 
-        // average_of_moment_m(MCS_counter);
-        // average_of_moment_m_higher(MCS_counter);
-        average_of_moment_m_vec(MCS_counter);
+        average_of_moment_m(MCS_counter);
+        average_of_moment_m_higher(MCS_counter);
+        // average_of_moment_m_vec(MCS_counter);
         // average_of_moment_B(MCS_counter);
         // average_of_moment_m_abs(MCS_counter);
         // average_of_moment_E(MCS_counter);
@@ -2773,7 +2773,7 @@ double CUTOFF = 0.0000000001;
                 fprintf(pFile_1, "<m[%d]>\t ", j_S);
             }
             fprintf(pFile_1, "<E>\t ");
-            fprintf(pFile_1, "T=%lf\t dim_{Lat}=%d\t L=", T, dim_L);
+            fprintf(pFile_1, "T=%le\t dim_{Lat}=%d\t L=", T, dim_L);
             for (j_L=0; j_L<dim_L; j_L++)
             {
                 if (j_L)
@@ -2789,7 +2789,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -2798,7 +2798,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -2807,7 +2807,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_{Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -2816,7 +2816,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -2825,7 +2825,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -2834,7 +2834,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -2843,7 +2843,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t thermalizing-MCS=%ld\t averaging-MCS=%ld\t \n", h_order, r_order, thermal_i, average_j);
 
@@ -2857,14 +2857,14 @@ double CUTOFF = 0.0000000001;
             averaging_iteration(average_j);
             pFile_1 = fopen(output_file_0, "a");
             fprintf(pFile_1, "%d\t ", i);
-            fprintf(pFile_1, "%lf\t ", m_abs_avg);
+            fprintf(pFile_1, "%le\t ", m_abs_avg);
             
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+                fprintf(pFile_1, "%le\t ", m_avg[j_S]);
             }
             
-            fprintf(pFile_1, "%lf\t ", E_avg);
+            fprintf(pFile_1, "%le\t ", E_avg);
 
             fprintf(pFile_1, "\n");
             fclose(pFile_1);
@@ -2998,7 +2998,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3007,7 +3007,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3016,7 +3016,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_{Spin}=%d\t h", dim_S);
             
@@ -3027,7 +3027,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3036,7 +3036,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3045,7 +3045,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t thermalizing-MCS=%ld\t averaging-MCS=%ld\t \n", h_order, r_order, thermal_i, average_j);
 
@@ -3055,15 +3055,15 @@ double CUTOFF = 0.0000000001;
         thermalizing_iteration(thermal_i);
         averaging_iteration(average_j);
         pFile_1 = fopen(output_file_0, "a");
-        fprintf(pFile_1, "%lf\t ", m_abs_avg);
+        fprintf(pFile_1, "%le\t ", m_abs_avg);
         
         for(j_S=0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+            fprintf(pFile_1, "%le\t ", m_avg[j_S]);
         }
         
-        fprintf(pFile_1, "%lf\t ", E_avg);
-        fprintf(pFile_1, "%lf\t ", T);
+        fprintf(pFile_1, "%le\t ", E_avg);
+        fprintf(pFile_1, "%le\t ", T);
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -3071,7 +3071,7 @@ double CUTOFF = 0.0000000001;
             {
                 fprintf(pFile_1, ",");
             }
-            fprintf(pFile_1, "%lf", h[j_S]);
+            fprintf(pFile_1, "%le", h[j_S]);
         }
         fprintf(pFile_1, "\n");
         fclose(pFile_1);
@@ -3243,7 +3243,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3252,7 +3252,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3261,7 +3261,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_{Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3270,7 +3270,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3279,7 +3279,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3288,7 +3288,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3297,21 +3297,22 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
             fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t thermalizing-MCS=%ld\t averaging-MCS=%ld\t \n", h_order, r_order, thermal_i, average_j);
+            fclose(pFile_1);
         }
         
         for (T=Temp_min; T<=Temp_max; T=T+delta_T)
         {
             printf("\nT=%lf\t ", T);
             initialize_spin_and_evolve_at_T(); 
-            
-            fprintf(pFile_1, "%lf\t ", T);
-            fprintf(pFile_1, "%lf\t ", m_abs_avg);
+            pFile_1 = fopen(output_file_0, "a");
+            fprintf(pFile_1, "%le\t ", T);
+            fprintf(pFile_1, "%le\t ", m_abs_avg);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+                fprintf(pFile_1, "%le\t ", m_avg[j_S]);
             }
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -3319,21 +3320,21 @@ double CUTOFF = 0.0000000001;
                 {
                     for (j_L=0; j_L<dim_L; j_L++)
                     {
-                        fprintf(pFile_1, "%lf\t ", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
+                        fprintf(pFile_1, "%le\t ", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
                     }
                 }
             } */
-            fprintf(pFile_1, "%lf\t ", E_avg);
+            fprintf(pFile_1, "%le\t ", E_avg);
 
             fprintf(pFile_1, "\n");
+            fclose(pFile_1);
         }
         
-        fclose(pFile_1);
         
         return 0;
     }
 
-    int cooling_protocol()
+    int cooling_protocol(char output_file_name[])
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
@@ -3369,7 +3370,11 @@ double CUTOFF = 0.0000000001;
         }
         printf("), Energy = %lf \n", E);
         printf("Cooling... ");
+
+        pFile_1 = fopen(output_file_name, "a");
         fprintf(pFile_1, "Cooling... \n");
+        fclose(pFile_1);
+
         for (T=Temp_max; T>Temp_min; T=T-delta_T)
         {
             printf("\nT=%lf\t ", T);
@@ -3377,31 +3382,31 @@ double CUTOFF = 0.0000000001;
             thermalizing_iteration(thermal_i);
             averaging_iteration(average_j);
 
-            // pFile_1 = fopen(output_file_0, "a");
+            pFile_1 = fopen(output_file_name, "a");
 
-            fprintf(pFile_1, "%lf\t ", T);
-            // fprintf(pFile_1, "%lf\t ", m_abs_avg);
-
-            // for(j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
-            // } 
+            fprintf(pFile_1, "%le\t ", T);
+            // fprintf(pFile_1, "%le\t ", m_abs_avg);
 
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m_2_vec_avg[j_S]);
-                fprintf(pFile_1, "%lf\t ", m_4_vec_avg[j_S]);
+                fprintf(pFile_1, "%le\t ", m_avg[j_S]);
             } 
-            
+
             // for(j_S=0; j_S<dim_S; j_S++)
             // {
-            //     for(j_SS=0; j_SS<dim_S; j_SS++)
-            //     {
-            //         fprintf(pFile_1, "%lf\t ", m_ab_avg[j_S*dim_S+j_SS]);
-            //     }
-            // }
-            // fprintf(pFile_1, "%lf\t ", m_2_avg);
-            // fprintf(pFile_1, "%lf\t ", m_4_avg);
+            //     fprintf(pFile_1, "%le\t ", m_2_vec_avg[j_S]);
+            //     fprintf(pFile_1, "%le\t ", m_4_vec_avg[j_S]);
+            // } 
+            
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                for(j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    fprintf(pFile_1, "%le\t ", m_ab_avg[j_S*dim_S+j_SS]);
+                }
+            }
+            fprintf(pFile_1, "%le\t ", m_2_avg);
+            fprintf(pFile_1, "%le\t ", m_4_avg);
 
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -3409,14 +3414,14 @@ double CUTOFF = 0.0000000001;
                 {
                     for (j_L=0; j_L<dim_L; j_L++)
                     {
-                        fprintf(pFile_1, "%lf\t ", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
+                        fprintf(pFile_1, "%le\t ", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
                     }
                 }
             } */
 
-            // fprintf(pFile_1, "%lf\t ", E_avg);    
+            // fprintf(pFile_1, "%le\t ", E_avg);    
             fprintf(pFile_1, "\n");
-            // fclose(pFile_1);
+            fclose(pFile_1);
         }
 
         // ensemble_all();
@@ -3431,10 +3436,11 @@ double CUTOFF = 0.0000000001;
         printf("), Energy = %lf \n", E);
         printf("------------------------\n");
         
+        
         return 0;
     }
 
-    int heating_protocol()
+    int heating_protocol(char output_file_name[])
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
@@ -3470,7 +3476,11 @@ double CUTOFF = 0.0000000001;
         }
         printf("), Energy = %lf \n", E);
         printf("Heating... ");
+
+        pFile_1 = fopen(output_file_name, "a");
         fprintf(pFile_1, "Heating... \n");
+        fclose(pFile_1);
+        
         for (T=Temp_min; T<=Temp_max; T=T+delta_T)
         {
             printf("\nT=%lf\t ", T);
@@ -3478,14 +3488,14 @@ double CUTOFF = 0.0000000001;
             thermalizing_iteration(thermal_i);
             averaging_iteration(average_j);
 
-            // pFile_1 = fopen(output_file_0, "a");
+            pFile_1 = fopen(output_file_name, "a");
 
-            fprintf(pFile_1, "%lf\t ", T);
-            fprintf(pFile_1, "%lf\t ", m_abs_avg);
+            fprintf(pFile_1, "%le\t ", T);
+            fprintf(pFile_1, "%le\t ", m_abs_avg);
 
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+                fprintf(pFile_1, "%le\t ", m_avg[j_S]);
             }
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -3493,13 +3503,13 @@ double CUTOFF = 0.0000000001;
                 {
                     for (j_L=0; j_L<dim_L; j_L++)
                     {
-                        fprintf(pFile_1, "%lf\t ", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
+                        fprintf(pFile_1, "%le\t ", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
                     }
                 }
             } */
-            fprintf(pFile_1, "%lf\t ", E_avg);
+            fprintf(pFile_1, "%le\t ", E_avg);
             fprintf(pFile_1, "\n");
-            // fclose(pFile_1);
+            fclose(pFile_1);
         }
 
         // ensemble_all();
@@ -3667,7 +3677,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3676,7 +3686,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3685,7 +3695,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_{Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3694,7 +3704,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3703,7 +3713,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3712,7 +3722,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3721,26 +3731,26 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%lf\t \n", h_order, r_order, thermal_i, average_j, delta_T);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%le\t \n", h_order, r_order, thermal_i, average_j, delta_T);
+            fclose(pFile_1);
         }
 
         if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
         {
-            cooling_protocol();
+            cooling_protocol(output_file_0);
         }
         if (c_h_ch_hc == 1 || c_h_ch_hc == 2 || c_h_ch_hc == 3)
         {
-            heating_protocol();
+            heating_protocol(output_file_0);
         }
         if (c_h_ch_hc == 3)
         {
-            cooling_protocol();
+            cooling_protocol(output_file_0);
         }
         
-
-        fclose(pFile_1);
+        
         
         return 0;
     }
@@ -3931,7 +3941,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3940,7 +3950,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -3949,7 +3959,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3964,7 +3974,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -3974,7 +3984,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3983,7 +3993,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -3992,9 +4002,9 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
 
         int i;
@@ -4005,12 +4015,12 @@ double CUTOFF = 0.0000000001;
             {
                 hysteresis_average(hysteresis_MCS);
 
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+                    fprintf(pFile_1, "%le\t ", m_avg[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E_avg);
+                fprintf(pFile_1, "%le\t ", E_avg);
 
                 fprintf(pFile_1, "\n");
             }
@@ -4019,12 +4029,12 @@ double CUTOFF = 0.0000000001;
             {
                 hysteresis_average(hysteresis_MCS);
 
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m_avg[j_S]);
+                    fprintf(pFile_1, "%le\t ", m_avg[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E_avg);
+                fprintf(pFile_1, "%le\t ", E_avg);
 
                 fprintf(pFile_1, "\n");
             }
@@ -4248,7 +4258,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -4257,7 +4267,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -4266,7 +4276,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4281,7 +4291,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -4291,7 +4301,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4300,7 +4310,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4309,9 +4319,9 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
         
         long int nucleation_site;
@@ -4319,12 +4329,12 @@ double CUTOFF = 0.0000000001;
         long int remaining_sites = no_of_sites;
         ensemble_m();
         ensemble_E();
-        fprintf(pFile_1, "%lf\t ", h[jj_S]);
+        fprintf(pFile_1, "%le\t ", h[jj_S]);
         for(j_S=0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf\t ", m[j_S]);
+            fprintf(pFile_1, "%le\t ", m[j_S]);
         }
-        fprintf(pFile_1, "%lf\t ", E);
+        fprintf(pFile_1, "%le\t ", E);
 
         fprintf(pFile_1, "\n");
         
@@ -4334,12 +4344,12 @@ double CUTOFF = 0.0000000001;
 
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
             
@@ -4347,12 +4357,12 @@ double CUTOFF = 0.0000000001;
             printf("h=%lf, ", h[0]);
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
         }
@@ -4374,12 +4384,12 @@ double CUTOFF = 0.0000000001;
 
         ensemble_m();
         ensemble_E();
-        fprintf(pFile_1, "%lf\t ", h[jj_S]);
+        fprintf(pFile_1, "%le\t ", h[jj_S]);
         for(j_S=0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf\t ", m[j_S]);
+            fprintf(pFile_1, "%le\t ", m[j_S]);
         }
-        fprintf(pFile_1, "%lf\t ", E);
+        fprintf(pFile_1, "%le\t ", E);
 
         fprintf(pFile_1, "\n");
 
@@ -4389,12 +4399,12 @@ double CUTOFF = 0.0000000001;
 
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
             
@@ -4402,12 +4412,12 @@ double CUTOFF = 0.0000000001;
             printf("h=%lf, ", h[0]);
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
         }
@@ -4560,7 +4570,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -4569,7 +4579,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -4578,7 +4588,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4593,7 +4603,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -4603,7 +4613,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4612,7 +4622,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4621,9 +4631,9 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
 
         long int remaining_sites = 0;
@@ -4638,12 +4648,12 @@ double CUTOFF = 0.0000000001;
             ensemble_m();
             ensemble_E();
             
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
             
             fprintf(pFile_1, "\n");
 
@@ -4656,12 +4666,12 @@ double CUTOFF = 0.0000000001;
 
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
                 fprintf(pFile_1, "\n");
                 
@@ -4669,12 +4679,12 @@ double CUTOFF = 0.0000000001;
                 printf("h=%lf, ", h[0]);
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
                 old_h = h[0];
                 find_extreme(order[0], remaining_sites);
                 new_h = h[0];
@@ -4699,12 +4709,12 @@ double CUTOFF = 0.0000000001;
 
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
 
@@ -4716,12 +4726,12 @@ double CUTOFF = 0.0000000001;
 
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
                 fprintf(pFile_1, "\n");
                 
@@ -4729,12 +4739,12 @@ double CUTOFF = 0.0000000001;
                 printf("h=%lf, ", h[0]);
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
                 old_h = h[0];
                 find_extreme(order[0], remaining_sites);
                 new_h = h[0];
@@ -4898,7 +4908,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -4907,7 +4917,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -4916,7 +4926,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4931,7 +4941,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -4941,7 +4951,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4950,7 +4960,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -4959,9 +4969,9 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
 
         long int remaining_sites = 0;
@@ -4975,12 +4985,12 @@ double CUTOFF = 0.0000000001;
         ensemble_m();
         ensemble_E();
         
-        fprintf(pFile_1, "%lf\t ", h[jj_S]);
+        fprintf(pFile_1, "%le\t ", h[jj_S]);
         for(j_S=0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf\t ", m[j_S]);
+            fprintf(pFile_1, "%le\t ", m[j_S]);
         }
-        fprintf(pFile_1, "%lf\t ", E);
+        fprintf(pFile_1, "%le\t ", E);
         
         fprintf(pFile_1, "\n");
 
@@ -4990,12 +5000,12 @@ double CUTOFF = 0.0000000001;
 
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
             
@@ -5003,12 +5013,12 @@ double CUTOFF = 0.0000000001;
             // printf("h=%lf, ", h[0]);
             ensemble_m();
             ensemble_E();
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
             old_h = h[0];
             find_extreme(order[0], remaining_sites);
             new_h = h[0];
@@ -5026,12 +5036,12 @@ double CUTOFF = 0.0000000001;
             ensemble_m();
             ensemble_E();
             
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
             
             fprintf(pFile_1, "\n");
             while ( old_h == new_h || delta_m[i] > fabs( mag_rpm[i] - m[jj_S] ) )
@@ -5040,12 +5050,12 @@ double CUTOFF = 0.0000000001;
 
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
                 fprintf(pFile_1, "\n");
                 
@@ -5053,12 +5063,12 @@ double CUTOFF = 0.0000000001;
                 // printf("h=%lf, ", h[0]);
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
                 old_h = h[0];
                 find_extreme(order[0], remaining_sites);
                 new_h = h[0];
@@ -5077,12 +5087,12 @@ double CUTOFF = 0.0000000001;
             ensemble_m();
             ensemble_E();
             
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
             
             fprintf(pFile_1, "\n");
 
@@ -5092,12 +5102,12 @@ double CUTOFF = 0.0000000001;
 
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
                 fprintf(pFile_1, "\n");
                 
@@ -5105,12 +5115,12 @@ double CUTOFF = 0.0000000001;
                 // printf("h=%lf, ", h[0]);
                 ensemble_m();
                 ensemble_E();
-                fprintf(pFile_1, "%lf\t ", h[jj_S]);
+                fprintf(pFile_1, "%le\t ", h[jj_S]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
                 old_h = h[0];
                 find_extreme(order[0], remaining_sites);
                 new_h = h[0];
@@ -5120,14 +5130,14 @@ double CUTOFF = 0.0000000001;
 
             
             {
-                fprintf(pFile_1, "%lf\t ", old_h);
+                fprintf(pFile_1, "%le\t ", old_h);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
-                fprintf(pFile_1, "%lf\t ", (mag_rpm[i] - m[jj_S]) );
+                fprintf(pFile_1, "%le\t ", (mag_rpm[i] - m[jj_S]) );
 
                 fprintf(pFile_1, "\n");
 
@@ -5184,7 +5194,6 @@ double CUTOFF = 0.0000000001;
         double Energy_min = 0.0;
         double field_local[dim_S];
         
-        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             field_local[j_S] = 0.0;
@@ -5202,15 +5211,23 @@ double CUTOFF = 0.0000000001;
         {
             for (j_S=0; j_S<dim_S; j_S++)
             {
-                spin_local[j_S] = -order[j_S];
+                spin_local[j_S] = spin[dim_S*xyzi + j_S];
             }
         }
         else
         {
             Energy_min = -sqrt(Energy_min);
+            double spin_mod = 0;
             for (j_S=0; j_S<dim_S; j_S++)
             {
                 spin_local[j_S] = field_local[j_S] / Energy_min;
+                spin_local[j_S] = 2*spin_local[j_S] + spin[dim_S*xyzi + j_S];
+                spin_mod = spin_mod + spin_local[j_S] * spin_local[j_S];
+            }
+            spin_mod = sqrt(spin_mod) ;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                spin_local[j_S] = spin_local[j_S] / spin_mod;
             }
         }
 
@@ -5445,7 +5462,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -5454,7 +5471,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -5463,7 +5480,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5478,7 +5495,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -5488,7 +5505,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5497,7 +5514,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5506,9 +5523,9 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
         long int site_i;
         
@@ -5551,12 +5568,12 @@ double CUTOFF = 0.0000000001;
             // printf("\nblam = %lf", m[jj_S]);
             // printf("\n");
 
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
         }
@@ -5629,7 +5646,7 @@ double CUTOFF = 0.0000000001;
                     #pragma omp for
                     for (site_i=0; site_i<no_of_sites; site_i++)
                     {
-                        Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
+                        Energy_minimum_new_XY(site_i, &spin_temp[dim_S*site_i + 0]);
                     }
                     #pragma omp for reduction(+:cutoff_local)
                     for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
@@ -5654,12 +5671,12 @@ double CUTOFF = 0.0000000001;
             // printf("\nblam = %lf", m[jj_S]);
             // printf("\n");
             
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
         }
@@ -5882,7 +5899,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -5891,7 +5908,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -5900,7 +5917,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5915,7 +5932,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -5925,7 +5942,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5934,7 +5951,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -5943,9 +5960,9 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_h);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_h);
         }
         long int site_i;
         int black_or_white = 0;
@@ -5991,12 +6008,12 @@ double CUTOFF = 0.0000000001;
             // printf("\nblam = %lf", m[jj_S]);
             // printf("\n");
 
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
         }
@@ -6098,12 +6115,12 @@ double CUTOFF = 0.0000000001;
             // printf("\nblam = %lf", m[jj_S]);
             // printf("\n");
             
-            fprintf(pFile_1, "%lf\t ", h[jj_S]);
+            fprintf(pFile_1, "%le\t ", h[jj_S]);
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "%lf\t ", m[j_S]);
+                fprintf(pFile_1, "%le\t ", m[j_S]);
             }
-            fprintf(pFile_1, "%lf\t ", E);
+            fprintf(pFile_1, "%le\t ", E);
 
             fprintf(pFile_1, "\n");
         }
@@ -6113,7 +6130,7 @@ double CUTOFF = 0.0000000001;
         return 0;
     }
 
-    int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start, double h_start)
+    int zero_temp_RFXY_hysteresis_rotate(int jj_S, double order_start, double h_start, char output_file_name[])
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
@@ -6140,13 +6157,16 @@ double CUTOFF = 0.0000000001;
         double delta_phi = del_phi;
         
         printf("\nUpdating all sites simultaneously.. \n");
+        pFile_1 = fopen(output_file_name, "a");
         fprintf(pFile_1, "\nUpdating all sites simultaneously.. \n");
-        
+        fclose(pFile_1);
+
         spin_temp = (double*)malloc(dim_S*no_of_sites*sizeof(double));
 
         double cutoff_local = 0.0;
         int j_S, j_L;
-        double m_last[dim_S];
+        double *m_last = (double*)malloc(dim_S*hysteresis_repeat*sizeof(double));
+
         for (j_S=0; j_S<dim_S; j_S++)
         {
             m_last[j_S] = 2;
@@ -6177,7 +6197,8 @@ double CUTOFF = 0.0000000001;
         int repeat_cond = 1;
         while (repeat_cond)
         {
-
+            pFile_1 = fopen(output_file_name, "a");
+            
             for (h_phi = 0.0; h_phi * order[jj_S] <= 1.0; h_phi = h_phi + order[jj_S] * delta_phi)
             {
                 if (jj_S == 0)
@@ -6202,7 +6223,7 @@ double CUTOFF = 0.0000000001;
                         #pragma omp for
                         for (site_i=0; site_i<no_of_sites; site_i++)
                         {
-                            Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
+                            Energy_minimum_new_XY(site_i, &spin_temp[dim_S*site_i + 0]);
                         }
                         #pragma omp for reduction(+:cutoff_local)
                         for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
@@ -6225,17 +6246,19 @@ double CUTOFF = 0.0000000001;
                 ensemble_m();
                 ensemble_E();
                 
-                printf("\nblah = %lf", h[jj_S]);
-                printf("\nblam = %lf", m[jj_S]);
-                printf("\n");
+                // printf("\nblah = %lf", h[jj_S]);
+                // printf("\nblam = %lf", m[jj_S]);
+                // printf("\n");
 
-                fprintf(pFile_1, "%lf\t ", h_phi);
-                fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
+                pFile_1 = fopen(output_file_name, "a");
+
+                fprintf(pFile_1, "%le\t ", h_phi);
+                fprintf(pFile_1, "%le\t %le\t ", h[0], h[1]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
                 fprintf(pFile_1, "\n");
                 
@@ -6256,24 +6279,48 @@ double CUTOFF = 0.0000000001;
                 // }
             }
             
-            repeat_cond = 0;
+            int i;
+            for(i=0; i<repeat_loop-1; i++)
+            {
+                repeat_cond = 0;
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    if (fabs(m_last[j_S+i*dim_S] - m[j_S]) > CUTOFF )
+                    {
+                        repeat_cond = 1;
+                    }
+                }
+                if (repeat_cond == 0)
+                {
+                    break;
+                }
+            }
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
-                {
-                    repeat_cond = 1;
-                }
-                m_last[j_S] = m[j_S];
+                m_last[j_S + (repeat_loop-1)*dim_S] = m[j_S];
             }
-            fprintf(pFile_1, "loop %d\n", repeat_loop);
-            printf("\nloop %d\n", repeat_loop);
+            if (repeat_cond == 0)
+            {
+                fprintf(pFile_1, "loop %d - loop %d\n", repeat_loop, i+1);
+                printf("\nloop %d - loop %d\n", repeat_loop, i+1);
+            }
+            else
+            {
+                fprintf(pFile_1, "loop %d\n", repeat_loop);
+                printf("\nloop %d\n", repeat_loop);
+            }
+            fclose(pFile_1);
+            if (repeat_loop == hysteresis_repeat)
+            {
+                break;
+            }
             repeat_loop++;
         }
         free(spin_temp);
         return 0;
     }
 
-    int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start)
+    int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start, char output_file_name[])
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
@@ -6300,11 +6347,14 @@ double CUTOFF = 0.0000000001;
         double delta_phi = del_phi;
 
         printf("\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
+        pFile_1 = fopen(output_file_name, "a");
         fprintf(pFile_1, "\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
+        fclose(pFile_1);
 
         double cutoff_local = 0.0;
         int j_S, j_L;
-        double m_last[dim_S];
+        double *m_last = (double*)malloc(dim_S*hysteresis_repeat*sizeof(double));
+        
         for (j_S=0; j_S<dim_S; j_S++)
         {
             m_last[j_S] = 2;
@@ -6335,6 +6385,7 @@ double CUTOFF = 0.0000000001;
         int repeat_cond = 1;
         while (repeat_cond)
         {
+            pFile_1 = fopen(output_file_name, "a");
 
             for (h_phi = 0.0; h_phi * order[jj_S] <= 1.0; h_phi = h_phi + order[jj_S] * delta_phi)
             {
@@ -6386,16 +6437,19 @@ double CUTOFF = 0.0000000001;
                 // printf("\nblam = %lf", m[jj_S]);
                 // printf("\n");
 
-                fprintf(pFile_1, "%lf\t ", h_phi);
-                fprintf(pFile_1, "%lf\t %lf\t ", h[0], h[1]);
+                
+
+                fprintf(pFile_1, "%le\t ", h_phi);
+                fprintf(pFile_1, "%le\t %le\t ", h[0], h[1]);
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    fprintf(pFile_1, "%lf\t ", m[j_S]);
+                    fprintf(pFile_1, "%le\t ", m[j_S]);
                 }
-                fprintf(pFile_1, "%lf\t ", E);
+                fprintf(pFile_1, "%le\t ", E);
 
                 fprintf(pFile_1, "\n");
                 
+
                 // ----------------------------------------------//
                 // if (h_phi * order[jj_S] + delta_phi > 1.0)
                 // {
@@ -6412,25 +6466,48 @@ double CUTOFF = 0.0000000001;
                 //     repeat_loop++;
                 // }
             }
-
-            repeat_cond = 0;
+            int i;
+            for(i=0; i<repeat_loop-1; i++)
+            {
+                repeat_cond = 0;
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    if (fabs(m_last[j_S+i*dim_S] - m[j_S]) > CUTOFF )
+                    {
+                        repeat_cond = 1;
+                    }
+                }
+                if (repeat_cond == 0)
+                {
+                    break;
+                }
+            }
             for(j_S=0; j_S<dim_S; j_S++)
             {
-                if (fabs(m_last[j_S] - m[j_S]) > CUTOFF )
-                {
-                    repeat_cond = 1;
-                }
-                m_last[j_S] = m[j_S];
+                m_last[j_S + (repeat_loop-1)*dim_S] = m[j_S];
             }
-            fprintf(pFile_1, "loop %d\n", repeat_loop);
-            printf("\nloop %d\n", repeat_loop);
+            if (repeat_cond == 0)
+            {
+                fprintf(pFile_1, "loop %d - loop %d\n", repeat_loop, i+1);
+                printf("\nloop %d - loop %d\n", repeat_loop, i+1);
+            }
+            else
+            {
+                fprintf(pFile_1, "loop %d\n", repeat_loop);
+                printf("\nloop %d\n", repeat_loop);
+            }
+            fclose(pFile_1);
+            if (repeat_loop == hysteresis_repeat)
+            {
+                break;
+            }
             repeat_loop++;
         }
             
         return 0;
     }
 
-    int ordered_initialize_and_rotate(int jj_S, double order_start)
+    int ordered_initialize_and_rotate(int jj_S, double order_start, double h_rotate_abs)
     {
         T = 0;
         
@@ -6452,7 +6529,7 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(h_rotate_abs);
         double h_phi = 0;
         double delta_phi = del_phi;
         h_order = 0;
@@ -6572,7 +6649,8 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_phi);
+            pos += sprintf(pos, "_%lf}", delta_phi);
+            pos += sprintf(pos, "_o_r.dat");
             
         }
         pFile_1 = fopen(output_file_0, "a");
@@ -6602,7 +6680,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -6611,7 +6689,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -6620,7 +6698,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6635,7 +6713,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -6645,7 +6723,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6654,7 +6732,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6663,22 +6741,24 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
+        fclose(pFile_1);
+
         long int site_i;
         T = 0;
         printf("\nztne RFXY, h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
         
-        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
+        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start, output_file_0);
 
-        fclose(pFile_1);
+        
         
         return 0;
     }
 
-    int ordered_initialize_and_rotate_checkerboard(int jj_S, double order_start)
+    int ordered_initialize_and_rotate_checkerboard(int jj_S, double order_start, double h_rotate_abs)
     {
         T = 0;
         
@@ -6700,7 +6780,8 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(h_rotate_abs);
+        // double h_start = order[jj_S]*(sigma_h[0]/4.0);
         double h_phi = 0;
         double delta_phi = del_phi;
         h_order = 0;
@@ -6820,8 +6901,9 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_phi);
+            pos += sprintf(pos, "_%lf}", delta_phi);
             
+            pos += sprintf(pos, "_o_r.dat");
         }
         pFile_1 = fopen(output_file_0, "a");
 
@@ -6850,7 +6932,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -6859,7 +6941,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -6868,7 +6950,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6883,7 +6965,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -6893,7 +6975,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6902,7 +6984,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -6911,22 +6993,24 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
+        fclose(pFile_1);
+
         long int site_i;
         T = 0;
         printf("\nztne RFXY, h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
         
-        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
+        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start, output_file_0);
 
-        fclose(pFile_1);
+        
         
         return 0;
     }
 
-    int field_cool_and_rotate(int jj_S, double order_start)
+    int field_cool_and_rotate(int jj_S, double order_start, double h_rotate_abs)
     {
         T = Temp_max;
         // random initialization
@@ -6948,7 +7032,7 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         // start from h[0] or h[1] != 0
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(h_rotate_abs);
         h[jj_S] = h_start;
         double h_phi = 0;
         double delta_phi = del_phi;
@@ -7069,9 +7153,13 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_phi);
+            pos += sprintf(pos, "_%lf}_c", delta_phi);
         }
-        pFile_1 = fopen(output_file_0, "a");
+        char output_file_1[256];
+        strcpy(output_file_1, output_file_0);
+        strcat(output_file_1, ".dat");
+        
+        pFile_1 = fopen(output_file_1, "a");
 
         // cooling_protocol T_MAX - T_MIN=0
         // print column header
@@ -7108,7 +7196,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7117,7 +7205,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7126,7 +7214,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_{Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7135,7 +7223,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7144,7 +7232,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7153,7 +7241,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7162,14 +7250,18 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%lf\t \n", h_order, r_order, thermal_i, average_j, delta_T);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%le\t \n", h_order, r_order, thermal_i, average_j, delta_T);
         }
-        cooling_protocol();
         fclose(pFile_1);
+        cooling_protocol(output_file_1);
 
-        pFile_1 = fopen(output_file_0, "a");
+        char output_file_2[256];
+        strcpy(output_file_2, output_file_0);
+        strcat(output_file_2, "_r.dat");
+        
+        pFile_1 = fopen(output_file_2, "a");
         
         // rotate field
         // print column header
@@ -7197,7 +7289,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7206,7 +7298,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7215,7 +7307,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7230,7 +7322,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -7240,7 +7332,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7249,7 +7341,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7258,17 +7350,18 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
-        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
         fclose(pFile_1);
+
+        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start, output_file_2);
         
         return 0;
     }
 
-    int field_cool_and_rotate_checkerboard(int jj_S, double order_start)
+    int field_cool_and_rotate_checkerboard(int jj_S, double order_start, double h_rotate_abs)
     {
         T = Temp_max;
         // random initialization
@@ -7291,7 +7384,7 @@ double CUTOFF = 0.0000000001;
         }
         
         // start from h[0] or h[1] != 0
-        // double h_start = order[jj_S]*(sigma_h[0]/10.0);
+        // double h_start = order[jj_S]*(h_rotate_abs);
         double h_start = 0.0;
         // double h_start = 0.0; delta_h = 0.01; // for zero applied field only
         h[jj_S] = h_start;
@@ -7428,24 +7521,24 @@ double CUTOFF = 0.0000000001;
             
             fprintf(pFile_1, "T\t ");
             // fprintf(pFile_1, "|m|\t ");
-            // for (j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     fprintf(pFile_1, "<m[%d]>\t ", j_S);
-            // } 
-            // for (j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     for (j_SS=0; j_SS<dim_S; j_SS++)
-            //     {
-            //         fprintf(pFile_1, "<m[%d]m[%d]>\t ", j_S, j_SS);
-            //     }
-            // } 
-            // fprintf(pFile_1, "<m^2>\t ");
-            // fprintf(pFile_1, "<m^4>\t ");
             for (j_S=0; j_S<dim_S; j_S++)
             {
-                fprintf(pFile_1, "<m[%d]^2>\t ", j_S);
-                fprintf(pFile_1, "<m[%d]^4>\t ", j_S);
+                fprintf(pFile_1, "<m[%d]>\t ", j_S);
             } 
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                for (j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    fprintf(pFile_1, "<m[%d]m[%d]>\t ", j_S, j_SS);
+                }
+            } 
+            fprintf(pFile_1, "<m^2>\t ");
+            fprintf(pFile_1, "<m^4>\t ");
+            // for (j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     fprintf(pFile_1, "<m[%d]^2>\t ", j_S);
+            //     fprintf(pFile_1, "<m[%d]^4>\t ", j_S);
+            // } 
             
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
@@ -7474,7 +7567,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7483,7 +7576,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7492,7 +7585,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_{Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7501,7 +7594,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7510,7 +7603,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7519,7 +7612,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7528,13 +7621,13 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%lf\t \n", h_order, r_order, thermal_i, average_j, delta_T);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t (thermalizing-MCS,averaging-MCS)/{/Symbol D}T=(%ld,%ld)/%le\t \n", h_order, r_order, thermal_i, average_j, delta_T);
         }
-        
-        cooling_protocol();
         fclose(pFile_1);
+        
+        cooling_protocol(output_file_1);
         save_spin_config();
         // return 0;
 
@@ -7575,7 +7668,7 @@ double CUTOFF = 0.0000000001;
                     {
                         fprintf(pFile_1, ",");
                     }
-                    fprintf(pFile_1, "%lf", J[j_L]);
+                    fprintf(pFile_1, "%le", J[j_L]);
                 }
                 fprintf(pFile_1, "\t {/Symbol s}_J=");
                 for (j_L=0; j_L<dim_L; j_L++)
@@ -7584,7 +7677,7 @@ double CUTOFF = 0.0000000001;
                     {
                         fprintf(pFile_1, ",");
                     }
-                    fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                    fprintf(pFile_1, "%le", sigma_J[j_L]);
                 }
                 fprintf(pFile_1, "\t <J_{ij}>=");
                 for (j_L=0; j_L<dim_L; j_L++)
@@ -7593,7 +7686,7 @@ double CUTOFF = 0.0000000001;
                     {
                         fprintf(pFile_1, ",");
                     }
-                    fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                    fprintf(pFile_1, "%le", J_dev_avg[j_L]);
                 }
                 fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
                 for (j_S=0; j_S<dim_S; j_S++)
@@ -7608,7 +7701,7 @@ double CUTOFF = 0.0000000001;
                     }
                     else
                     {
-                        fprintf(pFile_1, "%lf", h[j_S]);
+                        fprintf(pFile_1, "%le", h[j_S]);
                     }
                 }
                 fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -7618,7 +7711,7 @@ double CUTOFF = 0.0000000001;
                     {
                         fprintf(pFile_1, ",");
                     }
-                    fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                    fprintf(pFile_1, "%le", sigma_h[j_S]);
                 }
                 fprintf(pFile_1, "\t <h_i>=");
                 for (j_S=0; j_S<dim_S; j_S++)
@@ -7627,7 +7720,7 @@ double CUTOFF = 0.0000000001;
                     {
                         fprintf(pFile_1, ",");
                     }
-                    fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                    fprintf(pFile_1, "%le", h_dev_avg[j_S]);
                 }
                 fprintf(pFile_1, "\t order=");
                 for (j_S=0; j_S<dim_S; j_S++)
@@ -7636,18 +7729,18 @@ double CUTOFF = 0.0000000001;
                     {
                         fprintf(pFile_1, ",");
                     }
-                    fprintf(pFile_1, "%lf", order[j_S]);
+                    fprintf(pFile_1, "%le", order[j_S]);
                 }
-                fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+                fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
             }
-            
-            zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
             fclose(pFile_1);
+            
+            zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start, output_file_2);
         }
         return 0;
     }
 
-    int random_initialize_and_rotate(int jj_S, double order_start)
+    int random_initialize_and_rotate(int jj_S, double order_start, double h_rotate_abs)
     {
         T = 0;
         int j_S, j_L;
@@ -7667,7 +7760,7 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(h_rotate_abs);
         double h_phi = 0;
         double delta_phi = del_phi;
         h_order = 0;
@@ -7787,7 +7880,7 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_phi);
+            pos += sprintf(pos, "_%lf}_ri.dat", delta_phi);
         }
         pFile_1 = fopen(output_file_0, "a");
 
@@ -7816,7 +7909,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7825,7 +7918,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -7834,7 +7927,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7849,7 +7942,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -7859,7 +7952,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7868,7 +7961,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -7877,17 +7970,18 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
-        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start);
         fclose(pFile_1);
+
+        zero_temp_RFXY_hysteresis_rotate(jj_S, order_start, h_start, output_file_0);
 
         return 0;
     }
 
-    int random_initialize_and_rotate_checkerboard(int jj_S, double order_start)
+    int random_initialize_and_rotate_checkerboard(int jj_S, double order_start, double h_rotate_abs)
     {
         T = 0;
 
@@ -7908,7 +8002,7 @@ double CUTOFF = 0.0000000001;
         {
             h[j_S] = 0;
         }
-        double h_start = order[jj_S]*(sigma_h[0]/4.0);
+        double h_start = order[jj_S]*(h_rotate_abs);
         double h_phi = 0;
         double delta_phi = del_phi;
         h_order = 0;
@@ -8028,7 +8122,7 @@ double CUTOFF = 0.0000000001;
                 }
                 pos += sprintf(pos, "%lf", order[j_S]);
             }
-            pos += sprintf(pos, "_%lf}.dat", delta_phi);
+            pos += sprintf(pos, "_%lf}_ri.dat", delta_phi);
         }
         pFile_1 = fopen(output_file_0, "a");
 
@@ -8057,7 +8151,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J[j_L]);
+                fprintf(pFile_1, "%le", J[j_L]);
             }
             fprintf(pFile_1, "\t {/Symbol s}_J=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -8066,7 +8160,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_J[j_L]);
+                fprintf(pFile_1, "%le", sigma_J[j_L]);
             }
             fprintf(pFile_1, "\t <J_{ij}>=");
             for (j_L=0; j_L<dim_L; j_L++)
@@ -8075,7 +8169,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", J_dev_avg[j_L]);
+                fprintf(pFile_1, "%le", J_dev_avg[j_L]);
             }
             fprintf(pFile_1, "\t dim_(Spin}=%d\t h=", dim_S);
             for (j_S=0; j_S<dim_S; j_S++)
@@ -8090,7 +8184,7 @@ double CUTOFF = 0.0000000001;
                 }
                 else
                 {
-                    fprintf(pFile_1, "%lf", h[j_S]);
+                    fprintf(pFile_1, "%le", h[j_S]);
                 }
             }
             fprintf(pFile_1, "\t {/Symbol s}_h=");
@@ -8100,7 +8194,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", sigma_h[j_S]);
+                fprintf(pFile_1, "%le", sigma_h[j_S]);
             }
             fprintf(pFile_1, "\t <h_i>=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -8109,7 +8203,7 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", h_dev_avg[j_S]);
+                fprintf(pFile_1, "%le", h_dev_avg[j_S]);
             }
             fprintf(pFile_1, "\t order=");
             for (j_S=0; j_S<dim_S; j_S++)
@@ -8118,13 +8212,13 @@ double CUTOFF = 0.0000000001;
                 {
                     fprintf(pFile_1, ",");
                 }
-                fprintf(pFile_1, "%lf", order[j_S]);
+                fprintf(pFile_1, "%le", order[j_S]);
             }
-            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%lf\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
+            fprintf(pFile_1, "\t order_h=%d\t order_r=%d\t MCS/{/Symbol d}h=%ld/%le\t \n", h_order, r_order, hysteresis_MCS, delta_phi);
         }
-        
-        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start);
         fclose(pFile_1);
+        
+        zero_temp_RFXY_hysteresis_rotate_checkerboard(jj_S, order_start, h_start, output_file_0);
         
         return 0;
     }
@@ -8253,19 +8347,29 @@ double CUTOFF = 0.0000000001;
         #ifdef _OPENMP
         for_omp_parallelization();
         #endif
-        double start_time_loop[2];
-        double end_time_loop[2];
-        start_time_loop[0] = omp_get_wtime();
-        field_cool_and_rotate_checkerboard(0, 1);
-        // zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
-        // random_initialize_and_rotate_checkerboard(0, 1);
-        end_time_loop[0] = omp_get_wtime();
-        start_time_loop[1] = omp_get_wtime();
-        // zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
-        // evolution_at_T(100);
-        end_time_loop[1] = omp_get_wtime();
+        double h_field_vals[] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15 };
+        int len_h_field_vals = sizeof(h_field_vals) / sizeof(h_field_vals[0]);
+        for (i=0; i<len_h_field_vals; i++)
+        {
+            double start_time_loop[2];
+            double end_time_loop[2];
+            start_time_loop[0] = omp_get_wtime();
+            // field_cool_and_rotate_checkerboard(0, 1);
+            ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i]);
+            // zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
+            // random_initialize_and_rotate_checkerboard(0, 1);
+            end_time_loop[0] = omp_get_wtime();
+            start_time_loop[1] = omp_get_wtime();
+            // zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
+            // evolution_at_T(100);
+            end_time_loop[1] = omp_get_wtime();
 
-        
+            // printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
+            printf("\nRotating hysteresis starting from y ( |h|=%lf ) = %lf \n", h[1], end_time_loop[0] - start_time_loop[0] );
+            // printf("\nHysteresis along x ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[0] - start_time_loop[0] );
+            // printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
+            // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
+        }
         
         // zero_temp_RFIM_hysteresis();
         // zero_temp_RFIM_ringdown();
@@ -8336,13 +8440,10 @@ double CUTOFF = 0.0000000001;
             }
         } */
 
+        
+        
         free_memory();
         double end_time = omp_get_wtime();
-        printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
-        // printf("\nHysteresis along x ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[0] - start_time_loop[0] );
-        // printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
-        // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
-        
         printf("\nCPU Time elapsed total = %lf \n", end_time-start_time);
         return 0;
     }

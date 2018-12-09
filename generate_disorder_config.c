@@ -222,19 +222,19 @@ int save_h_config()
         
     pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
     
-    fprintf(pFile_1, "%lf ", h_i_min);
+    fprintf(pFile_1, "%le ", h_i_min);
     printf( "\nh_i_min=%lf ", h_i_min);
     // fprintf(pFile_1, "\n");
-    fprintf(pFile_1, "%lf ", h_i_max);
+    fprintf(pFile_1, "%le ", h_i_max);
     printf( "h_i_max=%lf \n", h_i_max);
     fprintf(pFile_1, "\n");
 
     for (j_S=0; j_S<dim_S; j_S++)
     {
-        fprintf(pFile_1, "%lf ", h[j_S]);
-        fprintf(pFile_1, "%lf ", sigma_h[j_S]);
+        fprintf(pFile_1, "%le ", h[j_S]);
+        fprintf(pFile_1, "%le ", sigma_h[j_S]);
         printf( "sigma_h[%d]=%lf \n", j_S, sigma_h[j_S]);
-        fprintf(pFile_1, "%lf ", h_dev_avg[j_S]);
+        fprintf(pFile_1, "%le ", h_dev_avg[j_S]);
         printf( "h_dev_avg[%d]=%lf \n", j_S, h_dev_avg[j_S]);
         fprintf(pFile_1, "\n");
     }
@@ -244,7 +244,7 @@ int save_h_config()
     {
         for (j_S = 0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf ", h_random[dim_S*i + j_S]);
+            fprintf(pFile_1, "%le ", h_random[dim_S*i + j_S]);
         }
         fprintf(pFile_1, "\n");
         
@@ -296,20 +296,20 @@ int load_h_config()
     pFile_1 = fopen(input_file_1, "r"); // opens file for reading
 
     h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-    fscanf(pFile_1, "%lf", &h_i_min);
-    fscanf(pFile_1, "%lf", &h_i_max);
+    fscanf(pFile_1, "%le", &h_i_min);
+    fscanf(pFile_1, "%le", &h_i_max);
     for (j_S=0; j_S<dim_S; j_S++)
     {
-        fscanf(pFile_1, "%lf", &h[j_S]);
-        fscanf(pFile_1, "%lf", &sigma_h[j_S]);
-        fscanf(pFile_1, "%lf", &h_dev_avg[j_S]);
+        fscanf(pFile_1, "%le", &h[j_S]);
+        fscanf(pFile_1, "%le", &sigma_h[j_S]);
+        fscanf(pFile_1, "%le", &h_dev_avg[j_S]);
     }
     
     for (i = 0; i < no_of_sites; i++)
     {
         for (j_S = 0; j_S<dim_S; j_S++)
         {
-            fscanf(pFile_1, "%lf", &h_random[dim_S*i + j_S]);
+            fscanf(pFile_1, "%le", &h_random[dim_S*i + j_S]);
         }
     }
     fclose(pFile_1);
@@ -418,16 +418,16 @@ int save_J_config()
     
     pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
     
-    fprintf(pFile_1, "%lf ", J_i_min);
+    fprintf(pFile_1, "%le ", J_i_min);
     // fprintf(pFile_1, "\n");
-    fprintf(pFile_1, "%lf ", J_i_max);
+    fprintf(pFile_1, "%le ", J_i_max);
     fprintf(pFile_1, "\n");
 
     for (j_L=0; j_L<dim_L; j_L++)
     {
-        fprintf(pFile_1, "%lf ", J[j_L]);
-        fprintf(pFile_1, "%lf ", sigma_J[j_L]);
-        fprintf(pFile_1, "%lf ", J_dev_avg[j_L]);
+        fprintf(pFile_1, "%le ", J[j_L]);
+        fprintf(pFile_1, "%le ", sigma_J[j_L]);
+        fprintf(pFile_1, "%le ", J_dev_avg[j_L]);
         fprintf(pFile_1, "\n");
     }
     fprintf(pFile_1, "\n");
@@ -438,7 +438,7 @@ int save_J_config()
         {
             for (k_L = 0; k_L<2; k_L++)
             {
-                fprintf(pFile_1, "%lf ", J_random[2*dim_L*i + 2*j_L + k_L]);
+                fprintf(pFile_1, "%le ", J_random[2*dim_L*i + 2*j_L + k_L]);
             }
         }
         fprintf(pFile_1, "\n");
@@ -492,13 +492,13 @@ int load_J_config()
     pFile_1 = fopen(input_file_1, "r"); // opens file for reading
 
     J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
-    fscanf(pFile_1, "%lf", &J_i_min);
-    fscanf(pFile_1, "%lf", &J_i_max);
+    fscanf(pFile_1, "%le", &J_i_min);
+    fscanf(pFile_1, "%le", &J_i_max);
     for (j_L=0; j_L<dim_L; j_L++)
     {
-        fscanf(pFile_1, "%lf", &J[j_L]);
-        fscanf(pFile_1, "%lf", &sigma_J[j_L]);
-        fscanf(pFile_1, "%lf", &J_dev_avg[j_L]);
+        fscanf(pFile_1, "%le", &J[j_L]);
+        fscanf(pFile_1, "%le", &sigma_J[j_L]);
+        fscanf(pFile_1, "%le", &J_dev_avg[j_L]);
     }
     
     for (i = 0; i < no_of_sites; i++)
@@ -507,7 +507,7 @@ int load_J_config()
         {
             for (k_L = 0; k_L<2; k_L++)
             {
-                fscanf(pFile_1, "%lf", &J_random[2*dim_L*i + 2*j_L + k_L]);
+                fscanf(pFile_1, "%le", &J_random[2*dim_L*i + 2*j_L + k_L]);
             }
         }
     }
