@@ -9,14 +9,14 @@
 
 FILE *pFile_1;
 
-const double pie = 3.141592625359;
+const double pie = 3.14159265358979323846;
 
 // int dim_L = 2;
 // int dim_S = 2;
-int lattice_size[dim_L] = { 128, 128 };
+int lattice_size[dim_L] = { 112, 112 };
 long int no_of_sites = 1;
 
-long int *NN;
+long int *N_N_I;
 
 double *h_random;
 double sigma_h[dim_S] = { 0.5, 0.0 }; // only parameter for distribution
@@ -75,23 +75,15 @@ double generate_gaussian(int J_h, int j_L_S) // Marsaglia polar method
 {
     double X, r;
     double sigma = 1;
-    if (J_h == 0)
-    {
-        sigma = sigma_J[j_L_S];
-    }
-    if (J_h == 1)
-    {
-        sigma = sigma_h[j_L_S];
-    }
-    
+
     double P_max = 1; // 1/( sqrt(2*pie) * sigma );
     double P_x;
 
     do
     {
-        X = -10 + 20*genrand64_real1();
+        X = (-10 + 20*genrand64_real1());
         r = genrand64_real1();
-        P_x = exp( -custom_double_pow(X, 2) / (2*custom_double_pow(sigma, 2) ) );
+        P_x =  exp( -custom_double_pow(X, 2) / (2*custom_double_pow(sigma, 2) ) );
     }
     while (r >= P_x/P_max);
     

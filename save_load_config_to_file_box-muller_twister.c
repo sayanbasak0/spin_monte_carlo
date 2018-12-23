@@ -9,14 +9,14 @@
 
 FILE *pFile_1;
 
-const double pie = 3.141592625359;
+const double pie = 3.14159265358979323846;
 
 // int dim_L = 2;
 // int dim_S = 2;
-int lattice_size[dim_L] = { 128, 128 };
+int lattice_size[dim_L] = { 112, 112 };
 long int no_of_sites = 1;
 
-long int *NN;
+long int *N_N_I;
 
 double *h_random;
 double sigma_h[dim_S] = { 0.5, 0.0 }; // only parameter for distribution

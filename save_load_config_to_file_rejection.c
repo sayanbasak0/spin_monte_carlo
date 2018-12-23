@@ -10,7 +10,7 @@
 
 FILE *pFile_1;
 
-const double pie = 3.141592625359;
+const double pie = 3.14159265358979323846;
 
 // int dim_L = 2;
 // int dim_S = 2;

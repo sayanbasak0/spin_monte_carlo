@@ -8,16 +8,21 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+
+#define MARSAGLIA 1 // uncomment only one
+// #define REJECTION 1 // uncomment only one
+// #define BOX_MULLER 1 // uncomment only one
+
 #define dim_L 2
 #define dim_S 2
 
 FILE *pFile_1;
 
-const double pie = 3.141592625359;
+const double pie = 3.14159265358979323846;
 
 // int dim_L = 2;
 // int dim_S = 2;
-int lattice_size[dim_L] = { 128, 128 };
+int lattice_size[dim_L] = { 100, 100 };
 long int no_of_sites = 1;
 
 int no_of_disorder_configs = 128;
@@ -79,10 +84,34 @@ long int nearest_neighbor(long int xyzi, int j_L, int k_L)
 
 double generate_gaussian() // Marsaglia polar method
 {
-    double U1, U2, W, mult;
+    static int which_method = 0;
+    double sigma = 1.0;
+    #ifdef REJECTION
+        if (which_method == 0)
+        {
+            which_method = !which_method;
+            printf("\n Rejection Sampling method used to generate Gaussian Distribution.\n");
+        }
+        double X, r;
+
+        double P_max = 1; // 1/( sqrt(2*pie) * sigma );
+        double P_x;
+
+        do
+        {
+            X = (-10 + 20 * genrand64_real1());
+            r = genrand64_real1();
+            P_x =  exp( - X*X / (2 * sigma*sigma ) );
+        }
+        while (r >= P_x/P_max);
+    
+        return ( sigma * (double) X);
+    #endif
+
+    double U1, U2, rho, theta, W, mult;
     static double X1, X2;
     static int call = 0;
-    double sigma = 1.0;
+    
 
     if (call == 1)
     {
@@ -90,17 +119,39 @@ double generate_gaussian() // Marsaglia polar method
         return (sigma * (double) X2);
     }
 
-    do
-    {
-        U1 = -1.0 + genrand64_real3() * 2.0;
-        // U1 = -1 + ((double) rand () / RAND_MAX) * 2;
-        U2 = -1.0 + genrand64_real3() * 2.0;
-        // U2 = -1 + ((double) rand () / RAND_MAX) * 2;
-        W = U1*U1 + U2*U2;
-    }
-    while (W >= 1 || W == 0);
-    
-    mult = sqrt ((-2 * log (W)) / W);
+    #ifdef MARSAGLIA
+        if (which_method == 0)
+        {
+            which_method = !which_method;
+            printf("\n Marsaglia Polar method used to generate Gaussian Distribution.\n");
+        }
+        do
+        {
+            U1 = -1.0 + 2.0 * genrand64_real2() ; // ((double) rand () / RAND_MAX) * 2;
+            U2 = -1.0 + 2.0 * genrand64_real2() ; // ((double) rand () / RAND_MAX) * 2;
+            W = U1*U1 + U2*U2;
+        }
+        while (W >= 1 || W == 0);
+
+        mult = sqrt ((-2.0 * log (W)) / W);
+    #endif
+
+    #ifdef BOX_MULLER
+        if (which_method == 0)
+        {
+            which_method = !which_method;
+            printf("\n Box-Muller transform used to generate Gaussian Distribution.\n");
+        }
+        rho = genrand64_real2();
+        theta = genrand64_real2();
+        
+        U1 = sin(2*pie*theta);
+        U2 = cos(2*pie*theta);
+
+        mult = sqrt (-2 * log (1-rho));
+    #endif
+
+
     X1 = U1 * mult;
     X2 = U2 * mult;
     
@@ -591,7 +642,7 @@ int main()
     if ((buf = (char *)malloc((size_t)size)) != NULL)
         ptr = getcwd(buf, (size_t)size);
 
-    for (int i=0; i<=no_of_disorder_configs; i++)
+    for (i=0; i<=no_of_disorder_configs; i++)
     {
         // load_h_config();
         // save_J_config();
