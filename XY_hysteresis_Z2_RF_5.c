@@ -11,10 +11,16 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-
 #define MARSAGLIA 1 // uncomment only one
 // #define REJECTION 1 // uncomment only one
 // #define BOX_MULLER 1 // uncomment only one
+
+// #define DIVIDE_BY_SLOPE 1
+// #define BINARY_DIVISION 1
+#define CONST_RATE 1
+
+#define RANDOM_FIELD 1
+// #define RANDOM_BOND 1
 
 #define dim_L 2
 #define dim_S 2
@@ -31,14 +37,15 @@ unsigned int *random_seed;
 int num_of_threads;
 int num_of_procs;
 int cache_size=512;
-double CUTOFF = 0.0000000001;
+// double CUTOFF = 0.0000000001; // for find_cutoff_sum
+double CUTOFF = 0.00000000000001; // for find_cutoff_max
 // long int CHUNK_SIZE = 256; 
 
 //===============================================================================//
 //====================      Variables                        ====================//
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 160, 160 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 64, 64 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -102,7 +109,8 @@ double CUTOFF = 0.0000000001;
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
-    double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0, del_phi = 0.0001; // for hysteresis
+    double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis (axial)
+    double del_phi = 0.00000001, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -330,7 +338,7 @@ double CUTOFF = 0.0000000001;
         int j_S;
         
         initialize_h_zero();
-
+        #ifdef RANDOM_FIELD
         for(j_S=0; j_S<dim_S; j_S=j_S+1)
         {
             h_dev_net[j_S] = 0;
@@ -347,33 +355,32 @@ double CUTOFF = 0.0000000001;
                 {
                     h_i_max = h_random[dim_S*r_i + j_S];
                 }
-                else 
+                else if (h_random[dim_S*r_i + j_S]<h_i_min)
                 {
-                    if (h_random[dim_S*r_i + j_S]<h_i_min)
-                    {
-                        h_i_min = h_random[dim_S*r_i + j_S];
-                    }
+                    h_i_min = h_random[dim_S*r_i + j_S];
                 }
             }
             
             h_dev_avg[j_S] = h_dev_net[j_S] / no_of_sites;
         }
-        if (fabs(h_i_max) < fabs(h_i_min))
-        {
-            h_i_max = fabs(h_i_min);
-        }
-        else
-        {
-            h_i_max = fabs(h_i_max);
-        }
-        h_i_min = -h_i_max;
+        // if (fabs(h_i_max) < fabs(h_i_min))
+        // {
+        //     h_i_max = fabs(h_i_min);
+        // }
+        // else
+        // {
+        //     h_i_max = fabs(h_i_max);
+        // }
+        // h_i_min = -h_i_max;
+        #endif
+
         return 0;
     }
 
     int initialize_J_zero()
     {
         long int i;
-        for(i=0; i<dim_L*no_of_sites; i=i+1)
+        for(i=0; i<2*dim_L*no_of_sites; i=i+1)
         {
             J_random[i] = 0;
             // h_total[i] = h; 
@@ -387,7 +394,7 @@ double CUTOFF = 0.0000000001;
         int j_L, k_L;
         
         initialize_J_zero();
-
+        #ifdef RANDOM_BOND
         for(j_L=0; j_L<dim_L; j_L=j_L+1)
         {
             J_dev_net[j_L] = 0;
@@ -408,18 +415,11 @@ double CUTOFF = 0.0000000001;
                 {
                     J_i_min = J_random[2*dim_L*r_i + 2*j_L];
                 }
+                J_random[2*dim_L*N_N_I[2*dim_L*r_i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*r_i + 2*j_L];
             }
             J_dev_avg[j_L] = J_dev_net[j_L] / no_of_sites;
         }
-        
-        for(j_L=0; j_L<dim_L; j_L=j_L+1)
-        {
-            J_dev_net[j_L] = 0;
-            for(i=0; i<no_of_sites; i=i+1)
-            {
-                J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
-            }
-        }
+        #endif
         
         return 0;
     }
@@ -1352,9 +1352,17 @@ double CUTOFF = 0.0000000001;
             {
                 for (j_L=0; j_L<dim_L; j_L++)
                 {
-                    E += - (J[j_L] + J_random[2*dim_L*i + 2*j_L])  * spin[dim_S * N_N_I[i*2*dim_L + 2*j_L] + j_S] * (spin[dim_S*i + j_S]);
+                    #ifdef RANDOM_BOND
+                    E += - (J[j_L] + J_random[2*dim_L*i + 2*j_L]) * spin[dim_S * N_N_I[i*2*dim_L + 2*j_L] + j_S] * (spin[dim_S*i + j_S]);
+                    #else
+                    E += - (J[j_L]) * spin[dim_S * N_N_I[i*2*dim_L + 2*j_L] + j_S] * (spin[dim_S*i + j_S]);
+                    #endif
                 }
+                #ifdef RANDOM_FIELD
                 E += - (h[j_S] + h_random[dim_S*i + j_S]) * (spin[dim_S*i + j_S]);
+                #else
+                E += - (h[j_S]) * (spin[dim_S*i + j_S]);
+                #endif
             }
         }
         // for (j_S=0; j_S<dim_S; j_S++)
@@ -1408,6 +1416,7 @@ double CUTOFF = 0.0000000001;
         
         return 0;
     }
+
 //====================      Specific Heat                    ====================//
 
     int set_sum_of_moment_Cv_0()
@@ -1497,10 +1506,17 @@ double CUTOFF = 0.0000000001;
                 {
                     for (j_L=0; j_L<dim_L; j_L++)
                     {
+                        #ifdef RANDOM_BOND
                         Y_1[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
                         Y_1[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
                         Y_2[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += - ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
                         Y_2[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        #else
+                        Y_1[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += ( J[j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        Y_1[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += ( J[j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
+                        Y_2[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += - ( J[j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
+                        Y_2[dim_S*dim_S*j_L + dim_S*j_S + j_SS] += ( J[j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        #endif
                     }
                 }
             }
@@ -1730,7 +1746,7 @@ double CUTOFF = 0.0000000001;
     double Energy_minimum(long int xyzi, double* __restrict__ spin_local, double* __restrict__ field_local)
     {
         int j_S, j_L, k_L;
-        double Energy_min=0.0;
+        double Energy_min = 0.0;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -1739,10 +1755,19 @@ double CUTOFF = 0.0000000001;
             {
                 for (k_L=0; k_L<2; k_L++)
                 {
+                    #ifdef RANDOM_BOND
                     field_local[j_S] = field_local[j_S] - (J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #else
+                    field_local[j_S] = field_local[j_S] - J[j_L] * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #endif
                 }
             }
+            #ifdef RANDOM_FIELD
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
+            #else
+            field_local[j_S] = field_local[j_S] - h[j_S];
+            #endif
+
             Energy_min = Energy_min + field_local[j_S] * field_local[j_S];
         }
         if(Energy_min==0)
@@ -1767,7 +1792,7 @@ double CUTOFF = 0.0000000001;
     double Energy_old(long int xyzi, double* __restrict__ spin_local, double* __restrict__ field_local)
     {
         int j_S, j_L, k_L;
-        double Energy_ol=0.0;
+        double Energy_ol = 0.0;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -1777,11 +1802,19 @@ double CUTOFF = 0.0000000001;
                 for (k_L=0; k_L<2; k_L++)
                 {
                     // field_site[dim_S*xyzi + j_S] = field_site[dim_S*xyzi + j_S] - (J[j_L] ) * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #ifdef RANDOM_BOND
                     field_local[j_S] = field_local[j_S] - (J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #else
+                    field_local[j_S] = field_local[j_S] - J[j_L] * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #endif
                 }
             }
             // field_site[dim_S*xyzi + j_S] = field_site[dim_S*xyzi + j_S] - (h[j_S]);
+            #ifdef RANDOM_FIELD
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
+            #else
+            field_local[j_S] = field_local[j_S] - h[j_S];
+            #endif
             // field_site[dim_S*xyzi + j_S] = field_local[j_S];
             // spin_old[dim_S*xyzi + j_S] = spin[dim_S*xyzi + j_S];
             Energy_ol = Energy_ol + field_local[j_S] * spin[dim_S*xyzi + j_S];
@@ -2096,7 +2129,12 @@ double CUTOFF = 0.0000000001;
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
+            #ifdef RANDOM_FIELD
             energy_site = -(h[j_S] + h_random[xyzi*dim_S + j_S]) * spin[dim_S*xyzi + j_S];
+            #else
+            energy_site = -(h[j_S]) * spin[dim_S*xyzi + j_S];
+            #endif
+
         }
 
         return energy_site;
@@ -2110,7 +2148,11 @@ double CUTOFF = 0.0000000001;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
+            #ifdef RANDOM_FIELD
             energy_site = -(h[j_S] + h_random[xyzi*dim_S + j_S]) * spin_new[j_S];
+            #else
+            energy_site = -(h[j_S]) * spin_new[j_S];
+            #endif
         }
 
         return energy_site;
@@ -2124,7 +2166,11 @@ double CUTOFF = 0.0000000001;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
+            #ifdef RANDOM_BOND
             energy_site = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin[dim_S*xyzi_nn + j_S];
+            #else
+            energy_site = -(J[j_L]) * spin[dim_S*xyzi + j_S] * spin[dim_S*xyzi_nn + j_S];
+            #endif
         }
 
         return energy_site;
@@ -2138,7 +2184,11 @@ double CUTOFF = 0.0000000001;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
+            #ifdef RANDOM_BOND
             energy_site = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin_new[j_S];
+            #else
+            energy_site = -(J[j_L]) * spin[dim_S*xyzi + j_S] * spin_new[j_S];
+            #endif
         }
 
         return energy_site;
@@ -3755,6 +3805,14 @@ double CUTOFF = 0.0000000001;
             h[j_S] = 0;
         }
         double h_start = order[jj_S]*(h_max+h_i_max);
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h_start = order[jj_S]*(h_max+fabs(h_i_min));
+        }
+        else
+        {
+            h_start = order[jj_S]*(h_max+fabs(h_i_max));
+        }
         double h_end = -h_start;
         double delta_h = del_h;
         
@@ -3997,7 +4055,17 @@ double CUTOFF = 0.0000000001;
     int zero_temp_RFIM_hysteresis()
     {
         T = 0;
-        h[0] = h_i_max;
+        
+        // h[0] = h_i_max;
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h[0] = fabs(h_i_min);
+        }
+        else
+        {
+            h[0] = fabs(h_i_max);
+        }
+        
         double delta_h = del_h;
         order[0] = 1;
         h_order = 0;
@@ -4167,7 +4235,16 @@ double CUTOFF = 0.0000000001;
             fprintf(pFile_1, "\n");
         }
 
-        h[0] = h_i_min;
+        // h[0] = h_i_min;
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h[0] = -fabs(h_i_min);
+        }
+        else
+        {
+            h[0] = -fabs(h_i_max);
+        }
+
         order[0] = -1;
         remaining_sites = no_of_sites;
         printf("\n%lf", m[0]);
@@ -4234,7 +4311,16 @@ double CUTOFF = 0.0000000001;
         double delta_m = 0.1;
         
         T = 0;
-        h[0] = h_i_max;
+        // h[0] = h_i_max;
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h[0] = fabs(h_i_min);
+        }
+        else
+        {
+            h[0] = fabs(h_i_max);
+        }
+        
         double delta_h = del_h;
         order[0] = 1;
         h_order = 0;
@@ -4417,7 +4503,16 @@ double CUTOFF = 0.0000000001;
                 fprintf(pFile_1, "\n");
             }
 
-            h[0] = h_i_min;
+            // h[0] = h_i_min;
+            if (fabs(h_i_max) < fabs(h_i_min))
+            {
+                h[0] = -fabs(h_i_min);
+            }
+            else
+            {
+                h[0] = -fabs(h_i_max);
+            }
+            
             order[0] = -1;
             remaining_sites = no_of_sites - remaining_sites;
             printf("\n%lf", m[0]);
@@ -4495,6 +4590,15 @@ double CUTOFF = 0.0000000001;
         
         T = 0;
         h[0] = h_i_max;
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h[0] = fabs(h_i_min);
+        }
+        else
+        {
+            h[0] = fabs(h_i_max);
+        }
+
         double delta_h = del_h;
         order[0] = 1;
         h_order = 0;
@@ -4801,7 +4905,7 @@ double CUTOFF = 0.0000000001;
     double Energy_minimum_old_XY(long int xyzi, double* __restrict__ spin_local)
     {
         int j_S, j_L, k_L;
-        double Energy_min=0.0;
+        double Energy_min = 0.0;
         double field_local[dim_S];
         
         for (j_S=0; j_S<dim_S; j_S++)
@@ -4811,10 +4915,18 @@ double CUTOFF = 0.0000000001;
             {
                 for (k_L=0; k_L<2; k_L++)
                 {
+                    #ifdef RANDOM_BOND
                     field_local[j_S] = field_local[j_S] - (J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #else
+                    field_local[j_S] = field_local[j_S] - J[j_L] * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #endif
                 }
             }
+            #ifdef RANDOM_FIELD
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
+            #else
+            field_local[j_S] = field_local[j_S] - h[j_S];
+            #endif
             Energy_min = Energy_min + field_local[j_S] * field_local[j_S];
         }
         if(Energy_min==0)
@@ -4849,10 +4961,18 @@ double CUTOFF = 0.0000000001;
             {
                 for (k_L=0; k_L<2; k_L++)
                 {
+                    #ifdef RANDOM_BOND
                     field_local[j_S] = field_local[j_S] - (J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #else
+                    field_local[j_S] = field_local[j_S] - J[j_L] * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #endif
                 }
             }
+            #ifdef RANDOM_FIELD
             field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
+            #else
+            field_local[j_S] = field_local[j_S] - h[j_S];
+            #endif
             Energy_min = Energy_min + field_local[j_S] * field_local[j_S];
         }
         if(Energy_min==0)
@@ -4898,8 +5018,78 @@ double CUTOFF = 0.0000000001;
         return spin_diff_abs;
     }
     
-    double find_cutoff(const int update_all_or_checker)
+    double find_change_max(const int update_all_or_checker)
     {
+        static int print_first = 0;
+        if (print_first == 0)
+        {
+            printf("\n Using find change max.. \n");
+            print_first = !print_first;
+        }
+        double cutoff_local;
+        
+        long int site_i;
+        static int black_or_white = 0;
+
+        if (update_all_or_checker == 0)
+        {
+            cutoff_local = 0.0;
+
+            #pragma omp parallel 
+            {
+                #pragma omp for
+                for (site_i=0; site_i<no_of_sites; site_i++)
+                {
+                    Energy_minimum_old_XY(site_i, &spin_temp[dim_S*site_i + 0]);
+                }
+                #pragma omp for reduction(+:cutoff_local)
+                for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
+                {
+                    cutoff_local += (double) ( fabs(spin[site_i] - spin_temp[site_i]) > CUTOFF );
+                    
+                    spin[site_i] = spin_temp[site_i];
+                }
+            }
+        }
+        else
+        {
+            #pragma omp parallel 
+            {
+                cutoff_local = 0.0;
+
+                #pragma omp for reduction(+:cutoff_local)
+                for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
+                {
+                    long int site_index = black_white_checkerboard[black_or_white][site_i];
+                    double spin_local[dim_S];
+
+                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF );
+                    
+                }
+
+                #pragma omp for reduction(+:cutoff_local)
+                for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
+                {
+                    long int site_index = black_white_checkerboard[!black_or_white][site_i];
+                    double spin_local[dim_S];
+                    
+                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF );
+                    
+                }            
+            }
+        }
+
+        return cutoff_local;
+    }
+
+    double find_change_sum(const int update_all_or_checker)
+    {
+        static int print_first = 0;
+        if (print_first == 0)
+        {
+            printf("\n Using find change sum.. \n");
+            print_first = !print_first;
+        }
         double cutoff_local;
         
         long int site_i;
@@ -4953,28 +5143,378 @@ double CUTOFF = 0.0000000001;
         return cutoff_local;
     }
     
+    int backing_up_spin()
+    {
+        int i;
+
+        for(i=0; i<no_of_sites*dim_S; i++)
+        {
+            spin_old[i] = spin[i];
+        }
+
+        return 0;
+    }
+
+    int restoring_spin()
+    {
+        int i;
+
+        for(i=0; i<no_of_sites*dim_S; i++)
+        {
+            spin[i] = spin_old[i];
+        }
+
+        return 0;
+    }
+
+    int const_delta_phi(double h_phi, double delta_phi, int jj_S, double h_start, const int update_all_or_checker)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== CONSTANT RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        ensemble_m();
+        ensemble_E();
+
+        fprintf(pFile_1, "%.12e\t", h_phi);
+        fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", m[j_S]);
+        }
+        fprintf(pFile_1, "%.12e\t", E);
+
+        fprintf(pFile_1, "\n");
+
+        // backing_up_spin();
+        
+        if(counter % 1000 == 0)
+        {
+            printf(  "\n============================\n");
+            printf(  "=0=     h_phi = %.15e ", h_phi );
+            // printf(    ",   delta_m = %.15e ", delta_m );
+            printf(    ", delta_phi = %.15e ", order[jj_S]*delta_phi );
+            printf(  "\n============================\n");
+        }
+        counter++;
+
+        return 0;
+    }
+    
+    int slope_subdivide_phi(double h_phi, double delta_phi, int jj_S, double h_start, const int update_all_or_checker)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            old_m[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            new_m[j_S] = m[j_S];
+            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+        }
+
+        delta_m = sqrt( delta_m ) ;
+        // printf("\n delta_m = %.15e \n", delta_m);
+
+        if (delta_phi <= del_phi_cutoff)
+        {
+            // ensemble_m();
+            ensemble_E();
+
+            fprintf(pFile_1, "%.12e\t", h_phi);
+            fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%.12e\t", m[j_S]);
+            }
+            fprintf(pFile_1, "%.12e\t", E);
+
+            fprintf(pFile_1, "\n");
+
+            backing_up_spin();
+            
+            printf(  "\n============================\n");
+            printf(  "=0=     h_phi = %.15e ", h_phi );
+            printf(    ",   delta_m = %.15e ", delta_m );
+            printf(    ", delta_phi = %.15e ", order[jj_S]*delta_phi );
+            printf(  "\n============================\n");
+
+            return 0;
+        }
+
+        double h_phi_k, delta_phi_k, cutoff_local;
+        long int slope;
+        if (delta_m > del_phi)
+        {
+            restoring_spin();
+            ensemble_m();
+            slope = delta_m/del_phi + 1;
+            delta_phi_k = delta_phi / (double) slope;
+            if (delta_phi_k < del_phi_cutoff)
+            {
+                slope = delta_phi/del_phi_cutoff + 1;
+                delta_phi_k = delta_phi / (double) slope;
+            }
+        }
+        else 
+        {
+            // ensemble_m();
+            ensemble_E();
+
+            fprintf(pFile_1, "%.12e\t", h_phi);
+            fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%.12e\t", m[j_S]);
+            }
+            fprintf(pFile_1, "%.12e\t", E);
+
+            fprintf(pFile_1, "\n");
+            
+            backing_up_spin();
+
+            printf(  "\n============================\n");
+            printf(  "=1=     h_phi = %.15e ", h_phi );
+            printf(    ",   delta_m = %.15e ", delta_m );
+            printf(    ", delta_phi = %.15e ", order[jj_S]*delta_phi );
+            printf(  "\n============================\n");
+
+            return 1;
+        }
+
+        long int slope_i;
+        for ( slope_i = 0; slope_i < slope-1; slope_i++ )
+        {
+            h_phi_k = h_phi - delta_phi + delta_phi_k * (double) (slope_i+1);
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max(update_all_or_checker);
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start, update_all_or_checker);
+        }
+        {
+            h_phi_k = h_phi;
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max(update_all_or_checker);
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start, update_all_or_checker);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+    }
+
+    int binary_subdivide_phi(double h_phi, double delta_phi, int jj_S, double h_start, const int update_all_or_checker)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== BINARY ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            old_m[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            new_m[j_S] = m[j_S];
+            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+        }
+
+        delta_m = sqrt( delta_m ) ;
+        // printf("\n delta_m = %.15e \n", delta_m);
+
+        if (delta_phi <= del_phi_cutoff)
+        {
+            // ensemble_m();
+            ensemble_E();
+
+            fprintf(pFile_1, "%.12e\t", h_phi);
+            fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%.12e\t", m[j_S]);
+            }
+            fprintf(pFile_1, "%.12e\t", E);
+
+            fprintf(pFile_1, "\n");
+
+            backing_up_spin();
+            
+            printf(  "\n============================\n");
+            printf(  "=1=     h_phi = %.15e ", h_phi );
+            printf(    ",   delta_m = %.15e ", delta_m );
+            printf(    ", delta_phi = %.15e ", order[jj_S]*delta_phi );
+            printf(  "\n============================\n");
+            
+            return 0;
+        }
+
+        double h_phi_k, delta_phi_k, cutoff_local;
+        
+        if (delta_m > del_phi)
+        {
+            restoring_spin();
+            ensemble_m();
+            delta_phi_k = delta_phi / 2.0;
+        }
+        else 
+        {
+            // ensemble_m();
+            ensemble_E();
+
+            fprintf(pFile_1, "%.12e\t", h_phi);
+            fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%.12e\t", m[j_S]);
+            }
+            fprintf(pFile_1, "%.12e\t", E);
+
+            fprintf(pFile_1, "\n");
+            
+            backing_up_spin();
+            
+            printf(  "\n============================\n");
+            printf(  "=1=     h_phi = %.15e ", h_phi );
+            printf(    ",   delta_m = %.15e ", delta_m );
+            printf(    ", delta_phi = %.15e ", order[jj_S]*delta_phi );
+            printf(  "\n============================\n");
+
+            return 1;
+        }
+
+        
+        // for ( h_phi_k = h_phi - order[jj_S] * delta_phi_k; h_phi_k * order[jj_S] <= h_phi * order[jj_S]; h_phi_k = h_phi_k + order[jj_S] * delta_phi_k )
+        {
+            h_phi_k = h_phi - order[jj_S] * delta_phi_k;
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max(update_all_or_checker);
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            binary_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start, update_all_or_checker);
+        }
+        
+        {
+            h_phi_k = h_phi;
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max(update_all_or_checker);
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            binary_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start, update_all_or_checker);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+        
+    }
+    
     int zero_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start, const int update_all_or_checker)
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
         #endif
-        // #ifdef _OPENMP
-        // if (num_of_threads<=16)
-        // {
-        //     omp_set_num_threads(num_of_threads);
-        // }
-        // else 
-        // {
-        //     if (num_of_threads<=20)
-        //     {
-        //         omp_set_num_threads(16);
-        //     }
-        //     else
-        //     {
-        //         omp_set_num_threads(num_of_threads-4);
-        //     }
-        // }
-        // #endif
+        /* #ifdef _OPENMP
+            if (num_of_threads<=16)
+            {
+                omp_set_num_threads(num_of_threads);
+            }
+            else 
+            {
+                if (num_of_threads<=20)
+                {
+                    omp_set_num_threads(16);
+                }
+                else
+                {
+                    omp_set_num_threads(num_of_threads-4);
+                }
+            }
+        #endif */
         
         T = 0;
         int ax_ro = 0;
@@ -5183,7 +5723,7 @@ double CUTOFF = 0.0000000001;
             
             do 
             {
-                cutoff_local = find_cutoff(update_all_or_checker);
+                cutoff_local = find_change_sum(update_all_or_checker);
 
                 // printf("\nblac = %g\n", cutoff_local);
 
@@ -5270,7 +5810,7 @@ double CUTOFF = 0.0000000001;
             do 
             {
                 
-                cutoff_local = find_cutoff(update_all_or_checker);
+                cutoff_local = find_change_sum(update_all_or_checker);
 
                 // printf("\nblac = %g\n", cutoff_local);
 
@@ -5307,23 +5847,23 @@ double CUTOFF = 0.0000000001;
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
         #endif
-        // #ifdef _OPENMP
-        // if (num_of_threads<=16)
-        // {
-        //     omp_set_num_threads(num_of_threads);
-        // }
-        // else 
-        // {
-        //     if (num_of_threads<=20)
-        //     {
-        //         omp_set_num_threads(16);
-        //     }
-        //     else
-        //     {
-        //         omp_set_num_threads(num_of_threads-4);
-        //     }
-        // }
-        // #endif
+        /* #ifdef _OPENMP
+            if (num_of_threads<=16)
+            {
+                omp_set_num_threads(num_of_threads);
+            }
+            else 
+            {
+                if (num_of_threads<=20)
+                {
+                    omp_set_num_threads(16);
+                }
+                else
+                {
+                    omp_set_num_threads(num_of_threads-4);
+                }
+            }
+        #endif */
 
         T = 0;
         double delta_phi = del_phi;
@@ -5391,15 +5931,62 @@ double CUTOFF = 0.0000000001;
                     h[0] = -h_start * sin(2*pie*h_phi);
                     h[1] = h_start * cos(2*pie*h_phi);
                 }
+                
+                #ifndef CONST_RATE
+                printf("\n  backing up  \n");
+                backing_up_spin();
+                #endif
 
                 cutoff_local = -0.1;
                 do
                 {
                     // double cutoff_local_last = cutoff_local;
-                    cutoff_local = find_cutoff(update_all_or_checker);
+                    cutoff_local = find_change_max(update_all_or_checker);
                 }
-                while (cutoff_local > CUTOFF); // 10^-10
+                while (cutoff_local > CUTOFF); // 10^-14
+
+                if (h_phi != 0.0)
+                {
+                    // printf(  "=========================");
+                    // printf("\n  h_phi != 0.0 (%.15e)  \n", h_phi);
+                    // printf(  "=========================");
+                    
+                    #ifdef CONST_RATE
+                        const_delta_phi(h_phi, delta_phi, jj_S, h_start, update_all_or_checker);
+                    #endif
+
+                    #ifdef DIVIDE_BY_SLOPE
+                        slope_subdivide_phi(h_phi, delta_phi, jj_S, h_start, update_all_or_checker);
+                    #endif
+                    
+                    #ifdef BINARY_DIVISION
+                        binary_subdivide_phi(h_phi, delta_phi, jj_S, h_start, update_all_or_checker);
+                    #endif
+                    
+
+                }
+                else
+                {
+
+                    ensemble_m();
+                    ensemble_E();
+                    
+                    fprintf(pFile_1, "%.12e\t", h_phi);
+                    fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+                    for(j_S=0; j_S<dim_S; j_S++)
+                    {
+                        fprintf(pFile_1, "%.12e\t", m[j_S]);
+                    }
+                    fprintf(pFile_1, "%.12e\t", E);
+
+                    fprintf(pFile_1, "\n"); // moved to division_by_
+
+                    printf(  "=========================");
+                    printf("\n  h_phi !=! 0.0 (%.15e)  \n", h_phi);
+                    printf(  "=========================");
+                }
                 
+
                 #ifdef SAVE_SPIN_AFTER
                     if ( h_counter % SAVE_SPIN_AFTER == 0 )
                     {
@@ -5410,24 +5997,10 @@ double CUTOFF = 0.0000000001;
                     }
                     h_counter++;
                 #endif
-                ensemble_m();
-                ensemble_E();
                 
                 // printf("\nblah = %lf", h[jj_S]);
                 // printf("\nblam = %lf", m[jj_S]);
                 // printf("\n");
-
-
-                fprintf(pFile_1, "%.12e\t", h_phi);
-                fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-
-                fprintf(pFile_1, "\n");
-                
 
                 // ----------------------------------------------//
                 // if (h_phi * order[jj_S] + delta_phi > 1.0)
@@ -5444,7 +6017,9 @@ double CUTOFF = 0.0000000001;
                 //     printf("\nloop %d\n", repeat_loop);
                 //     repeat_loop++;
                 // }
+
             }
+
             int i;
             for(i=0; i<repeat_loop-1; i++)
             {
@@ -5640,7 +6215,7 @@ double CUTOFF = 0.0000000001;
         }
         if( access( output_file_0, F_OK ) != -1 )
         {
-            printf("File exists!\n");
+            printf("File exists! filename = %s\n", output_file_0);
             return 0; // file exists
         }
         
@@ -6174,7 +6749,8 @@ double CUTOFF = 0.0000000001;
         for_omp_parallelization();
         #endif
         // double h_field_vals[] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15 };
-        double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
+        // double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
+        double h_field_vals[] = { 0.040 };
         int len_h_field_vals = sizeof(h_field_vals) / sizeof(h_field_vals[0]);
         for (i=0; i<len_h_field_vals; i++)
         {
