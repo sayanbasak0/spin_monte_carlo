@@ -14,6 +14,8 @@
 #define MARSAGLIA 1 // uncomment only one
 // #define REJECTION 1 // uncomment only one
 // #define BOX_MULLER 1 // uncomment only one
+#define OLD_COMPILER 1
+#define BUNDLE 4
 
 // #define DIVIDE_BY_SLOPE 1
 // #define BINARY_DIVISION 1
@@ -105,12 +107,12 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
 
 //====================      on-site field (h)                ====================//
     double h[dim_S] = { 0.0, 0.0 }; // h[0] = 0.1; // h[dim_S]
-    double sigma_h[dim_S] = { 0.50, 0.00 }; 
+    double sigma_h[dim_S] = { 1.00, 0.00 }; 
     double *h_random;
     double h_max = 4.01;
     double h_min = -4.01;
     double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis (axial)
-    double del_phi = 0.00000001, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
+    double del_phi = 0.0001, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
     double *field_site; // field experienced by spin due to nearest neighbors and on-site field
@@ -796,6 +798,8 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
         {
             abs_m[j_S] = 0;
         }
+        
+        #ifndef OLD_COMPILER
         #pragma omp parallel for private(j_S) reduction(+:abs_m[:dim_S])
         for(i=0; i<no_of_sites; i=i+1)
         {
@@ -804,21 +808,23 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
                 abs_m[j_S] += fabs( spin[dim_S*i + j_S]);
             }
         }
+        #else
+        for (j_S=0; j_S<dim_S; j_S=j_S+1)
+        {
+            double abs_m_j_S = 0.0;
+            #pragma omp parallel for private(i) reduction(+:abs_m_j_S)
+            for(i=0; i<no_of_sites; i=i+1)
+            {
+                abs_m_j_S += fabs( spin[dim_S*i + j_S]);
+            }
+            abs_m[j_S] = abs_m_j_S;
+        }
+        #endif
+        
         for (j_S=0; j_S<dim_S; j_S=j_S+1)
         {
             abs_m[j_S] = abs_m[j_S] / no_of_sites;
         }
-        
-        // for (j_S=0; j_S<dim_S; j_S=j_S+1)
-        // {
-        //     double abs_m_j_S = 0;
-        //     #pragma omp parallel for reduction(+:abs_m_j_S)
-        //     for(i=0; i<no_of_sites; i=i+1)
-        //     {
-        //         abs_m_j_S += fabs( spin[dim_S*i + j_S]);
-        //     }
-        //     abs_m[j_S] = abs_m_j_S / no_of_sites;
-        // }
         
         return 0;
     }
@@ -845,6 +851,7 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
             m[j_S] = 0;
         }
         
+        #ifndef OLD_COMPILER
         #pragma omp parallel for private(i,j_S) reduction(+:m[:dim_S])
         for(i=0; i<no_of_sites; i++)
         {
@@ -853,21 +860,24 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
                 m[j_S] += spin[dim_S*i + j_S];
             }
         }
+        #else
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            double m_j_S = 0.0;
+            #pragma omp parallel for private(i) reduction(+:m_j_S)
+            for(i=0; i<no_of_sites; i++)
+            {
+                m_j_S += spin[dim_S*i + j_S];
+            }
+            m[j_S] = m_j_S;
+        }
+        #endif
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
             m[j_S] = m[j_S] / no_of_sites;
         }
-        // for (j_S=0; j_S<dim_S; j_S=j_S+1)
-        // {
-            // m[j_S] = 0;
-            // #pragma omp parallel for reduction(+:m[j_S])
-            // for(i=0; i<no_of_sites; i=i+1)
-            // {
-                // m[j_S] += spin[dim_S*i + j_S];
-            // }
-            // m[j_S] = m[j_S] / no_of_sites;
-        // }
+        
         
         return 0;
     }
@@ -881,6 +891,7 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
             m[j_S] = 0;
         }
         
+        #ifndef OLD_COMPILER
         #pragma omp parallel for private(i,j_S) reduction(+:m[:dim_S])
         for(i=0; i<no_of_sites; i++)
         {
@@ -889,6 +900,18 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
                 m[j_S] += spin[dim_S*i + j_S];
             }
         }
+        #else
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            double m_j_S = 0.0;
+            #pragma omp parallel for private(i) reduction(+:m_j_S)
+            for(i=0; i<no_of_sites; i++)
+            {
+                m_j_S += spin[dim_S*i + j_S];
+            }
+            m[j_S] = m_j_S;
+        }
+        #endif
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -1497,6 +1520,8 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
             Y_1[j_L_j_S_j_SS] = 0;
             Y_2[j_L_j_S_j_SS] = 0;
         }
+
+        #ifndef OLD_COMPILER
         #pragma omp parallel for private(j_L, j_S, j_SS) reduction(+:Y_1[:dim_S*dim_S*dim_L], Y_2[:dim_S*dim_S*dim_L])
         for(i=0; i<no_of_sites; i++)
         {
@@ -1521,6 +1546,37 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
                 }
             }
         }
+        #else
+        for (j_L=0; j_L<dim_L; j_L++)
+        {
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                for (j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    double Y_1_j_L_j_S_j_SS = 0.0;
+                    double Y_2_j_L_j_S_j_SS = 0.0;
+                    #pragma omp parallel for private(i) reduction(+:Y_1_j_L_j_S_j_SS, Y_2_j_L_j_S_j_SS)
+                    for(i=0; i<no_of_sites; i++)
+                    {
+                        #ifdef RANDOM_BOND
+                        Y_1_j_L_j_S_j_SS += ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        Y_1_j_L_j_S_j_SS += ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
+                        Y_2_j_L_j_S_j_SS += - ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
+                        Y_2_j_L_j_S_j_SS += ( J[j_L] + J_random[2*dim_L*i + 2*j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        #else
+                        Y_1_j_L_j_S_j_SS += ( J[j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        Y_1_j_L_j_S_j_SS += ( J[j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
+                        Y_2_j_L_j_S_j_SS += - ( J[j_L] ) * spin[dim_S*i + j_S] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_SS];
+                        Y_2_j_L_j_S_j_SS += ( J[j_L] ) * spin[dim_S*i + j_SS] * spin[dim_S*N_N_I[i*2*dim_L + 2*j_L] + j_S];
+                        #endif
+                    }
+                    Y_1[dim_S*dim_S*j_L + dim_S*j_S + j_SS] = Y_1_j_L_j_S_j_SS;
+                    Y_2[dim_S*dim_S*j_L + dim_S*j_S + j_SS] = Y_2_j_L_j_S_j_SS;
+                }
+            }
+        }
+        #endif
+
         for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
         {
             Y_1[j_L_j_S_j_SS] = Y_1[j_L_j_S_j_SS] / no_of_sites;
@@ -3402,6 +3458,10 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
         #endif
+        #ifdef BUNDLE
+            omp_set_num_threads(BUNDLE);
+        #endif
+        
         // #ifdef _OPENMP
         // if (num_of_threads<=16)
         // {
@@ -3507,6 +3567,9 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
+        #endif
+        #ifdef BUNDLE
+            omp_set_num_threads(BUNDLE);
         #endif
         // #ifdef _OPENMP
         // if (num_of_threads<=16)
@@ -5498,6 +5561,9 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
         #endif
+        #ifdef BUNDLE
+            omp_set_num_threads(BUNDLE);
+        #endif
         /* #ifdef _OPENMP
             if (num_of_threads<=16)
             {
@@ -5846,6 +5912,9 @@ double CUTOFF = 0.00000000000001; // for find_cutoff_max
     {
         #ifdef _OPENMP
             omp_set_num_threads(num_of_threads);
+        #endif
+        #ifdef BUNDLE
+            omp_set_num_threads(BUNDLE);
         #endif
         /* #ifdef _OPENMP
             if (num_of_threads<=16)
