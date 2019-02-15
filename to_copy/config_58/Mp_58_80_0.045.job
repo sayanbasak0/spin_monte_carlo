@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name="XY_58_0.045_80.%j.%N"
+#SBATCH --output="XY_58_0.045_80.%j.%N.out"
+#SBATCH --partition=compute
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=24
+#SBATCH --export=ALL
+#SBATCH -t 48:00:00
+
+module load intel/2016.3.210
+
+#Set the number of openmp threads
+export OMP_NUM_THREADS=24
+
+#Run the job using mpirun_rsh
+time ./a_80_0.045.out > log_80_0.045.txt &
+wait

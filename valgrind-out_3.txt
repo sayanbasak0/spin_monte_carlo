@@ -1,0 +1,195 @@
+==1128== Memcheck, a memory error detector
+==1128== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==1128== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+==1128== Command: ./a.out
+==1128== Parent PID: 816
+==1128== 
+--1128-- 
+--1128-- Valgrind options:
+--1128--    --leak-check=full
+--1128--    --show-leak-kinds=all
+--1128--    --track-origins=yes
+--1128--    --verbose
+--1128--    --log-file=valgrind-out_3.txt
+--1128-- Contents of /proc/version:
+--1128--   Linux version 4.4.0-17763-Microsoft (Microsoft@Microsoft.com) (gcc version 5.4.0 (GCC) ) #253-Microsoft Mon Dec 31 17:49:00 PST 2018
+--1128-- 
+--1128-- Arch and hwcaps: AMD64, LittleEndian, amd64-cx16-lzcnt-rdtscp-sse3-avx-avx2-bmi
+--1128-- Page sizes: currently 4096, max supported 4096
+--1128-- Valgrind library directory: /usr/lib/valgrind
+--1128-- Reading syms from /mnt/d/sayan/simulations/OpenMP_08262018/a.out
+--1128-- Reading syms from /lib/x86_64-linux-gnu/ld-2.27.so
+--1128--   Considering /lib/x86_64-linux-gnu/ld-2.27.so ..
+--1128--   .. CRC mismatch (computed 1b7c895e wanted 2943108a)
+--1128--   Considering /usr/lib/debug/lib/x86_64-linux-gnu/ld-2.27.so ..
+--1128--   .. CRC is valid
+--1128-- Reading syms from /usr/lib/valgrind/memcheck-amd64-linux
+--1128--   Considering /usr/lib/valgrind/memcheck-amd64-linux ..
+--1128--   .. CRC mismatch (computed 62965bbf wanted eeb84137)
+--1128--    object doesn't have a symbol table
+--1128--    object doesn't have a dynamic symbol table
+--1128-- Scheduler: using generic scheduler lock implementation.
+--1128-- Reading suppressions file: /usr/lib/valgrind/default.supp
+==1128== embedded gdbserver: reading from /tmp/vgdb-pipe-from-vgdb-to-1128-by-subuntu1804-on-???
+==1128== embedded gdbserver: writing to   /tmp/vgdb-pipe-to-vgdb-from-1128-by-subuntu1804-on-???
+==1128== embedded gdbserver: shared mem   /tmp/vgdb-pipe-shared-mem-vgdb-1128-by-subuntu1804-on-???
+==1128== 
+==1128== TO CONTROL THIS PROCESS USING vgdb (which you probably
+==1128== don't want to do, unless you know exactly what you're doing,
+==1128== or are doing some strange experiment):
+==1128==   /usr/lib/valgrind/../../bin/vgdb --pid=1128 ...command...
+==1128== 
+==1128== TO DEBUG THIS PROCESS USING GDB: start GDB like this
+==1128==   /path/to/gdb ./a.out
+==1128== and then give GDB the following command
+==1128==   target remote | /usr/lib/valgrind/../../bin/vgdb --pid=1128
+==1128== --pid is optional if only one valgrind process is running
+==1128== 
+==1128== error calling PR_SET_PTRACER, vgdb might block
+--1128-- REDIR: 0x401f2f0 (ld-linux-x86-64.so.2:strlen) redirected to 0x58060901 (???)
+--1128-- REDIR: 0x401f0d0 (ld-linux-x86-64.so.2:index) redirected to 0x5806091b (???)
+--1128-- Reading syms from /usr/lib/valgrind/vgpreload_core-amd64-linux.so
+--1128--   Considering /usr/lib/valgrind/vgpreload_core-amd64-linux.so ..
+--1128--   .. CRC mismatch (computed 13d5e98a wanted 1786ecf1)
+--1128--    object doesn't have a symbol table
+--1128-- Reading syms from /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so
+--1128--   Considering /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so ..
+--1128--   .. CRC mismatch (computed 8f77ef36 wanted fcbde737)
+--1128--    object doesn't have a symbol table
+==1128== WARNING: new redirection conflicts with existing -- ignoring it
+--1128--     old: 0x0401f2f0 (strlen              ) R-> (0000.0) 0x58060901 ???
+--1128--     new: 0x0401f2f0 (strlen              ) R-> (2007.0) 0x04c32db0 strlen
+--1128-- REDIR: 0x401d360 (ld-linux-x86-64.so.2:strcmp) redirected to 0x4c33ee0 (strcmp)
+--1128-- REDIR: 0x401f830 (ld-linux-x86-64.so.2:mempcpy) redirected to 0x4c374f0 (mempcpy)
+--1128-- Reading syms from /lib/x86_64-linux-gnu/libm-2.27.so
+--1128--   Considering /lib/x86_64-linux-gnu/libm-2.27.so ..
+--1128--   .. CRC mismatch (computed 7feae033 wanted b29b2508)
+--1128--   Considering /usr/lib/debug/lib/x86_64-linux-gnu/libm-2.27.so ..
+--1128--   .. CRC is valid
+--1128-- Reading syms from /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0
+--1128--    object doesn't have a symbol table
+--1128-- Reading syms from /lib/x86_64-linux-gnu/libc-2.27.so
+--1128--   Considering /lib/x86_64-linux-gnu/libc-2.27.so ..
+--1128--   .. CRC mismatch (computed b1c74187 wanted 042cc048)
+--1128--   Considering /usr/lib/debug/lib/x86_64-linux-gnu/libc-2.27.so ..
+--1128--   .. CRC is valid
+--1128-- Reading syms from /lib/x86_64-linux-gnu/libdl-2.27.so
+--1128--   Considering /lib/x86_64-linux-gnu/libdl-2.27.so ..
+--1128--   .. CRC mismatch (computed bd82fa02 wanted d1fdccc9)
+--1128--   Considering /usr/lib/debug/lib/x86_64-linux-gnu/libdl-2.27.so ..
+--1128--   .. CRC is valid
+--1128-- Reading syms from /lib/x86_64-linux-gnu/libpthread-2.27.so
+--1128--   Considering /usr/lib/debug/.build-id/28/c6aade70b2d40d1f0f3d0a1a0cad1ab816448f.debug ..
+--1128--   .. build-id is valid
+--1128-- REDIR: 0x54a8c70 (libc.so.6:memmove) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7d40 (libc.so.6:strncpy) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8f50 (libc.so.6:strcasecmp) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7790 (libc.so.6:strcat) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7d70 (libc.so.6:rindex) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54aa7c0 (libc.so.6:rawmemchr) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8de0 (libc.so.6:mempcpy) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8c10 (libc.so.6:bcmp) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7d00 (libc.so.6:strncmp) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7800 (libc.so.6:strcmp) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8d40 (libc.so.6:memset) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54c60f0 (libc.so.6:wcschr) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7ca0 (libc.so.6:strnlen) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7870 (libc.so.6:strcspn) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8fa0 (libc.so.6:strncasecmp) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7840 (libc.so.6:strcpy) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a90e0 (libc.so.6:memcpy@@GLIBC_2.14) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7da0 (libc.so.6:strpbrk) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a77c0 (libc.so.6:index) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a7c70 (libc.so.6:strlen) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54b26c0 (libc.so.6:memrchr) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8ff0 (libc.so.6:strcasecmp_l) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8be0 (libc.so.6:memchr) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54c6eb0 (libc.so.6:wcslen) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8050 (libc.so.6:strspn) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8f20 (libc.so.6:stpncpy) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a8ef0 (libc.so.6:stpcpy) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54aa7f0 (libc.so.6:strchrnul) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x54a9040 (libc.so.6:strncasecmp_l) redirected to 0x4a2a6e0 (_vgnU_ifunc_wrapper)
+--1128-- REDIR: 0x55983c0 (libc.so.6:__strrchr_avx2) redirected to 0x4c32730 (rindex)
+--1128-- REDIR: 0x5598590 (libc.so.6:__strlen_avx2) redirected to 0x4c32cf0 (strlen)
+--1128-- REDIR: 0x54a1070 (libc.so.6:malloc) redirected to 0x4c2faa0 (malloc)
+--1128-- REDIR: 0x5598ad0 (libc.so.6:__memcpy_avx_unaligned_erms) redirected to 0x4c366e0 (memmove)
+--1128-- REDIR: 0x54a1950 (libc.so.6:free) redirected to 0x4c30cd0 (free)
+--1128-- REDIR: 0x5598f50 (libc.so.6:__memset_avx2_unaligned_erms) redirected to 0x4c365d0 (memset)
+--1128-- REDIR: 0x54a2c30 (libc.so.6:realloc) redirected to 0x4c31cb0 (realloc)
+--1128-- REDIR: 0x54a4030 (libc.so.6:calloc) redirected to 0x4c31a70 (calloc)
+--1128-- REDIR: 0x5598ab0 (libc.so.6:__mempcpy_avx_unaligned_erms) redirected to 0x4c37130 (mempcpy)
+--1128-- REDIR: 0x55981d0 (libc.so.6:__strchrnul_avx2) redirected to 0x4c37020 (strchrnul)
+--1128-- REDIR: 0x54bb9e0 (libc.so.6:__strcat_ssse3) redirected to 0x4c32990 (strcat)
+--1128-- REDIR: 0x54a8590 (libc.so.6:__GI_strstr) redirected to 0x4c37760 (__strstr_sse2)
+==1128== 
+==1128== HEAP SUMMARY:
+==1128==     in use at exit: 5,568 bytes in 12 blocks
+==1128==   total heap usage: 38 allocs, 26 frees, 110,984 bytes allocated
+==1128== 
+==1128== Searching for pointers to 12 not-freed blocks
+==1128== Checked 58,835,744 bytes
+==1128== 
+==1128== 8 bytes in 1 blocks are still reachable in loss record 1 of 6
+==1128==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x51E3AAC: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51F2D9A: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51E206A: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x4010732: call_init (dl-init.c:72)
+==1128==    by 0x4010732: _dl_init (dl-init.c:119)
+==1128==    by 0x40010C9: ??? (in /lib/x86_64-linux-gnu/ld-2.27.so)
+==1128== 
+==1128== 72 bytes in 1 blocks are still reachable in loss record 2 of 6
+==1128==    at 0x4C2FA3F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x4C31D84: realloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x51E3B0C: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51F1ABE: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51E80DD: GOMP_parallel (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x109DE5: initialize_nearest_neighbor_index (XY_hysteresis_Z2_RF_5.c:475)
+==1128==    by 0x11D6BD: main (XY_hysteresis_Z2_RF_5.c:7767)
+==1128== 
+==1128== 192 bytes in 1 blocks are still reachable in loss record 3 of 6
+==1128==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x51E3AAC: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51F0E15: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51E80C9: GOMP_parallel (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x109DE5: initialize_nearest_neighbor_index (XY_hysteresis_Z2_RF_5.c:475)
+==1128==    by 0x11D6BD: main (XY_hysteresis_Z2_RF_5.c:7767)
+==1128== 
+==1128== 208 bytes in 1 blocks are still reachable in loss record 4 of 6
+==1128==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x51E3AAC: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51F22AE: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51E3FA4: omp_set_num_threads (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x11A164: zero_temp_RFXY_hysteresis_rotate_checkerboard (XY_hysteresis_Z2_RF_5.c:6324)
+==1128==    by 0x11B6B0: ordered_initialize_and_rotate_checkerboard (XY_hysteresis_Z2_RF_5.c:6817)
+==1128==    by 0x11D7C4: main (XY_hysteresis_Z2_RF_5.c:7824)
+==1128== 
+==1128== 2,016 bytes in 7 blocks are possibly lost in loss record 5 of 6
+==1128==    at 0x4C31B25: calloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x40134A6: allocate_dtv (dl-tls.c:286)
+==1128==    by 0x40134A6: _dl_allocate_tls (dl-tls.c:530)
+==1128==    by 0x5A07227: allocate_stack (allocatestack.c:627)
+==1128==    by 0x5A07227: pthread_create@@GLIBC_2.2.5 (pthread_create.c:644)
+==1128==    by 0x51F1209: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51E80DD: GOMP_parallel (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x109DE5: initialize_nearest_neighbor_index (XY_hysteresis_Z2_RF_5.c:475)
+==1128==    by 0x11D6BD: main (XY_hysteresis_Z2_RF_5.c:7767)
+==1128== 
+==1128== 3,072 bytes in 1 blocks are still reachable in loss record 6 of 6
+==1128==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==1128==    by 0x51E3AAC: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51F0C9B: ??? (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x51E80C9: GOMP_parallel (in /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0)
+==1128==    by 0x109DE5: initialize_nearest_neighbor_index (XY_hysteresis_Z2_RF_5.c:475)
+==1128==    by 0x11D6BD: main (XY_hysteresis_Z2_RF_5.c:7767)
+==1128== 
+==1128== LEAK SUMMARY:
+==1128==    definitely lost: 0 bytes in 0 blocks
+==1128==    indirectly lost: 0 bytes in 0 blocks
+==1128==      possibly lost: 2,016 bytes in 7 blocks
+==1128==    still reachable: 3,552 bytes in 5 blocks
+==1128==         suppressed: 0 bytes in 0 blocks
+==1128== 
+==1128== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
+==1128== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
