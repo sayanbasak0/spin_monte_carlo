@@ -17,14 +17,16 @@
 // #define OLD_COMPILER 1
 // #define BUNDLE 4
 
+// #define CONST_RATE 1 // uncomment only one
 // #define DIVIDE_BY_SLOPE 1 // uncomment only one
 // #define BINARY_DIVISION 1 // uncomment only one
-// #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
-#define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
-// #define CONST_RATE 1 // uncomment only one
+#define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
+// #define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
 
 #define RANDOM_FIELD 1
 // #define RANDOM_BOND 1
+
+// #define RFIM 1
 
 #define dim_L 2
 #define dim_S 2
@@ -62,7 +64,7 @@ double start_time;
 //====================      Variables                        ====================//
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 16, 16 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -80,8 +82,18 @@ double start_time;
     int site_to_dir_index[dim_L];
 
 //====================      Ising hysteresis sorted list     ====================//
-    long int *sorted_h_index; int sorted_h_index_reqd = 0; 
-    long int *next_in_queue; int next_in_queue_reqd = 0;
+    long int *sorted_h_index; 
+    #if defined (RFIM)
+        int sorted_h_index_reqd = 1; 
+    #else
+        int sorted_h_index_reqd = 0; 
+    #endif
+    long int *next_in_queue; 
+    #if defined (RFIM)
+        int next_in_queue_reqd = 1;
+    #else
+        int next_in_queue_reqd = 0;
+    #endif
     long int remaining_sites;
 
 //====================      Wolff/Cluster variables          ====================//
@@ -143,16 +155,15 @@ double start_time;
 
 //====================      on-site field (h)                ====================//
     double h[dim_S] = { 0.0, 0.0 }; // h[0] = 0.1; // h[dim_S]
-    double sigma_h[dim_S] = { 0.50, 0.00 }; 
+    double sigma_h[dim_S] = { 2.00, 2.00 }; 
     double *h_random;
     #ifdef RANDOM_FIELD
         int h_random_reqd = 1;
     #else
         int h_random_reqd = 0;
     #endif
-    double h_max = 4.01;
-    double h_min = -4.01;
-    double del_h = 0.001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis (axial)
+    double h_max = 4.01; double h_min = -4.01;
+    double del_h = 0.001, del_h_cutoff = 0.000001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis (axial)
     double del_phi = 0.0001, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
@@ -233,6 +244,7 @@ double start_time;
 
 
 //===============================================================================//
+
 
 //===============================================================================//
 //====================      Functions                        ====================//
@@ -1394,12 +1406,13 @@ double start_time;
     int print_header_column(char output_file_name[])
     {
         int j_L, j_S;
+        printf("Output file name: %s\n", output_file_name);
         pFile_output = fopen(output_file_name, "a");
         fprintf(pFile_output, "----------------------------------------------------------------------------------\n");
         
         fprintf(pFile_output, "dim_{Spin} = %d ,\n", dim_S);
 
-        fprintf(pFile_output, "dim_{Lat} = %d ,\n", dim_S);
+        fprintf(pFile_output, "dim_{Lat} = %d ,\n", dim_L);
 
         fprintf(pFile_output, "N = (");
         for (j_L=0; j_L<dim_L; j_L++)
@@ -3332,43 +3345,48 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J[j_L]);
-            }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
-            }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
+            // pos += sprintf(pos, "_{");
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J[j_L]);
+            // }
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", sigma_J[j_L]);
+            // }
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
                 {
                     pos += sprintf(pos, ",");
                 }
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                pos += sprintf(pos, "%lf", h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -3377,16 +3395,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -3397,6 +3417,7 @@ double start_time;
             }
             pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
         }
+
         // column labels and parameters
         print_header_column(output_file_0);
         pFile_1 = fopen(output_file_0, "a");
@@ -3476,6 +3497,7 @@ double start_time;
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
             pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -3484,7 +3506,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -3493,25 +3516,28 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
                 {
                     pos += sprintf(pos, ",");
                 }
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                pos += sprintf(pos, "%lf", h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -3520,16 +3546,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -3650,6 +3678,7 @@ double start_time;
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
             pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -3658,7 +3687,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -3667,25 +3697,28 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
                 {
                     pos += sprintf(pos, ",");
                 }
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                pos += sprintf(pos, "%lf", h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -3694,16 +3727,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4027,7 +4062,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_(%lf,%lf)-[%lf]_{", Temp_min, Temp_max, delta_T);
+            pos += sprintf(pos, "_(%lf,%lf)-[%lf]", Temp_min, Temp_max, delta_T);
+            /* pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4036,7 +4072,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");     */
+            /* pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4044,26 +4081,29 @@ double start_time;
                     pos += sprintf(pos, ",");
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
-            }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            } */
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}");
+            /* pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
                 {
                     pos += sprintf(pos, ",");
                 }
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                pos += sprintf(pos, "%lf", h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}"); */    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4072,16 +4112,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4128,8 +4170,6 @@ double start_time;
         {
             cooling_protocol(output_file_0);
         }
-        
-        
         
         return 0;
     }
@@ -4234,7 +4274,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4243,7 +4284,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4252,16 +4294,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4277,7 +4321,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4286,16 +4331,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4490,7 +4537,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4499,7 +4547,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4508,16 +4557,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4533,7 +4584,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4542,16 +4594,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4745,7 +4799,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4754,7 +4809,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -4763,16 +4819,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4788,7 +4846,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -4797,16 +4856,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -5023,7 +5084,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -5032,7 +5094,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -5041,16 +5104,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");   
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -5066,7 +5131,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -5075,16 +5141,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -5569,11 +5637,15 @@ double start_time;
         return 0;
     }
     
-    int save_to_file(double h_phi, double delta_phi, int jj_S, double delta_m)
+    int save_to_file(double h_text, double delta_text, int jj_S, double delta_m, char text[])
     {
         int j_S;
-        fprintf(pFile_1, "%.12e\t", h_phi);
-        fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+        fprintf(pFile_1, "%.12e\t", h_text);
+        // fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", h[j_S]);
+        }
         for(j_S=0; j_S<dim_S; j_S++)
         {
             fprintf(pFile_1, "%.12e\t", m[j_S]);
@@ -5583,13 +5655,13 @@ double start_time;
         fprintf(pFile_1, "\n");
 
         printf(  "\n============================\n");
-        printf(  "=1=     h_phi = %.15e ", h_phi );
+        printf(  "=1=     %s = %.15e ", text, h_text );
         printf(    ",   delta_m = %.15e ", delta_m );
-        printf(    ", delta_phi = %.15e ", order[jj_S]*delta_phi );
+        printf(    ", delta_%s = %.15e ", text, order[jj_S]*delta_text );
         printf(  "\n============================\n");
         return 0;
     }
-
+    
     int const_delta_phi(double h_phi, double delta_phi, int jj_S, double h_start)
     {
         static int binary_or_slope = 1;
@@ -5629,6 +5701,49 @@ double start_time;
         return 0;
     }
     
+    int const_delta_h_axis(double h_jj_S, double delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== CONSTANT RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        ensemble_m();
+        // ensemble_E();
+
+        fprintf(pFile_1, "%.12e\t", h_jj_S);
+        // fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", h[j_S]);
+        }
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", m[j_S]);
+        }
+        // fprintf(pFile_1, "%.12e\t", E);
+
+        fprintf(pFile_1, "\n");
+
+        
+        if(counter % 100 == 0)
+        {
+            printf(  "\n============================\n");
+            printf(  "=0=     h[%d] = %.15e ", jj_S, h_jj_S);
+            // printf(    ",   delta_m = %.15e ", delta_m );
+            printf(    ", delta_h = %.15e ", order[jj_S]*delta_h );
+            printf(  "\n============================\n");
+        }
+        counter++;
+
+        return 0;
+    }
+    
     int slope_subdivide_phi(double h_phi, double delta_phi, int jj_S, double h_start)
     {
         static int binary_or_slope = 1;
@@ -5660,7 +5775,7 @@ double start_time;
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_phi, delta_phi, jj_S, delta_m);
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi");
 
             return 0;
         }
@@ -5684,7 +5799,7 @@ double start_time;
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_phi, delta_phi, jj_S, delta_m);
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi");
 
             return 1;
         }
@@ -5741,6 +5856,100 @@ double start_time;
         return 2;
     }
 
+    int slope_subdivide_h_axis(double h_jj_S, double delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            old_m[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            new_m[j_S] = m[j_S];
+            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+        }
+
+        delta_m = sqrt( delta_m ) ;
+
+        if (delta_h <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S");
+
+            return 0;
+        }
+
+        double h_jj_S_k, delta_h_k, cutoff_local;
+        long int slope;
+        if (delta_m > del_h)
+        {
+            restoring_spin();
+            // ensemble_m();
+            slope = delta_m/del_h + 1;
+            delta_h_k = delta_h / (double) slope;
+            if (delta_h_k < del_h_cutoff*h_start)
+            {
+                slope = delta_h/del_h_cutoff + 1;
+                delta_h_k = delta_h / (double) slope;
+            }
+        }
+        else 
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S");
+
+            return 1;
+        }
+
+        long int slope_i;
+        for ( slope_i = 0; slope_i < slope-1; slope_i++ )
+        {
+            h_jj_S_k = h_jj_S + order[jj_S] * (delta_h - delta_h_k * (double) (slope_i+1));
+            h[jj_S] = h_jj_S;
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max();
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        {
+            h_jj_S_k = h_jj_S;
+            h[jj_S] = h_jj_S;
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max();
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+    }
+    
     int binary_subdivide_phi(double h_phi, double delta_phi, int jj_S, double h_start)
     {
         static int binary_or_slope = 1;
@@ -5772,7 +5981,7 @@ double start_time;
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_phi, delta_phi, jj_S, delta_m);
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi");
             
             return 0;
         }
@@ -5790,7 +5999,7 @@ double start_time;
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_phi, delta_phi, jj_S, delta_m);
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi");
 
             return 1;
         }
@@ -5849,6 +6058,96 @@ double start_time;
         
     }
     
+    int binary_subdivide_h_axis(double h_jj_S, double delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== BINARY ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            old_m[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            new_m[j_S] = m[j_S];
+            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+        }
+
+        delta_m = sqrt( delta_m ) ;
+
+        if (delta_h <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S");
+            
+            return 0;
+        }
+
+        double h_jj_S_k, delta_h_k, cutoff_local;
+        
+        if (delta_m > del_h)
+        {
+            restoring_spin();
+            // ensemble_m();
+            delta_h_k = delta_h / 2.0;
+        }
+        else 
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S");
+
+            return 1;
+        }
+
+        
+        // for ( h_jj_S_k = h_jj_S - order[jj_S] * delta_h_k; h_jj_S_k * order[jj_S] <= h_jj_S * order[jj_S]; h_jj_S_k = h_jj_S_k + order[jj_S] * delta_h_k )
+        {
+            h_jj_S_k = h_jj_S + order[jj_S] * delta_h_k;
+            h[jj_S] = h_jj_S;
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max();
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            binary_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        
+        {
+            h_jj_S_k = h_jj_S;
+            h[jj_S] = h_jj_S;
+
+            cutoff_local = -0.1;
+            do
+            {
+                cutoff_local = find_change_max();
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+
+            binary_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+        
+    }
+
     int dynamic_binary_subdivide_phi(double *h_phi, double *delta_phi, int jj_S, double h_start)
     {
         static int binary_or_slope = 1;
@@ -5878,14 +6177,18 @@ double start_time;
         }
         delta_m = sqrt( delta_m ) ;
 
-        double ratio_delta_m = del_phi/delta_m;
+        double ratio_delta_m = del_phi/del_phi_cutoff;
+        if (delta_m > del_phi_cutoff)
+        {
+            ratio_delta_m = del_phi/delta_m;
+        }
 
         if (delta_phi[0] <= del_phi_cutoff)
         {
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+            save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
             
             if (ratio_delta_m > 2 && last_phi_restored == 0)
             {
@@ -5910,7 +6213,7 @@ double start_time;
                 {
                     backing_up_spin();
 
-                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
 
                     delta_phi[0] = delta_phi[0] * 2;
                     if (delta_phi[0] >= del_phi)
@@ -5934,7 +6237,7 @@ double start_time;
                     {
                         backing_up_spin();
                         last_phi_restored = 0;
-                        save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+                        save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
                         return 3;
                     }
                 }
@@ -5954,14 +6257,131 @@ double start_time;
                 {
                     backing_up_spin();
                     last_phi_restored = 0;
-                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
                     return 5;
                 }
             }
         }
         return 6;
     }
-    
+
+    int dynamic_binary_subdivide_h_axis(double *h_jj_S, double *delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        static int last_h_restored = 0;
+        if (binary_or_slope)
+        {
+            printf("\n ====== DYNAMIC BINARY DIVISION RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+        // double h_phi_k, delta_phi_k;
+        // h_phi_k = *h_phi;
+        // delta_phi_k = *delta_phi;
+        int j_S;
+        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            old_m[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            new_m[j_S] = m[j_S];
+            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        double ratio_delta_m = del_h/del_h_cutoff;
+        if (delta_m > del_h_cutoff)
+        {
+            ratio_delta_m = del_h/delta_m;
+        }
+
+        if (delta_h[0] <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+            
+            if (ratio_delta_m > 2 && last_h_restored == 0)
+            {
+                delta_h[0] = delta_h[0] * 2;
+                if (delta_h[0] >= del_h*h_start)
+                {
+                    delta_h[0] = del_h*h_start;
+                }
+            }
+            else
+            {
+                last_h_restored = 0;
+            }
+            
+            return 0;
+        }
+        else
+        {
+            if (delta_h[0] < del_h*h_start)
+            {
+                if (ratio_delta_m > 2 && last_h_restored == 0)
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+
+                    delta_h[0] = delta_h[0] * 2;
+                    if (delta_h[0] >= del_h*h_start)
+                    {
+                        delta_h[0] = del_h*h_start;
+                    }
+                    return 1;
+                }
+                else
+                {
+                    if (ratio_delta_m <= 1)
+                    {
+                        restoring_spin();
+                        last_h_restored = 1;
+                        h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                        
+                        delta_h[0] = delta_h[0] / 2;
+                        return 2;
+                    }
+                    else
+                    {
+                        backing_up_spin();
+                        last_h_restored = 0;
+                        save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+                        return 3;
+                    }
+                }
+            }
+            else
+            {
+                if (ratio_delta_m <= 1)
+                {
+                    restoring_spin();
+                    last_h_restored = 1;
+                    h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                    
+                    delta_h[0] = delta_h[0] / 2;
+                    return 4;
+                }
+                else
+                {
+                    backing_up_spin();
+                    last_h_restored = 0;
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+                    return 5;
+                }
+            }
+        }
+        return 6;
+    }
+
     int dynamic_binary_slope_divide_phi(double *h_phi, double *delta_phi, int jj_S, double h_start)
     {
         static int binary_or_slope = 1;
@@ -6003,7 +6423,7 @@ double start_time;
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+            save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
             
             if (ratio_delta_m > 2 && last_phi_restored == 0)
             {
@@ -6039,7 +6459,7 @@ double start_time;
                 {
                     backing_up_spin();
 
-                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
 
                     delta_phi[0] = delta_phi[0] * 2;
                     if (delta_phi[0] >= del_phi)
@@ -6063,7 +6483,7 @@ double start_time;
                     {
                         backing_up_spin();
 
-                        save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+                        save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
                         if (last_phi_restored == 0)
                         {
                             delta_phi[0] = delta_phi[0] * ratio_delta_m / reqd_ratio;
@@ -6096,11 +6516,159 @@ double start_time;
                 {
                     backing_up_spin();
 
-                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m);
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi");
                     last_phi_restored = 0;
                     if (ratio_delta_m < reqd_ratio)
                     {
                         delta_phi[0] = delta_phi[0] * ratio_delta_m / reqd_ratio;
+                    }
+                    
+                    return 5;
+                }
+            }
+        }
+        return 6;
+    }
+
+    int dynamic_binary_slope_divide_h_axis(double *h_jj_S, double *delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static int last_h_restored = 0;
+        static const double reqd_ratio = 1.1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== DYNAMIC BINARY DIVISION TO ADJUST TO SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+        // double h_phi_k, delta_phi_k;
+        // h_phi_k = *h_phi;
+        // delta_phi_k = *delta_phi;
+        int j_S;
+        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            old_m[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            new_m[j_S] = m[j_S];
+            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        double ratio_delta_m = del_h/del_h_cutoff;
+        if (delta_m > del_h_cutoff)
+        {
+            ratio_delta_m = del_h/delta_m;
+        }
+
+        if (delta_h[0] <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+            
+            if (ratio_delta_m > 2 && last_h_restored == 0)
+            {
+                delta_h[0] = delta_h[0] * 2;
+                if (delta_h[0] >= del_h*h_start)
+                {
+                    delta_h[0] = del_h*h_start;
+                }
+            }
+            else
+            {
+                if (ratio_delta_m > reqd_ratio && last_h_restored == 0)
+                {
+                    delta_h[0] = delta_h[0] * ratio_delta_m / reqd_ratio;
+                    if (delta_h[0] >= del_h*h_start)
+                    {
+                        delta_h[0] = del_h*h_start;
+                    }
+                }
+            }
+            if (last_h_restored == 1)
+            {
+                last_h_restored = 0;
+            }
+
+            return 0;
+        }
+        else
+        {
+            if (delta_h[0] < del_h*h_start)
+            {
+                if (ratio_delta_m > 2 && last_h_restored == 0)
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+
+                    delta_h[0] = delta_h[0] * 2;
+                    if (delta_h[0] >= del_h*h_start)
+                    {
+                        delta_h[0] = del_h*h_start;
+                    }
+                    return 1;
+                }
+                else
+                {
+                    if (ratio_delta_m <= 1)
+                    {
+                        restoring_spin();
+                        last_h_restored = 1;
+                        h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                        
+                        delta_h[0] = delta_h[0] / 2;
+                        return 2;
+                    }
+                    else
+                    {
+                        backing_up_spin();
+
+                        save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+                        if (last_h_restored == 0)
+                        {
+                            delta_h[0] = delta_h[0] * ratio_delta_m / reqd_ratio;
+                            if (delta_h[0] >= del_h*h_start)
+                            {
+                                delta_h[0] = del_h*h_start;
+                            }
+                        }
+                        else
+                        {
+                            last_h_restored = 0;
+                        }
+                        
+                        return 3;
+                    }
+                }
+            }
+            else
+            {
+                if (ratio_delta_m <= 1)
+                {
+                    restoring_spin();
+                    last_h_restored = 1;
+                    h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                    
+                    delta_h[0] = delta_h[0] / 2;
+                    return 4;
+                }
+                else
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S");
+                    last_h_restored = 0;
+                    if (ratio_delta_m < reqd_ratio)
+                    {
+                        delta_h[0] = delta_h[0] * ratio_delta_m / reqd_ratio;
                     }
                     
                     return 5;
@@ -6159,7 +6727,7 @@ double start_time;
             h[j_S] = 0;
         }
         // double h_start = order[jj_S]*(h_max+h_i_max);
-        double h_start;
+        double h_start, h_end;
         double delta_h;
         double sigma_h_trnsvrs = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
@@ -6174,17 +6742,42 @@ double start_time;
         {
             h_start = order[jj_S]*(sigma_h_trnsvrs);
             delta_h = sigma_h_trnsvrs*del_h;
+            h_order = 0;
+            r_order = 0;
+            initialize_spin_config();
         }
         else
         {
-            h_start = order[jj_S]*(h_max);
-            delta_h = h_max*del_h;
+            if (sigma_h[jj_S] == 0.0)
+            {
+                h_start = order[jj_S]*(h_max);
+                delta_h = h_max*del_h;
+                
+            }
+            else
+            {
+                // h[!jj_S] = sigma_h[jj_S]*del_h_cutoff;
+                // h[!jj_S] = 0.10*del_h_cutoff;
+                // h_start = order[jj_S]*(h_max);
+                if (h_i_max >= -h_i_min)
+                {
+                    h_start = order[jj_S]*(h_max + h_i_max);
+                }
+                else
+                {
+                    h_start = order[jj_S]*(h_max - h_i_min);
+                }
+                delta_h = (h_i_max + h_max)*del_h;
+            }
+            h_order = 0;
+            r_order = 1;
+            initialize_spin_config();
         }
 
-        double h_end = -h_start;
-        h_order = 0;
-        r_order = 0;
-        initialize_spin_config();
+        h_end = -h_start;
+        // h_order = 0;
+        // r_order = 1;
+        // initialize_spin_config();
         
 
         printf("\nztne RFXY looping along h[%d] at T=%lf.. \n", jj_S,  T);
@@ -6192,37 +6785,11 @@ double start_time;
         ensemble_m();
         ensemble_E();
         
-        // print statements:
-        {
-            printf("\n%lf", m[0]);
-            for(j_S=1; j_S<dim_S; j_S++)
-            {
-                printf(",%lf", m[j_S]);
-            }
-            printf("\norder = ({");
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                if (j_S != 0)
-                {
-                    printf(",");
-                }
-                if (j_S == jj_S)
-                {
-                    printf("%lf-->%lf", order[j_S], -order[j_S]);
-                }
-                else
-                {
-                    printf("%lf", order[j_S]);
-                }
-            }
-            printf("}, %d, %d)\n", h_order, r_order);
-        }
-        
         // create file name and pointer. 
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_hysteresis_", dim_S, dim_L);
+            pos += sprintf(pos, "O(%d)_%dD_hys_axis_", dim_S, dim_L);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -6232,8 +6799,9 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
-            /* for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
@@ -6241,7 +6809,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -6250,16 +6819,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{"); */
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -6268,14 +6839,15 @@ double start_time;
                 }
                 if (j_S==jj_S)
                 {
-                    pos += sprintf(pos, "(%lf)", h_start);
+                    pos += sprintf(pos, "(%lf_%lf)", h_start, delta_h);
                 }
                 else
                 {
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -6284,25 +6856,28 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", order[j_S]);
-            }
-            pos += sprintf(pos, "_%lf}.dat", delta_h);
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            // pos += sprintf(pos, "_{");
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", order[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_h%d_r%d.dat", h_order, r_order);
         }
         
         // column labels and parameters
@@ -6312,9 +6887,13 @@ double start_time;
             fprintf(pFile_1, "h[%d]\t", jj_S);
             for (j_S=0; j_S<dim_S; j_S++)
             {
+                fprintf(pFile_1, "h[%d]\t", j_S);
+            }
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
                 fprintf(pFile_1, "<m[%d]>\t", j_S);
             }
-            fprintf(pFile_1, "<E>\t");
+            // fprintf(pFile_1, "<E>\t");
             fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
         }
         // if (update_all_or_checker == 0)
@@ -6339,39 +6918,147 @@ double start_time;
             fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
         }
         #endif
-        
+        fclose(pFile_1);
+
         long int site_i;
         int black_or_white = 0;
-        
-        for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
+        double h_jj_S;
+
+
+        pFile_1 = fopen(output_file_0, "a");
+        // print statements:
         {
-            
+            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            printf("\n%lf", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", m[j_S]);
+            }
+            printf("\norder = ({");
+            fprintf(pFile_1, "\norder = ({");
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S != 0)
+                {
+                    printf(",");
+                    fprintf(pFile_1, ",");
+                }
+                if (j_S == jj_S)
+                {
+                    printf("%lf-->%lf", order[j_S], -order[j_S]);
+                    fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
+                }
+                else
+                {
+                    printf("%lf", order[j_S]);
+                    fprintf(pFile_1, "%lf", order[j_S]);
+                }
+            }
+            printf("}, %d, %d)\n", h_order, r_order);
+            fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
+            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+        }
+        h_jj_S = h_start;
+        #if defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
+            delta_h = del_h_cutoff*fabs(h_start);
+        #endif
+        // for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
+        while (order[jj_S] * h_jj_S >= order[jj_S] * h_end)
+        {
+            h[jj_S] = h_jj_S;
+            #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE)
+                printf("\n  backing up  \n");
+                backing_up_spin();
+            #endif
+
             cutoff_local = -0.1;
-            
             do 
             {
-                cutoff_local = find_change_sum();
-
+                cutoff_local = find_change_max();
                 // printf("\nblac = %g\n", cutoff_local);
-
             }
-            while (cutoff_local > CUTOFF); // 10^-10
+            while (cutoff_local > CUTOFF); // 10^-14
+            if (h_jj_S != h_start)
+            {
+                // printf(  "=========================");
+                // printf("\n  h_phi != 0.0 (%.15e)  \n", h_phi);
+                // printf(  "=========================");
+                
+                #ifdef CONST_RATE
+                    const_delta_h_axis(h_jj_S, delta_h, jj_S, order[jj_S]*h_start);
+                #endif
 
-            ensemble_m();
-            ensemble_E();
+                #ifdef DIVIDE_BY_SLOPE
+                    slope_subdivide_h_axis(h_jj_S, delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+                
+                #ifdef BINARY_DIVISION
+                    binary_subdivide_h_axis(h_jj_S, delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+
+                #ifdef DYNAMIC_BINARY_DIVISION
+                    dynamic_binary_subdivide_h_axis(&h_jj_S, &delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+                
+                #ifdef DYNAMIC_BINARY_DIVISION_BY_SLOPE
+                    dynamic_binary_slope_divide_h_axis(&h_jj_S, &delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+                
+            }
+            else
+            {
+                ensemble_m();
+                // ensemble_E();
+                
+                fprintf(pFile_1, "%.12e\t", h_jj_S);
+                // fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_1, "%.12e\t", h[j_S]);
+                }
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_1, "%.12e\t", m[j_S]);
+                }
+                // fprintf(pFile_1, "%.12e\t", E);
+
+                fprintf(pFile_1, "\n"); // moved to division_by_
+
+                printf(  "=========================");
+                printf("\n  h[%d] !=! h_start (%.15e)  \n", jj_S, h_jj_S);
+                printf(  "=========================");
+                
+            }
+            
             
             // printf("\nblah = %lf", h[jj_S]);
             // printf("\nblam = %lf", m[jj_S]);
             // printf("\n");
 
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
+            // fprintf(pFile_1, "%.12e\t", h[jj_S]);
+            // for(j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     fprintf(pFile_1, "%.12e\t", m[j_S]);
+            // }
+            // fprintf(pFile_1, "%.12e\t", E);
 
-            fprintf(pFile_1, "\n");
+            // fprintf(pFile_1, "\n");
+            #if defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
+                // if (h_phi * order[jj_S] + delta_phi >= 1.0 && h_phi * order[jj_S] < 1.0)
+                if (h_jj_S * order[jj_S] - delta_h <= h_end * order[jj_S] && h_jj_S * order[jj_S] > h_end * order[jj_S])
+                {
+                    // delta_phi = 1.0 - h_phi * order[jj_S];
+                    delta_h = (-h_end + h_jj_S) * order[jj_S];
+                    // h_phi = 1.0;
+                    h_jj_S = h_end;
+                }
+                else
+                {
+                    h_jj_S = h_jj_S - order[jj_S] * delta_h;
+                }
+            #else
+                h_jj_S = h_jj_S - order[jj_S] * delta_h;
+            #endif
         }
         fclose(pFile_1);
         // ----------------------------------------------//
@@ -6390,46 +7077,37 @@ double start_time;
         if (sigma_h_trnsvrs > 0.0)
         {
             h_start = order[jj_S]*(sigma_h_trnsvrs);
+            initialize_spin_config();
         }
         else
         {
-            h_start = order[jj_S]*(h_max);
-        }
-        h_end = -h_start;
-        h_order = 0;
-        r_order = 0;
-        initialize_spin_config();
-        
-        ensemble_m();
-        ensemble_E();
-        
-        // print statements:
-        {
-            printf("\n%lf", m[0]);
-            for(j_S=1; j_S<dim_S; j_S++)
+            if (sigma_h[jj_S] == 0.0)
             {
-                printf(",%lf", m[j_S]);
+                h_start = order[jj_S]*(h_max);
             }
-            printf("\norder = ({");
-            for(j_S=0; j_S<dim_S; j_S++)
+            else
             {
-                if (j_S != 0)
+                // h_start = order[jj_S]*(h_max);
+                if (h_i_max >= -h_i_min)
                 {
-                    printf(",");
-                }
-                if (j_S == jj_S)
-                {
-                    printf("%lf-->%lf", order[j_S], -order[j_S]);
+                    h_start = order[jj_S]*(h_max + h_i_max);
                 }
                 else
                 {
-                    printf("%lf", order[j_S]);
+                    h_start = order[jj_S]*(h_max - h_i_min);
                 }
             }
-            printf("}, %d, %d)\n", h_order, r_order);
+            
         }
+        h_end = -h_start;
+        // h_order = 0;
+        // r_order = 1;
+        // initialize_spin_config();
+        
+        ensemble_m();
+        ensemble_E();
 
-        pFile_1 = fopen(output_file_0, "a");
+        /* pFile_1 = fopen(output_file_0, "a");
         for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
         {
             cutoff_local = -0.1;
@@ -6437,12 +7115,12 @@ double start_time;
             do 
             {
                 
-                cutoff_local = find_change_sum();
+                cutoff_local = find_change_max();
 
                 // printf("\nblac = %g\n", cutoff_local);
 
             }
-            while (cutoff_local > CUTOFF); // 10^-10
+            while (cutoff_local > CUTOFF); // 10^-14
 
             ensemble_m();
             ensemble_E();
@@ -6459,6 +7137,142 @@ double start_time;
             fprintf(pFile_1, "%.12e\t", E);
 
             fprintf(pFile_1, "\n");
+        }
+        fclose(pFile_1); */
+        pFile_1 = fopen(output_file_0, "a");
+        // print statements:
+        {
+            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            printf("\n%lf", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", m[j_S]);
+            }
+            printf("\norder = ({");
+            fprintf(pFile_1, "\norder = ({");
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S != 0)
+                {
+                    printf(",");
+                    fprintf(pFile_1, ",");
+                }
+                if (j_S == jj_S)
+                {
+                    printf("%lf-->%lf", order[j_S], -order[j_S]);
+                    fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
+                }
+                else
+                {
+                    printf("%lf", order[j_S]);
+                    fprintf(pFile_1, "%lf", order[j_S]);
+                }
+            }
+            printf("}, %d, %d)\n", h_order, r_order);
+            fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
+            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+        }
+        h_jj_S = h_start;
+        #if defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
+            delta_h = del_h_cutoff*fabs(h_start);
+        #endif
+        // for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
+        while (order[jj_S] * h[jj_S] >= order[jj_S] * h_end)
+        {
+            h[jj_S] = h_jj_S;
+            #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE)
+                printf("\n  backing up  \n");
+                backing_up_spin();
+            #endif
+
+            cutoff_local = -0.1;
+            do 
+            {
+                cutoff_local = find_change_max();
+                // printf("\nblac = %g\n", cutoff_local);
+            }
+            while (cutoff_local > CUTOFF); // 10^-14
+            if (h_jj_S != h_start)
+            {
+                // printf(  "=========================");
+                // printf("\n  h_phi != 0.0 (%.15e)  \n", h_phi);
+                // printf(  "=========================");
+                
+                #ifdef CONST_RATE
+                    const_delta_h_axis(h_jj_S, delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+
+                #ifdef DIVIDE_BY_SLOPE
+                    slope_subdivide_h_axis(h_jj_S, delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+                
+                #ifdef BINARY_DIVISION
+                    binary_subdivide_h_axis(h_jj_S, delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+
+                #ifdef DYNAMIC_BINARY_DIVISION
+                    dynamic_binary_subdivide_h_axis(&h_jj_S, &delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+                
+                #ifdef DYNAMIC_BINARY_DIVISION_BY_SLOPE
+                    dynamic_binary_slope_divide_h_axis(&h_jj_S, &delta_h, jj_S, order[jj_S]*h_start);
+                #endif
+                
+            }
+            else
+            {
+                ensemble_m();
+                // ensemble_E();
+                
+                fprintf(pFile_1, "%.12e\t", h_jj_S);
+                // fprintf(pFile_1, "%.12e\t%.12e\t", h[0], h[1]);
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_1, "%.12e\t", h[j_S]);
+                }
+                for(j_S=0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_1, "%.12e\t", m[j_S]);
+                }
+                // fprintf(pFile_1, "%.12e\t", E);
+
+                fprintf(pFile_1, "\n"); // moved to division_by_
+
+                printf(  "=========================");
+                printf("\n  h[%d] !=! h_start (%.15e)  \n", jj_S, h_jj_S);
+                printf(  "=========================");
+                
+            }
+            
+            
+            // printf("\nblah = %lf", h[jj_S]);
+            // printf("\nblam = %lf", m[jj_S]);
+            // printf("\n");
+
+            // fprintf(pFile_1, "%.12e\t", h[jj_S]);
+            // for(j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     fprintf(pFile_1, "%.12e\t", m[j_S]);
+            // }
+            // fprintf(pFile_1, "%.12e\t", E);
+
+            // fprintf(pFile_1, "\n");
+            #if defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
+                // if (h_phi * order[jj_S] + delta_phi >= 1.0 && h_phi * order[jj_S] < 1.0)
+                if (h_jj_S * order[jj_S] - delta_h <= h_end * order[jj_S] && h_jj_S * order[jj_S] > h_end * order[jj_S])
+                {
+                    // delta_phi = 1.0 - h_phi * order[jj_S];
+                    delta_h = (-h_end + h_jj_S) * order[jj_S];
+                    // h_phi = 1.0;
+                    h_jj_S = h_end;
+                }
+                else
+                {
+                    h_jj_S = h_jj_S - order[jj_S] * delta_h;
+                }
+            #else
+                h_jj_S = h_jj_S - order[jj_S] * delta_h;
+            #endif
         }
         fclose(pFile_1);
 
@@ -6869,8 +7683,9 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
-            /* for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
@@ -6878,7 +7693,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -6887,16 +7703,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{"); */
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -6912,7 +7730,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -6921,16 +7740,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7053,7 +7874,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -7062,16 +7884,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{"); */
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7087,7 +7911,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7096,16 +7921,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7275,8 +8102,9 @@ double start_time;
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf_{", T);
-            /* for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            pos += sprintf(pos, "_%lf", T);
+            /* pos += sprintf(pos, "_{");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
@@ -7284,7 +8112,8 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -7293,16 +8122,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            }
-            pos += sprintf(pos, "}_{"); */
+            // pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}"); */
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7318,7 +8149,8 @@ double start_time;
                     pos += sprintf(pos, "%lf", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}_{");    
+            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7327,16 +8159,18 @@ double start_time;
                 }
                 pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            }
-            pos += sprintf(pos, "}_{");
+            pos += sprintf(pos, "}");    
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
@@ -7379,6 +8213,73 @@ double start_time;
         return is_chkpt;
     }
 
+//====================      RFXYZ ZTNE                        ====================//
+    
+    int checking_O3_spin_with_O2_RF()
+    {
+        T = 0.0;
+        int j_S, j_L;
+        double cutoff_local = -0.1;
+        long int counter = 0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            order[j_S] = 0.0;
+        }
+        order[0] = 1.0 ;
+        r_order = 0;
+        h_order = 1;
+        initialize_spin_config();
+        
+        char output_file_1[] = "magnetization_O3_O2_h.dat";
+
+        // char append_string[128];
+        // char *pos = append_string;
+        // pos += sprintf(pos, "_count_%ld", counter);
+        // save_spin_config(append_string, "w");
+            
+        pFile_1 = fopen(output_file_1, "a"); // opens new file for writing
+        ensemble_m();
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", m[j_S]);
+        }
+        fprintf(pFile_1, "\n");
+        fclose(pFile_1);
+
+        do
+        {
+            counter++;
+            
+            cutoff_local = find_change_max();
+            
+            // char append_string[128];
+            // char *pos = append_string;
+            // pos += sprintf(pos, "_count_%ld", counter);
+            // save_spin_config(append_string, "w");
+
+            pFile_1 = fopen(output_file_1, "a"); // opens new file for writing
+            ensemble_m();
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "%.12e\t", m[j_S]);
+            }
+            fprintf(pFile_1, "%.12e\n", cutoff_local);
+            printf("\r%.12e", cutoff_local);
+            fflush(stdout);
+            fclose(pFile_1);
+        }
+        while (cutoff_local > CUTOFF); // 10^-14
+        printf("\n");
+        char append_string[128];
+        char *pos = append_string;
+        pos += sprintf(pos, "_count_%ld_h", counter);
+        save_spin_config(append_string, "w");
+
+        T=0.1;
+        evolution_at_T(100);
+        
+        return 0;
+    }
 
 //===============================================================================//
 
@@ -7968,9 +8869,10 @@ double start_time;
         
         
         int is_chkpt = 0;
+
         // double h_field_vals[] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15 };
         // double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
-        double h_field_vals[] = { 0.200 };
+        double h_field_vals[] = { 0.100, 0.500, 1.000, 0.800, 0.300, 2.000 };
         int len_h_field_vals = sizeof(h_field_vals) / sizeof(h_field_vals[0]);
         for (i=0; i<len_h_field_vals; i++)
         {
@@ -7979,9 +8881,13 @@ double start_time;
             start_time_loop[0] = omp_get_wtime();
             // field_cool_and_rotate_checkerboard(0, 1);
             
-            is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i]);
+            // is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i]);
             
-            // zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
+            sigma_h[0] = h_field_vals[i];
+            sigma_h[1] = h_field_vals[i];
+            load_h_config("");
+            zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
+            // zero_temp_RFXY_hysteresis_axis_checkerboard(1, -1);
             // random_initialize_and_rotate_checkerboard(0, 1);
             end_time_loop[0] = omp_get_wtime();
             
@@ -7998,8 +8904,8 @@ double start_time;
             end_time_loop[1] = omp_get_wtime();
             
             // printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
-            printf("\nRotating hysteresis starting from y ( |h|=%lf ) = %lf \n", h[1], end_time_loop[0] - start_time_loop[0] );
-            // printf("\nHysteresis along x ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[0] - start_time_loop[0] );
+            // printf("\nRotating hysteresis starting from y ( |h|=%lf ) = %lf \n", h[1], end_time_loop[0] - start_time_loop[0] );
+            printf("\nHysteresis along x ( Max(|sigma_h|)=%lf ) = %lf \n", sigma_h[0], end_time_loop[0] - start_time_loop[0] );
             // printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
             // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
         }
