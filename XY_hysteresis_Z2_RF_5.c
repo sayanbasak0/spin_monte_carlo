@@ -11,6 +11,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#define enable_CUDA_CODE
+
 #define MARSAGLIA 1 // uncomment only one
 // #define REJECTION 1 // uncomment only one
 // #define BOX_MULLER 1 // uncomment only one
@@ -47,21 +49,23 @@
 
 #define UPDATE_CHKR_EQ_MC 1 
 
-FILE *pFile_1, *pFile_2, *pFile_output, *pFile_chkpt;
-char output_file_0[256];
-
-const double pie = 3.14159265358979323846;
-double k_B = 1;
-
-unsigned int *random_seed;
-int num_of_threads;
-int num_of_procs;
-int cache_size=512;
-double start_time;
-// long int CHUNK_SIZE = 256; 
 
 //===============================================================================//
 //====================      Variables                        ====================//
+
+    FILE *pFile_1, *pFile_2, *pFile_output, *pFile_chkpt;
+    char output_file_0[256];
+
+    const double pie = 3.14159265358979323846;
+    double k_B = 1;
+
+    unsigned int *random_seed;
+    int num_of_threads;
+    int num_of_procs;
+    int cache_size=512;
+    double start_time;
+    // long int CHUNK_SIZE = 256; 
+
 //===============================================================================//
 //====================      Lattice size                     ====================//
     int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
@@ -244,7 +248,6 @@ double start_time;
 
 
 //===============================================================================//
-
 
 //===============================================================================//
 //====================      Functions                        ====================//
@@ -8213,7 +8216,7 @@ double start_time;
         return is_chkpt;
     }
 
-//====================      RFXYZ ZTNE                        ====================//
+//====================      RFXYZ ZTNE                       ====================//
     
     int checking_O3_spin_with_O2_RF()
     {
@@ -8285,7 +8288,7 @@ double start_time;
 
 //===============================================================================//
 //====================      Main                             ====================//
-
+    
     int free_memory()
     {
         // printf("..spin..");
@@ -8372,7 +8375,7 @@ double start_time;
         #endif
         return 0;
     }
-
+    
     int allocate_memory()
     {
         static int first_call = 1;
@@ -8764,6 +8767,57 @@ double start_time;
 
     }
 
+    int for_cuda_parallelization()
+    {
+        printf("\nCUDA Active.\n");
+        long int i, j;
+        num_of_threads = omp_get_max_threads();
+        num_of_procs = omp_get_num_procs();
+        random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
+        
+        // use CUDA_RANDOM
+        init_genrand64( (unsigned long long) rand() );
+        
+        printf("\nNo. of THREADS = %d\n", num_of_threads);
+        printf("No. of PROCESSORS = %d\n", num_of_procs);
+        for (i=0; i < num_of_threads; i++)
+        {
+            // random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
+            random_seed[i] = genrand64_int64();
+        }
+        double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
+        double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
+        
+        // for (i=num_of_threads; i>=1; i++)
+        // {
+        //     start_time_loop[i-1] = omp_get_wtime();
+        //     omp_set_num_threads(i);
+        //     printf("\n\nNo. of THREADS = %ld \n\n", i);
+        //     // field_cool_and_rotate_checkerboard(0, 1);
+        //     r_order = 1;
+        //     initialize_spin_config();
+        //     for (j=0; j<100000; j++)
+        //     {
+        //         spin[rand()%(dim_S*no_of_sites)] = (double)rand()/(double)RAND_MAX;
+        //         ensemble_m();
+        //         // ensemble_E();
+        //     }
+            
+        //     // random_initialize_and_rotate_checkerboard(0, 1);
+        //     end_time_loop[i-1] = omp_get_wtime();
+        // }
+        
+        // for (i=1; i<=num_of_threads; i++)
+        // {
+        //     printf("No. of THREADS = %ld ,\t Time elapsed = %g\n", i, end_time_loop[i-1]-start_time_loop[i-1]);
+        // }
+
+        free(start_time_loop);
+        free(end_time_loop);
+
+        return 0;
+    }
+    
     int for_omp_parallelization()
     {
         printf("\nOpenMP Active.\n");
@@ -8853,8 +8907,12 @@ double start_time;
         
         printf("RAND_MAX = %lf,\n sizeof(int) = %ld,\n sizeof(long) = %ld,\n sizeof(double) = %ld,\n sizeof(long int) = %ld,\n sizeof(short int) = %ld,\n sizeof(unsigned int) = %ld,\n sizeof(RAND_MAX) = %ld\n", (double)RAND_MAX, sizeof(int), sizeof(long), sizeof(double), sizeof(long int), sizeof(short int), sizeof(unsigned int), sizeof(RAND_MAX));
         
-        #ifdef _OPENMP
-        for_omp_parallelization();
+        #ifdef enable_CUDA_CODE
+        for_cuda_parallelization();
+        #else
+            #ifdef _OPENMP
+            for_omp_parallelization();
+            #endif
         #endif
         
         // save_h_config("_test");
