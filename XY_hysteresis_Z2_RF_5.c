@@ -47,21 +47,24 @@
 
 #define UPDATE_CHKR_EQ_MC 1 
 
-FILE *pFile_1, *pFile_2, *pFile_output, *pFile_chkpt;
-char output_file_0[256];
 
-const double pie = 3.14159265358979323846;
-double k_B = 1;
-
-unsigned int *random_seed;
-int num_of_threads;
-int num_of_procs;
-int cache_size=512;
-double start_time;
-// long int CHUNK_SIZE = 256; 
 
 //===============================================================================//
 //====================      Variables                        ====================//
+
+    FILE *pFile_1, *pFile_2, *pFile_output, *pFile_chkpt;
+    char output_file_0[256];
+
+    const double pie = 3.14159265358979323846;
+    double k_B = 1;
+
+    unsigned int *random_seed;
+    int num_of_threads;
+    int num_of_procs;
+    int cache_size=512;
+    double start_time;
+    // long int CHUNK_SIZE = 256; 
+
 //===============================================================================//
 //====================      Lattice size                     ====================//
     int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
@@ -8213,7 +8216,7 @@ double start_time;
         return is_chkpt;
     }
 
-//====================      RFXYZ ZTNE                        ====================//
+//====================      RFXYZ ZTNE                       ====================//
     
     int checking_O3_spin_with_O2_RF()
     {
