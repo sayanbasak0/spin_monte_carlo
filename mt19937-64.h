@@ -1,6 +1,7 @@
 /**
  * Random number
  */
+#include "mt19937-64.c"
 
 #ifndef MT19937_64_H
 
