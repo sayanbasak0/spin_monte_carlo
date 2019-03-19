@@ -13,7 +13,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
-#define enable_CUDA_CODE
+// #define enable_CUDA_CODE 1
 
 #define MARSAGLIA 1 // uncomment only one
 // #define REJECTION 1 // uncomment only one
@@ -162,7 +162,7 @@
 
 //====================      on-site field (h)                ====================//
     double h[dim_S] = { 0.0, 0.0 }; // h[0] = 0.1; // h[dim_S]
-    double sigma_h[dim_S] = { 2.00, 2.00 }; 
+    double sigma_h[dim_S] = { 2.00, 0.00 }; 
     double *h_random;
     #ifdef RANDOM_FIELD
         int h_random_reqd = 1;
@@ -250,13 +250,13 @@
     double CUTOFF = 0.00000000000001; // for find_cutoff_max
 
 //====================      CUDA device ptr                  ====================//
-    __device__ double *dev_spin;
-    __device__ double *dev_CUTOFF;
-    __device__ double *dev_J;
-    __device__ double *dev_J_random;
-    __device__ double *dev_h;
-    __device__ double *dev_h_random;
-    __device__ long int *dev_N_N_I;
+    __managed__ __device__ double *dev_spin;
+    __managed__ __device__ double *dev_CUTOFF;
+    __managed__ __device__ double *dev_J;
+    __managed__ __device__ double *dev_J_random;
+    __managed__ __device__ double *dev_h;
+    __managed__ __device__ double *dev_h_random;
+    __managed__ __device__ long int *dev_N_N_I;
 
 //===============================================================================//
 
@@ -2553,7 +2553,7 @@
             {
                 if ( fabs(dev_spin[dim_S*xyzi + j_S] - spin_local[dim_S*xyzi + j_S]) > dev_CUTOFF[0] )
                 {
-                    cutoff_bool[0] = 1;
+                    cutoff_bool[0] += 1;
                 }
                 dev_spin[dim_S*xyzi + j_S] = spin_local[dim_S*xyzi + j_S];
             }
@@ -5395,6 +5395,25 @@
 //====================      RFXY ZTNE                        ====================//
 
     #ifdef enable_CUDA_CODE
+    __global__ void flip_spin(long int sites)
+    {
+        long int index = threadIdx.x + blockIdx.x*blockDim.x;
+        long int stride = blockDim.x*gridDim.x;
+        long int xyzi = index;
+        
+        if (index < sites)
+        {
+            int j_S;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                
+                dev_spin[dim_S*xyzi + j_S] = -dev_spin[dim_S*xyzi + j_S];
+            }
+        }
+    }
+    #endif
+
+    #ifdef enable_CUDA_CODE
     __global__ void Energy_minimum_old_XY(long int sites, double* spin_local)
     {
         long int index = threadIdx.x + blockIdx.x*blockDim.x;
@@ -5603,7 +5622,7 @@
         #ifdef UPDATE_ALL_NON_EQ
         {
             cutoff_local = 0.0;
-            cudaMemcpy(&cutoff_local, dev_cutoff_local, sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_cutoff_local, &cutoff_local, sizeof(double), cudaMemcpyHostToDevice);
 
             Energy_minimum_old_XY<<<no_of_sites/256+1, 256>>>(no_of_sites, dev_spin_temp);
             cudaDeviceSynchronize();
@@ -5611,7 +5630,7 @@
             update_spin_all<<<no_of_sites/256+1, 256>>>(no_of_sites, dev_spin_temp, dev_cutoff_local);
             cudaDeviceSynchronize();
 
-            cudaMemcpy(dev_cutoff_local, &cutoff_local, sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(&cutoff_local, dev_cutoff_local, sizeof(double), cudaMemcpyDeviceToHost);
         }
         #endif
         // else
@@ -5997,7 +6016,7 @@
             }
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6008,7 +6027,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
@@ -6027,7 +6046,7 @@
             }
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6038,7 +6057,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
@@ -6116,7 +6135,7 @@
             h[jj_S] = h_jj_S;
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6127,12 +6146,9 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
-            #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
-            #endif
 
             slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
         }
@@ -6141,7 +6157,7 @@
             h[jj_S] = h_jj_S;
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6152,7 +6168,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
@@ -6233,7 +6249,7 @@
             }
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6244,7 +6260,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             binary_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
@@ -6264,7 +6280,7 @@
             }
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6275,7 +6291,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             binary_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
@@ -6348,7 +6364,7 @@
             h[jj_S] = h_jj_S;
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6359,7 +6375,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             binary_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
@@ -6370,7 +6386,7 @@
             h[jj_S] = h_jj_S;
             
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -6381,7 +6397,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             binary_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
@@ -6951,13 +6967,17 @@
         #endif */
         
         #ifdef enable_CUDA_CODE
-        cudaMemcpy(&CUTOFF, dev_CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(J, dev_J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(J_random, dev_J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(h_random, dev_h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(N_N_I, dev_N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_CUTOFF, &CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_J, J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
+        #ifdef RANDOM_BOND
+        cudaMemcpy(dev_J_random, J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+        #endif
+        cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+        #ifdef RANDOM_FIELD
+        cudaMemcpy(dev_h_random, h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+        #endif
+        cudaMemcpy(dev_N_N_I, N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
         #endif
 
         T = 0;
@@ -7132,7 +7152,12 @@
             //     pos += sprintf(pos, "%lf", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
-            pos += sprintf(pos, "_h%d_r%d.dat", h_order, r_order);
+            pos += sprintf(pos, "_h%d_r%d", h_order, r_order);
+            #ifdef enable_CUDA_CODE
+            pos += sprintf(pos, "_cuda");
+            #endif
+            pos += sprintf(pos, ".dat");
+
         }
         
         // column labels and parameters
@@ -7227,7 +7252,7 @@
             #endif
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
             
             cutoff_local = -0.1;
@@ -7237,15 +7262,16 @@
                 // printf("\nblac = %g\n", cutoff_local);
             }
             while (cutoff_local > CUTOFF); // 10^-14
-
+            
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            // flip_spin<<<no_of_sites,1>>>(no_of_sites);
             #endif
             
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
-
+            
+            
             if (h_jj_S != h_start)
             {
                 // printf(  "=========================");
@@ -7455,7 +7481,7 @@
             #endif
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
             #endif
 
             cutoff_local = -0.1;
@@ -7467,7 +7493,7 @@
             while (cutoff_local > CUTOFF); // 10^-14
 
             #ifdef enable_CUDA_CODE
-            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
             #endif
 
             if (h_jj_S != h_start)
@@ -7589,13 +7615,17 @@
         #endif */
 
         #ifdef enable_CUDA_CODE
-        cudaMemcpy(&CUTOFF, dev_CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(J, dev_J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(J_random, dev_J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(h_random, dev_h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(N_N_I, dev_N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_CUTOFF, &CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_J, J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
+        #ifdef RANDOM_BOND
+        cudaMemcpy(dev_J_random, J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+        #endif
+        cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+        #ifdef RANDOM_FIELD
+        cudaMemcpy(dev_h_random, h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+        #endif
+        cudaMemcpy(dev_N_N_I, N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
         #endif
 
         T = 0;
@@ -7748,7 +7778,7 @@
                 #endif
 
                 #ifdef enable_CUDA_CODE
-                cudaMemcpy(h, dev_h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
                 #endif
                 
                 cutoff_local = -0.1;
@@ -7760,7 +7790,7 @@
                 while (cutoff_local > CUTOFF); // 10^-14
                 
                 #ifdef enable_CUDA_CODE
-                cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+                cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
                 #endif
 
                 if (h_phi != 0.0)
@@ -9097,13 +9127,17 @@
         double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         
         #ifdef enable_CUDA_CODE
-        cudaMalloc(&dev_CUTOFF, sizeof(double));
-        cudaMalloc(&dev_spin, dim_S*no_of_sites*sizeof(double));
-        cudaMalloc(&dev_J, dim_L*sizeof(double));
-        cudaMalloc(&dev_J_random, 2*dim_L*no_of_sites*sizeof(double));
-        cudaMalloc(&dev_h, dim_S*sizeof(double));
-        cudaMalloc(&dev_h_random, dim_S*no_of_sites*sizeof(double));
-        cudaMalloc(&dev_N_N_I, 2*dim_L*no_of_sites*sizeof(long int));
+        cudaMalloc((void **)&dev_CUTOFF, sizeof(double));
+        cudaMalloc((void **)&dev_spin, dim_S*no_of_sites*sizeof(double));
+        cudaMalloc((void **)&dev_J, dim_L*sizeof(double));
+        #ifdef RANDOM_BOND
+        cudaMalloc((void **)&dev_J_random, 2*dim_L*no_of_sites*sizeof(double));
+        #endif
+        cudaMalloc((void **)&dev_h, dim_S*sizeof(double));
+        #ifdef RANDOM_FIELD
+        cudaMalloc((void **)&dev_h_random, dim_S*no_of_sites*sizeof(double));
+        #endif
+        cudaMalloc((void **)&dev_N_N_I, 2*dim_L*no_of_sites*sizeof(long int));
         #endif
 
         // for (i=num_of_threads; i>=1; i++)
@@ -9261,7 +9295,7 @@
             // is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i]);
             
             sigma_h[0] = h_field_vals[i];
-            sigma_h[1] = h_field_vals[i];
+            // sigma_h[1] = h_field_vals[i];
             load_h_config("");
             zero_temp_RFXY_hysteresis_axis_checkerboard(0, -1);
             // zero_temp_RFXY_hysteresis_axis_checkerboard(1, -1);
