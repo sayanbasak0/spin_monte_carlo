@@ -1,4 +1,5 @@
 // using bitbucket
+#define enable_CUDA_CODE 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,10 +11,11 @@
 #include <errno.h> // strerror
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef enable_CUDA_CODE
 #include <cuda_runtime_api.h>
 #include <cuda.h>
+#endif
 
-#define enable_CUDA_CODE 1
 #define CUDA_with_managed 1
 
 #define MARSAGLIA 1 // uncomment only one
@@ -22,9 +24,9 @@
 // #define OLD_COMPILER 1
 // #define BUNDLE 4
 
-#define CONST_RATE 1 // uncomment only one
+// #define CONST_RATE 1 // uncomment only one
 // #define DIVIDE_BY_SLOPE 1 // uncomment only one
-// #define BINARY_DIVISION 1 // uncomment only one
+#define BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
 
@@ -47,11 +49,12 @@
 #define CHECKPOINT_TIME 60.00 // in seconds
 #define RESTORE_CHKPT_VALUE 1 // 0 for initialization, 1 for restoring
 
-#define UPDATE_ALL_NON_EQ 1 // uncomment only one
-// #define UPDATE_CHKR_NON_EQ 1 // uncomment only one
+// #define UPDATE_ALL_NON_EQ 1 // uncomment only one
+#define UPDATE_CHKR_NON_EQ 1 // uncomment only one
 
 #define UPDATE_CHKR_EQ_MC 1 
 
+#define CHECK_AVALANCHE 1
 
 //===============================================================================//
 //====================      Variables                        ====================//
@@ -67,8 +70,12 @@
     int num_of_procs;
     int cache_size=512;
     double start_time;
-    int gpu_threads=512;
+    int gpu_threads=16;
+    #ifdef enable_CUDA_CODE
+    __device__ int dev_gpu_threads=16;
+    #endif
     // long int CHUNK_SIZE = 256; 
+    
 
 //===============================================================================//
 //====================      Lattice size                     ====================//
@@ -116,13 +123,13 @@
 //====================      Spin variable                    ====================//
     double *spin; int spin_reqd = 1;
     double *spin_bkp;
-    #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE) || defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
+    #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE) || defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE) || defined (CONST_RATE)
         int spin_bkp_reqd = 1;
     #else
         int spin_bkp_reqd = 0;
     #endif
     double *spin_temp;
-    #ifdef UPDATE_ALL_NON_EQ
+    #if defined (UPDATE_ALL_NON_EQ) || defined (UPDATE_CHKR_NON_EQ)
         int spin_temp_reqd = 1;
     #else
         int spin_temp_reqd = 0;
@@ -156,9 +163,9 @@
     #else
         int J_random_reqd = 0;
     #endif
-    double J_max = 0.0;
-    double J_min = 0.0;
-    double delta_J = 0.01, J_i_max = 0.0, J_i_min = 0.0; // for hysteresis
+    double J_max = 0.0; double J_min = 0.0;
+    double J_i_max = 0.0, J_i_min = 0.0; // for hysteresis
+    double del_J = 0.01, del_J_cutoff = 0.0001;
     double J_dev_net[dim_L];
     double J_dev_avg[dim_L];
 
@@ -172,7 +179,8 @@
         int h_random_reqd = 0;
     #endif
     double h_max = 4.01; double h_min = -4.01;
-    double del_h = 0.001, del_h_cutoff = 0.000001, h_i_max = 0.0, h_i_min = 0.0; // for hysteresis (axial)
+    double h_i_max = 0.0, h_i_min = 0.0; // for hysteresis (axial)
+    double del_h = 0.001, del_h_cutoff = 0.000001;
     double del_phi = 0.0001, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
     double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
@@ -183,6 +191,12 @@
     double Temp_min = 0.02;
     double Temp_max = 2.00;
     double delta_T = 0.05;
+
+//====================      Avalanche delta(S)               ====================//
+    double delta_S_squared[dim_S] = {0.0, 0.0 };
+    double delta_S_abs[dim_S] = { 0.0, 0.0 };
+    double delta_S_max = 0.0 ;
+    double delta_M[dim_S] = { 0.0, 0.0 };
 
 //====================      Magnetisation <M>                ====================//
     double m[dim_S];
@@ -248,36 +262,47 @@
     long int hysteresis_MCS_max = 100;
     int hysteresis_repeat = 32;
     long int hysteresis_MCS_multiplier = 10;
-    // double CUTOFF = 0.0000000001; // for find_cutoff_sum
-    double CUTOFF = 0.00000000000001; // for find_cutoff_max
+    // #define CUTOFF_BY_SUM 1 // for find_change sum
+    #ifdef CUTOFF_BY_SUM
+    double CUTOFF_SPIN = 1.0000000000000e-10; 
+    #endif
+    #define CUTOFF_BY_MAX 1 // for find_change max
+    #ifdef CUTOFF_BY_MAX
+    double CUTOFF_SPIN = 1.00000000000000e-14; 
+    #endif
+    double CUTOFF_M_SQ = 1.00000000e-08;
+    double CUTOFF_M_SQ_BY_4 = 2.50000000e-09;
+    double cutoff_check[3] = { 0.0, 0.0, 0.0 };
 
 //====================      CUDA device ptr                  ====================//
-    #ifdef CUDA_with_managed
-    __managed__ __device__ double *dev_spin;
-    __managed__ __device__ double *dev_spin_temp;
-    __managed__ __device__ double *dev_spin_bkp;
-    __managed__ __device__ double *dev_CUTOFF;
-    __managed__ __device__ double *dev_J;
-    __managed__ __device__ double *dev_J_random;
-    __managed__ __device__ double *dev_h;
-    __managed__ __device__ double *dev_h_random;
-    __managed__ __device__ long int *dev_N_N_I;
-    __managed__ __device__ double *dev_m;
-    __managed__ __device__ double *dev_m_bkp;
-    __managed__ __device__ double *dev_spin_reduce;
-    #else
-    __device__ double *dev_spin;
-    __device__ double *dev_spin_temp;
-    __device__ double *dev_spin_bkp;
-    __device__ double *dev_CUTOFF;
-    __device__ double *dev_J;
-    __device__ double *dev_J_random;
-    __device__ double *dev_h;
-    __device__ double *dev_h_random;
-    __device__ long int *dev_N_N_I;
-    __device__ double *dev_m;
-    __device__ double *dev_m_bkp;
-    __device__ double *dev_spin_reduce;
+    #ifdef enable_CUDA_CODE
+        #ifdef CUDA_with_managed
+        __managed__ __device__ double *dev_spin;
+        __managed__ __device__ double *dev_spin_temp;
+        __managed__ __device__ double *dev_spin_bkp;
+        __managed__ __device__ double *dev_CUTOFF_SPIN;
+        __managed__ __device__ double *dev_J;
+        __managed__ __device__ double *dev_J_random;
+        __managed__ __device__ double *dev_h;
+        __managed__ __device__ double *dev_h_random;
+        __managed__ __device__ long int *dev_N_N_I;
+        __managed__ __device__ double *dev_m;
+        __managed__ __device__ double *dev_m_bkp;
+        __managed__ __device__ double *dev_spin_reduce;
+        #else
+        __device__ double *dev_spin;
+        __device__ double *dev_spin_temp;
+        __device__ double *dev_spin_bkp;
+        __device__ double *dev_CUTOFF_SPIN;
+        __device__ double *dev_J;
+        __device__ double *dev_J_random;
+        __device__ double *dev_h;
+        __device__ double *dev_h_random;
+        __device__ long int *dev_N_N_I;
+        __device__ double *dev_m;
+        __device__ double *dev_m_bkp;
+        __device__ double *dev_spin_reduce;
+        #endif 
     #endif 
     
     long int no_of_sites_max_power_2;
@@ -768,11 +793,11 @@
     int save_spin_config(char append_string[], char write_mode[])
     {
         #ifdef enable_CUDA_CODE
-        #ifdef CUDA_with_managed
-        cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
-        #else
-        cudaMemcpyFromSymbol(spin, "dev_spin", dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
-        #endif
+            #ifdef CUDA_with_managed
+            cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #else
+            cudaMemcpyFromSymbol(spin, "dev_spin", dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
         #endif
 
         long int i;
@@ -1039,11 +1064,11 @@
         printf("\n"); */
 
         #ifdef enable_CUDA_CODE
-        #ifdef CUDA_with_managed
-        cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #else
-        cudaMemcpyToSymbol("dev_spin", spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
+            #ifdef CUDA_with_managed
+            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #else
+            cudaMemcpyToSymbol("dev_spin", spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
         #endif
 
         return 0;
@@ -1608,6 +1633,99 @@
         return 0;
     }
 
+//====================      Avalanche delta(S)               ====================//
+
+    #ifdef enable_CUDA_CODE
+
+    #else
+    int ensemble_delta_S_squared_max()
+    {
+        long int i; 
+        int j_S;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            delta_S_squared[j_S] = 0;
+        }
+        delta_S_max = 0.0;
+        
+        #pragma omp parallel for private(i,j_S) reduction(+:delta_S_squared[:dim_S],delta_S_abs[:dim_S]) reduction(max:delta_S_max)
+        for(i=0; i<no_of_sites; i++)
+        {
+            double delta_S_sq_temp = 0.0;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                double delta_S_temp = spin_bkp[dim_S*i + j_S]-spin[dim_S*i + j_S];
+                delta_S_squared[j_S] += delta_S_temp*delta_S_temp;
+                delta_S_abs[j_S] += fabs(delta_S_temp);
+                // #pragma omp critical
+                delta_S_sq_temp += delta_S_temp*delta_S_temp;
+            }
+            if (delta_S_max < delta_S_sq_temp)
+            {
+                delta_S_max = delta_S_sq_temp;
+            }
+        }
+        
+        delta_S_max = sqrt(delta_S_max);
+        
+        return 0;
+    }
+
+    int ensemble_delta_S_squared()
+    {
+        long int i; 
+        int j_S;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            delta_S_squared[j_S] = 0;
+        }
+        
+        #pragma omp parallel for private(i,j_S) reduction(+:delta_S_squared[:dim_S],delta_S_abs[:dim_S]) 
+        for(i=0; i<no_of_sites; i++)
+        {
+            
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                double delta_S_temp = spin_bkp[dim_S*i + j_S]-spin[dim_S*i + j_S];
+                delta_S_squared[j_S] += delta_S_temp*delta_S_temp;
+                delta_S_abs[j_S] += fabs(delta_S_temp);
+            }
+        }
+        
+        return 0;
+    }
+
+    int find_delta_S_max()
+    {
+        long int i; 
+        int j_S;
+
+        delta_S_max = 0.0;
+        
+        #pragma omp parallel for private(i,j_S) reduction(max:delta_S_max)
+        for(i=0; i<no_of_sites; i++)
+        {
+            // #pragma omp critical
+            {
+                double delta_S_sq_temp = 0.0;
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    double delta_S_temp = spin_bkp[dim_S*i + j_S]-spin[dim_S*i + j_S];
+                    delta_S_sq_temp += delta_S_temp*delta_S_temp;
+                }
+                if (delta_S_max < delta_S_sq_temp)
+                {
+                    delta_S_max = delta_S_sq_temp;
+                }
+            }
+        }
+        
+        delta_S_max = sqrt(delta_S_max);
+        
+        return 0;
+    }
+    #endif
+
 //====================      Magnetisation                    ====================//
 
     int ensemble_abs_m()
@@ -1675,7 +1793,13 @@
                 dev_spin_reduce[ dim_S*xyzi + j_S ] += dev_spin_reduce[ dim_S*(xyzi+stride_second_site) + j_S ];
             }
         }
-        
+        // do
+        // {
+        //     stride_second_site /= 2;
+        //     ensemble_m_cuda_reduce <<< stride_second_site/dev_gpu_threads + 1, dev_gpu_threads >>>(stride_second_site, stride_second_site);
+        // }
+        // while (stride_second_site != 1);
+
         return;
     }
 
@@ -1705,31 +1829,35 @@
         int j_S;
         
         copy_spin<<< dim_S*no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites);
+        // copy_spin<<< 1, dim_S*no_of_sites >>>(no_of_sites);
+
         // copy_in_device_var<<< dim_S*no_of_sites/gpu_threads + 1, gpu_threads >>>(dev_spin_reduce, dev_spin_temp, dim_S*no_of_sites);
         cudaDeviceSynchronize();
         ensemble_m_cuda_reduce<<< no_of_sites_remaining_power_2/gpu_threads + 1, gpu_threads >>>(no_of_sites_remaining_power_2, no_of_sites_max_power_2);
         // ensemble_m_cuda_reduce<<< 1, no_of_sites_remaining_power_2 >>>(no_of_sites_remaining_power_2, no_of_sites_max_power_2);
         cudaDeviceSynchronize();
+        
         long int no_of_sites_halved = no_of_sites_max_power_2;
-
-        while (no_of_sites_halved != 1)
+        do
         {
             no_of_sites_halved = no_of_sites_halved/2;
             ensemble_m_cuda_reduce<<< no_of_sites_halved/gpu_threads + 1, gpu_threads >>>(no_of_sites_halved, no_of_sites_halved);
             // ensemble_m_cuda_reduce<<< 1, no_of_sites_halved >>>(no_of_sites_halved, no_of_sites_halved);
             cudaDeviceSynchronize();
         }
+        while (no_of_sites_halved != 1);
 
         copy_m_ensemble<<< 1, dim_S >>>(no_of_sites);
         cudaDeviceSynchronize();
 
-        #ifdef CUDA_with_managed
-        cudaMemcpy(m, dev_m, dim_S*sizeof(double), cudaMemcpyDeviceToHost);
-        #else
-        cudaMemcpyFromSymbol(m, "dev_m", dim_S*sizeof(double), cudaMemcpyDeviceToHost);
+        #ifdef enable_CUDA_CODE
+            #ifdef CUDA_with_managed
+            cudaMemcpy(m, dev_m, dim_S*sizeof(double), cudaMemcpyDeviceToHost);
+            #else
+            cudaMemcpyFromSymbol(m, "dev_m", dim_S*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
         #endif
-        
-        
+                
         return 0;
     }
     #else
@@ -2677,9 +2805,9 @@
             int j_S;
             for (j_S=0; j_S<dim_S; j_S++)
             {
-                // if ( fabs(dev_spin[dim_S*xyzi + j_S] - dev_spin_temp[dim_S*xyzi + j_S]) > dev_CUTOFF[0] )
+                // if ( fabs(dev_spin[dim_S*xyzi + j_S] - dev_spin_temp[dim_S*xyzi + j_S]) > dev_CUTOFF_SPIN[0] )
                 {
-                    cutoff_bool[0] += (double) ( fabs(dev_spin[dim_S*xyzi + j_S] - dev_spin_temp[dim_S*xyzi + j_S]) > dev_CUTOFF[0] );
+                    cutoff_bool[0] += (double) ( fabs(dev_spin[dim_S*xyzi + j_S] - dev_spin_temp[dim_S*xyzi + j_S]) > dev_CUTOFF_SPIN[0] );
                 }
                 dev_spin[dim_S*xyzi + j_S] = dev_spin_temp[dim_S*xyzi + j_S];
             }
@@ -3042,7 +3170,7 @@
             {
                 long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*black_or_white + i];
 
-                double update_prob = update_probability_Metropolis(site_index);
+                double update_prob = update_probability_Glauber(site_index);
             }
 
             black_or_white = !black_or_white;
@@ -5563,12 +5691,15 @@
             // }
             // // else
             
-            if(Energy_min!=0)
+            // if(Energy_min>0)
             {
                 Energy_min = -sqrt(Energy_min);
+                double energy_bool = (double)(Energy_min>=0);
+                Energy_min += energy_bool;
+                // Energy_min = ~(Energy_min); // unary bitflip
                 for (j_S=0; j_S<dim_S; j_S++)
                 {
-                    dev_spin_temp[dim_S*xyzi + j_S] = field_local[j_S] / Energy_min;
+                    dev_spin_temp[dim_S*xyzi + j_S] = (field_local[j_S] / Energy_min) + energy_bool * dev_spin_temp[dim_S*xyzi + j_S];
                 }
             }
         }
@@ -5616,6 +5747,51 @@
             for (j_S=0; j_S<dim_S; j_S++)
             {
                 spin_local[j_S] = field_local[j_S] / Energy_min;
+            }
+        }
+
+        return Energy_min;
+    }
+    double Energy_minimum_old_XY_temp(long int xyzi)
+    {
+        int j_S, j_L, k_L;
+        double Energy_min = 0.0;
+        double field_local[dim_S];
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            field_local[j_S] = 0.0;
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                for (k_L=0; k_L<2; k_L++)
+                {
+                    #ifdef RANDOM_BOND
+                    field_local[j_S] = field_local[j_S] - (J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #else
+                    field_local[j_S] = field_local[j_S] - J[j_L] * spin[dim_S*N_N_I[2*dim_L*xyzi + 2*j_L + k_L] + j_S];
+                    #endif
+                }
+            }
+            #ifdef RANDOM_FIELD
+            field_local[j_S] = field_local[j_S] - (h[j_S] + h_random[dim_S*xyzi + j_S]);
+            #else
+            field_local[j_S] = field_local[j_S] - h[j_S];
+            #endif
+            Energy_min = Energy_min + field_local[j_S] * field_local[j_S];
+        }
+        if(Energy_min==0)
+        {
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                spin_temp[dim_S*xyzi + j_S] = spin[dim_S*xyzi + j_S];
+            }
+        }
+        else
+        {
+            Energy_min = -sqrt(Energy_min);
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                spin_temp[dim_S*xyzi + j_S] = field_local[j_S] / Energy_min;
             }
         }
 
@@ -5710,9 +5886,10 @@
         return spin_diff_abs;
     }
     #endif
-
+    
+    #ifdef CUTOFF_BY_MAX
     #ifdef enable_CUDA_CODE
-    double find_change_max()
+    double find_change()
     {
         static int print_first = 0;
         if (print_first == 0)
@@ -5735,14 +5912,10 @@
             // cudaMemcpy(dev_cutoff_local, &cutoff_local, sizeof(double), cudaMemcpyHostToDevice);
             cudaMemset(dev_cutoff_local, 0, sizeof(double));
             
-            // Energy_minimum_old_XY<<< no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites, dev_spin_temp);
-            
             Energy_minimum_old_XY<<< no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites);
             // Energy_minimum_old_XY<<< 1, no_of_sites >>>(no_of_sites);
             cudaDeviceSynchronize();
 
-            // update_spin_all<<< no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites, dev_spin_temp, dev_cutoff_local);
-            
             update_spin_all<<< no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites, dev_cutoff_local);
             // update_spin_all<<< 1, no_of_sites >>>(no_of_sites, dev_cutoff_local);
             cudaDeviceSynchronize();
@@ -5763,7 +5936,7 @@
                     long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*black_or_white + site_i];
                     double spin_local[dim_S];
 
-                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF );
+                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF_SPIN );
                     
                 // }
 
@@ -5773,7 +5946,7 @@
                     long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*(!black_or_white) + site_i];
                     double spin_local[dim_S];
                     
-                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF );
+                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF_SPIN );
                     
                 // }            
             // }
@@ -5784,7 +5957,7 @@
         return cutoff_local;
     }
     #else
-    double find_change_max()
+    double find_change()
     {
         static int print_first = 0;
         if (print_first == 0)
@@ -5812,7 +5985,7 @@
                 #pragma omp for reduction(+:cutoff_local)
                 for (site_i=0; site_i<no_of_sites*dim_S; site_i++)
                 {
-                    cutoff_local += (double) ( fabs(spin[site_i] - spin_temp[site_i]) > CUTOFF );
+                    cutoff_local += (double) ( fabs(spin[site_i] - spin_temp[site_i]) > CUTOFF_SPIN );
                     
                     spin[site_i] = spin_temp[site_i];
                 }
@@ -5832,7 +6005,7 @@
                     long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*black_or_white + site_i];
                     double spin_local[dim_S];
 
-                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF );
+                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF_SPIN );
                     
                 }
 
@@ -5842,7 +6015,7 @@
                     long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*(!black_or_white) + site_i];
                     double spin_local[dim_S];
                     
-                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF );
+                    cutoff_local += (double) ( update_to_minimum_checkerboard(site_index, spin_local) > CUTOFF_SPIN );
                     
                 }            
             }
@@ -5852,8 +6025,10 @@
         return cutoff_local;
     }
     #endif
+    #endif
 
-    double find_change_sum()
+    #ifdef CUTOFF_BY_SUM
+    double find_change()
     {
         static int print_first = 0;
         if (print_first == 0)
@@ -5917,7 +6092,8 @@
 
         return cutoff_local;
     }
-    
+    #endif
+
     #ifdef enable_CUDA_CODE
     __global__ void backing_up_spin_on_device(long int sites)
     {
@@ -5943,9 +6119,10 @@
     int backing_up_spin()
     {
         int i, j_S;
-
+        
         #ifdef enable_CUDA_CODE
         backing_up_spin_on_device<<< dim_S*no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites);
+        // backing_up_spin_on_device<<< 1, dim_S*no_of_sites >>>(no_of_sites);
         backing_up_m_on_device<<< 1, dim_S >>>();
         #else
         for(i=0; i<no_of_sites*dim_S; i++)
@@ -5982,12 +6159,13 @@
     }
     #endif
 
-    int restoring_spin()
+    int restoring_spin(double h_text, double delta_text, int jj_S, double delta_m, char text[], int reqd_to_print)
     {
         int i, j_S;
 
         #ifdef enable_CUDA_CODE
         restoring_spin_on_device<<< dim_S*no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites);
+        // restoring_spin_on_device<<< 1, dim_S*no_of_sites >>>(no_of_sites);
         restoring_m_on_device<<< 1, dim_S >>>();
         #else
         for(i=0; i<no_of_sites*dim_S; i++)
@@ -5999,7 +6177,21 @@
             m[j_S] = m_bkp[j_S];
         }
         #endif
-
+        // if(reqd_to_print == 1)
+        // {
+            // printf(  "\n============================\n");
+            printf(  "\r=1=     %s = %.15e ", text, h_text );
+            #ifndef CHECK_AVALANCHE
+            printf(    ",   delta_m = %.15e ", delta_m );
+            #else
+            printf(    ",   delta_S = %.15e ", delta_m );
+            #endif
+            printf(    ", delta_%s = %.15e ", text, order[jj_S]*delta_text );
+            printf(    " - [ restore ] | ");
+            printf(    " Time elapsed = %le s | ", omp_get_wtime() - start_time );
+            fflush(stdout);
+            // printf(  "\n============================\n");
+        // }
         return 0;
     }
     
@@ -6017,21 +6209,231 @@
             fprintf(pFile_1, "%.12e\t", m[j_S]);
         }
         // fprintf(pFile_1, "%.12e\t", E);
-
+        #ifndef CHECK_AVALANCHE
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", delta_M[j_S]);
+        }
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", delta_M[j_S]*delta_M[j_S]);
+        }
+        fprintf(pFile_1, "%.12e\t", delta_m);
+        #else
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", delta_S_abs[j_S]);
+        }
+        for(j_S=0; j_S<dim_S; j_S++)
+        {
+            fprintf(pFile_1, "%.12e\t", delta_S_squared[j_S]);
+        }
+        fprintf(pFile_1, "%.12e\t", delta_S_max);
+        #endif
         fprintf(pFile_1, "\n");
         
-        if(reqd_to_print == 1)
-        {
+        // if(reqd_to_print == 1)
+        // {
             // printf(  "\n============================\n");
             printf(  "\r=1=     %s = %.15e ", text, h_text );
+            #ifndef CHECK_AVALANCHE
             printf(    ",   delta_m = %.15e ", delta_m );
+            #else
+            printf(    ",   delta_S = %.15e ", delta_m );
+            #endif
             printf(    ", delta_%s = %.15e ", text, order[jj_S]*delta_text );
+            printf(    " - [ backup ]  | ");
+            printf(    " Time elapsed = %le s | ", omp_get_wtime() - start_time );
             fflush(stdout);
             // printf(  "\n============================\n");
-        }
+        // }
         return 0;
     }
     
+    int check_avalanche()
+    {
+        cutoff_check[0] = 0.0;
+        cutoff_check[1] = 0.0;
+
+        
+        int j_S;
+        long int site_i;
+        static int black_or_white = 0;
+        do
+        {
+            cutoff_check[0] = 0.0;
+            cutoff_check[1] = 0.0;
+
+            // if (update_all_or_checker == 0)
+            #ifdef UPDATE_ALL_NON_EQ
+            {
+                // cutoff_check[0] = 0.0;
+
+                #pragma omp parallel 
+                {
+                    #pragma omp for
+                    for (site_i=0; site_i<no_of_sites; site_i++)
+                    {
+                        Energy_minimum_old_XY_temp(site_i);
+                    }
+                    #pragma omp for private(j_S) reduction(+:cutoff_check[:3])
+                    for (site_i=0; site_i<no_of_sites; site_i++)
+                    {
+                        double delta_S = 0.0;
+                        for (j_S=0; j_S<dim_S; j_S++)
+                        {
+                            delta_S += (spin_temp[site_i*dim_S+j_S] - spin_bkp[site_i*dim_S+j_S])*(spin_temp[site_i*dim_S+j_S] - spin_bkp[site_i*dim_S+j_S]);
+                            cutoff_check[0] += (double) ( fabs(spin[site_i*dim_S+j_S] - spin_temp[site_i*dim_S+j_S]) > CUTOFF_SPIN );
+                            
+                            spin[site_i*dim_S+j_S] = spin_temp[site_i*dim_S+j_S];
+                        }
+                        cutoff_check[1] += (double) ( delta_S > CUTOFF_M_SQ );
+                    }
+                }
+            }
+            #endif
+            // else
+            #ifdef UPDATE_CHKR_NON_EQ
+            {
+                #pragma omp parallel 
+                {
+                    // cutoff_check[0] = 0.0;
+
+                    #pragma omp for private(j_S) reduction(+:cutoff_check[:3])
+                    for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*black_or_white + site_i];
+                        // double spin_local[dim_S];
+                        Energy_minimum_old_XY_temp(site_index);
+
+                        double delta_S = 0.0;
+                        for (j_S=0; j_S<dim_S; j_S++)
+                        {
+                            delta_S += (spin_temp[site_index*dim_S+j_S] - spin_bkp[site_index*dim_S+j_S])*(spin_temp[site_index*dim_S+j_S] - spin_bkp[site_index*dim_S+j_S]);
+                            cutoff_check[0] += (double) ( fabs(spin[site_index*dim_S+j_S] - spin_temp[site_index*dim_S+j_S]) > CUTOFF_SPIN );
+                            
+                            spin[site_index*dim_S+j_S] = spin_temp[site_index*dim_S+j_S];
+                        }
+                        cutoff_check[1] += (double) ( delta_S > CUTOFF_M_SQ );
+                    }
+
+                    #pragma omp for private(j_S) reduction(+:cutoff_check[:3])
+                    for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*(!black_or_white) + site_i];
+                        // double spin_local[dim_S];
+                        Energy_minimum_old_XY_temp(site_index);
+
+                        double delta_S = 0.0;
+                        for (j_S=0; j_S<dim_S; j_S++)
+                        {
+                            delta_S += (spin_temp[site_index*dim_S+j_S] - spin_bkp[site_index*dim_S+j_S])*(spin_temp[site_index*dim_S+j_S] - spin_bkp[site_index*dim_S+j_S]);
+                            cutoff_check[0] += (double) ( fabs(spin[site_index*dim_S+j_S] - spin_temp[site_index*dim_S+j_S]) > CUTOFF_SPIN );
+                            
+                            spin[site_index*dim_S+j_S] = spin_temp[site_index*dim_S+j_S];
+                        }
+                        cutoff_check[1] += (double) ( delta_S > CUTOFF_M_SQ );
+                    }         
+                }
+            }
+            #endif
+        }
+        while ( cutoff_check[0] > 0.0 && cutoff_check[1] == 0.0 );
+
+        return 0;
+    }
+
+    int continue_avalanche()
+    {
+        cutoff_check[0] = 0.0;
+        cutoff_check[1] = 0.0;
+
+        
+        int j_S;
+        long int site_i;
+        static int black_or_white = 0;
+        do
+        {
+            cutoff_check[0] = 0.0;
+            // cutoff_check[1] = 0.0;
+
+            // if (update_all_or_checker == 0)
+            #ifdef UPDATE_ALL_NON_EQ
+            {
+                // cutoff_check[0] = 0.0;
+
+                #pragma omp parallel 
+                {
+                    #pragma omp for 
+                    for (site_i=0; site_i<no_of_sites; site_i++)
+                    {
+                        Energy_minimum_old_XY_temp(site_i);
+                    }
+                    #pragma omp for private(j_S) reduction(+:cutoff_check[:3])
+                    for (site_i=0; site_i<no_of_sites; site_i++)
+                    {
+                        // double delta_S = 0.0;
+                        for (j_S=0; j_S<dim_S; j_S++)
+                        {
+                            cutoff_check[0] += (double) ( fabs(spin[site_i*dim_S+j_S] - spin_temp[site_i*dim_S+j_S]) > CUTOFF_SPIN );
+                            
+                            spin[site_i*dim_S+j_S] = spin_temp[site_i*dim_S+j_S];
+                        }
+                        
+                    }
+                }
+            }
+            #endif
+            // else
+            #ifdef UPDATE_CHKR_NON_EQ
+            {
+                #pragma omp parallel 
+                {
+                    // cutoff_check[0] = 0.0;
+
+                    #pragma omp for private(j_S) reduction(+:cutoff_check[:3])
+                    for (site_i=0; site_i<no_of_black_white_sites[black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*black_or_white + site_i];
+                        // double spin_local[dim_S];
+                        Energy_minimum_old_XY_temp(site_index);
+
+                        // double delta_S = 0.0;
+                        for (j_S=0; j_S<dim_S; j_S++)
+                        {
+                            cutoff_check[0] += (double) ( fabs(spin[site_index*dim_S+j_S] - spin_temp[site_index*dim_S+j_S]) > CUTOFF_SPIN );
+                            
+                            spin[site_index*dim_S+j_S] = spin_temp[site_index*dim_S+j_S];
+                        }
+                        
+                    }
+
+                    #pragma omp for private(j_S) reduction(+:cutoff_check[:3])
+                    for (site_i=0; site_i<no_of_black_white_sites[!black_or_white]; site_i++)
+                    {
+                        long int site_index = black_white_checkerboard[no_of_black_white_sites[0]*(!black_or_white) + site_i];
+                        // double spin_local[dim_S];
+                        Energy_minimum_old_XY_temp(site_index);
+
+                        // double delta_S = 0.0;
+                        for (j_S=0; j_S<dim_S; j_S++)
+                        {
+                            cutoff_check[0] += (double) ( fabs(spin[site_index*dim_S+j_S] - spin_temp[site_index*dim_S+j_S]) > CUTOFF_SPIN );
+                            
+                            spin[site_index*dim_S+j_S] = spin_temp[site_index*dim_S+j_S];
+                        }
+                        
+                    }         
+                }
+            }
+            #endif
+        }
+        while ( cutoff_check[0] > 0.0 );
+
+        return 0;
+    }
+    
+    #ifdef CHECK_AVALANCHE
     int const_delta_phi(double h_phi, double delta_phi, int jj_S, double h_start)
     {
         static int binary_or_slope = 1;
@@ -6043,32 +6445,20 @@
         }
 
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            old_m[j_S] = m[j_S];
-        }
-
-        ensemble_m();
-        // ensemble_E();
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
-        }
         
-        delta_m = sqrt( delta_m ) ;
+        ensemble_m();
+        ensemble_delta_S_squared();
 
         
         // printf(  "\n============================\n");
         if(counter % 100 == 0)
         {
-            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+            save_to_file(h_phi, delta_phi, jj_S, delta_S_max, "phi", 1);
             counter = 0;
         }
         else
         {
-            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 0);
+            save_to_file(h_phi, delta_phi, jj_S, delta_S_max, "phi", 0);
         }
         // printf(  "\n============================\n");
         counter++;
@@ -6087,32 +6477,19 @@
         }
 
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            old_m[j_S] = m[j_S];
-        }
-
-        ensemble_m();
-        // ensemble_E();
-
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
-        }
-
-        delta_m = sqrt( delta_m ) ;
         
+        ensemble_m();
+        ensemble_delta_S_squared();
+        find_delta_S_max();
         // printf(  "\n============================\n");
-        if(counter % 1 == 0)
+        if(counter % 10 == 0)
         {
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+            save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_jj_S", 1);
             counter = 0;
         }
         else
         {
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 0);
+            save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_jj_S", 0);
         }
         // printf(  "\n============================\n");
         counter++;
@@ -6130,39 +6507,28 @@
         }
 
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            old_m[j_S] = m[j_S];
-        }
         
-        ensemble_m();
         
-        for (j_S=0; j_S<dim_S; j_S++)
+        if (cutoff_check[1] == 0.0 && cutoff_check[0] == 0.0)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
-        }
-
-        delta_m = sqrt( delta_m ) ;
-
-        if (delta_phi <= del_phi_cutoff)
-        {
+            ensemble_m();
+            ensemble_delta_S_squared();
             // ensemble_E();
             backing_up_spin();
-
-            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
-
+            
+            save_to_file(h_phi, delta_phi, jj_S, delta_S_max, "phi", 1);
+            
             return 0;
         }
 
         double h_phi_k, delta_phi_k, cutoff_local;
         long int slope;
-        if (delta_m > del_phi)
+        if (cutoff_check[1] > 0.0)
         {
-            restoring_spin();
+            find_delta_S_max();
+            restoring_spin(h_phi, delta_phi, jj_S, delta_S_max, "phi", 1);
             // ensemble_m();
-            slope = delta_m/del_phi + 1;
+            slope = delta_S_max/del_phi + 1;
             delta_phi_k = delta_phi / (double) slope;
             if (delta_phi_k < del_phi_cutoff)
             {
@@ -6170,15 +6536,15 @@
                 delta_phi_k = delta_phi / (double) slope;
             }
         }
-        else 
-        {
-            // ensemble_E();
-            backing_up_spin();
+        // else 
+        // {
+        //     // ensemble_E();
+        //     backing_up_spin();
 
-            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+        //     save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
 
-            return 1;
-        }
+        //     return 1;
+        // }
 
         long int slope_i;
         for ( slope_i = 0; slope_i < slope-1; slope_i++ )
@@ -6196,19 +6562,22 @@
             }
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #endif
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
             
-            cutoff_local = -0.1;
-            do
+            if (delta_phi_k <= del_phi_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
+
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6217,6 +6586,7 @@
             slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
         }
         {
+            delta_phi_k = h_phi - h_phi_k;
             h_phi_k = h_phi;
             if (jj_S == 0)
             {
@@ -6230,19 +6600,22 @@
             }
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #endif
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
             
-            cutoff_local = -0.1;
-            do
+            if (delta_phi_k <= del_phi_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
+
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6266,55 +6639,46 @@
         }
 
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            old_m[j_S] = m[j_S];
-        }
         
-        ensemble_m();
         
-        for (j_S=0; j_S<dim_S; j_S++)
+        if (cutoff_check[1] == 0.0 && cutoff_check[0] == 0.0)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
-        }
-
-        delta_m = sqrt( delta_m ) ;
-
-        if (delta_h <= del_h_cutoff*h_start)
-        {
+            ensemble_m();
+            ensemble_delta_S_squared();
             // ensemble_E();
             backing_up_spin();
-
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
-
+            
+            save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_jj_S", 1);
+            
             return 0;
         }
 
+        
+
         double h_jj_S_k, delta_h_k, cutoff_local;
         long int slope;
-        if (delta_m > del_h)
+        if (cutoff_check[1] > 0.0)
         {
-            restoring_spin();
+            find_delta_S_max();
+            restoring_spin(h_jj_S, delta_h, jj_S, delta_S_max, "h_jj_S", 1);
             // ensemble_m();
-            slope = delta_m/del_h + 1;
+            slope = delta_S_max/del_h + 1;
             delta_h_k = delta_h / (double) slope;
-            if (delta_h_k < del_h_cutoff*h_start)
+            if (delta_h_k < del_h_cutoff)
             {
                 slope = delta_h/del_h_cutoff + 1;
                 delta_h_k = delta_h / (double) slope;
             }
         }
-        else 
-        {
-            // ensemble_E();
-            backing_up_spin();
+        // else 
+        // {
+        //     // ensemble_E();
+        //     backing_up_spin();
 
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+        //     save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
 
-            return 1;
-        }
+        //     return 1;
+        // }
 
         long int slope_i;
         for ( slope_i = 0; slope_i < slope-1; slope_i++ )
@@ -6323,19 +6687,22 @@
             h[jj_S] = h_jj_S;
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
-            #endif
-            
-            cutoff_local = -0.1;
-            do
+
+
+            if (delta_h_k <= del_h_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6345,23 +6712,27 @@
             slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
         }
         {
+            delta_h_k = h_jj_S - h_jj_S_k;
             h_jj_S_k = h_jj_S;
             h[jj_S] = h_jj_S;
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
-            #endif
-            
-            cutoff_local = -0.1;
-            do
+
+            if (delta_h_k <= del_h_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
+            
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6385,49 +6756,41 @@
         }
 
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            old_m[j_S] = m[j_S];
-        }
         
-        ensemble_m();
         
-        for (j_S=0; j_S<dim_S; j_S++)
+        if (cutoff_check[1] == 0.0 && cutoff_check[0] == 0.0)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
-        }
-
-        delta_m = sqrt( delta_m ) ;
-
-        if (delta_phi <= del_phi_cutoff)
-        {
+            ensemble_m();
+            ensemble_delta_S_squared_max();
             // ensemble_E();
             backing_up_spin();
-
-            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+            
+            save_to_file(h_phi, delta_phi, jj_S, delta_S_max, "phi", 1);
             
             return 0;
         }
+        
+        // if (cutoff_check[1] > 0.0 && cutoff_check[0] > 0.0)
+        // if (cutoff_check[1] > 0.0 && cutoff_check[0] == 0.0)
+        // if (cutoff_check[1] == 0.0 && cutoff_check[0] > 0.0)
 
         double h_phi_k, delta_phi_k, cutoff_local;
         
-        if (delta_m > del_phi)
+        if (cutoff_check[1] > 0.0)
         {
-            restoring_spin();
+            restoring_spin(h_phi, delta_phi, jj_S, delta_S_max, "phi", 1);
             // ensemble_m();
             delta_phi_k = delta_phi / 2.0;
         }
-        else 
-        {
-            // ensemble_E();
-            backing_up_spin();
+        // else 
+        // {
+        //     // ensemble_E();
+        //     backing_up_spin();
 
-            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+        //     save_to_file(h_phi, delta_phi, jj_S, delta_S_max, "phi", 1);
 
-            return 1;
-        }
+        //     return 1;
+        // }
 
         
         // for ( h_phi_k = h_phi - order[jj_S] * delta_phi_k; h_phi_k * order[jj_S] <= h_phi * order[jj_S]; h_phi_k = h_phi_k + order[jj_S] * delta_phi_k )
@@ -6445,19 +6808,22 @@
             }
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #endif
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
             
-            cutoff_local = -0.1;
-            do
+            if (delta_phi_k <= del_phi_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
+
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6480,19 +6846,22 @@
             }
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
-            #endif
-            
-            cutoff_local = -0.1;
-            do
+
+            if (delta_phi_k <= del_phi_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
+
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6517,49 +6886,36 @@
         }
 
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            old_m[j_S] = m[j_S];
-        }
         
-        ensemble_m();
-        
-        for (j_S=0; j_S<dim_S; j_S++)
+        if (cutoff_check[1] == 0.0 && cutoff_check[0] == 0.0)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
-        }
-
-        delta_m = sqrt( delta_m ) ;
-
-        if (delta_h <= del_h_cutoff*h_start)
-        {
+            ensemble_m();
+            ensemble_delta_S_squared_max();
             // ensemble_E();
             backing_up_spin();
 
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+            save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_jj_S", 1);
             
             return 0;
         }
 
         double h_jj_S_k, delta_h_k, cutoff_local;
         
-        if (delta_m > del_h)
+        if (cutoff_check[1] > 0.0)
         {
-            restoring_spin();
+            restoring_spin(h_jj_S, delta_h, jj_S, delta_S_max, "h_jj_S", 1);
             // ensemble_m();
             delta_h_k = delta_h / 2.0;
         }
-        else 
-        {
-            // ensemble_E();
-            backing_up_spin();
+        // else 
+        // {
+        //     // ensemble_E();
+        //     backing_up_spin();
 
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+        //     save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
 
-            return 1;
-        }
+        //     return 1;
+        // }
 
         
         // for ( h_jj_S_k = h_jj_S - order[jj_S] * delta_h_k; h_jj_S_k * order[jj_S] <= h_jj_S * order[jj_S]; h_jj_S_k = h_jj_S_k + order[jj_S] * delta_h_k )
@@ -6568,19 +6924,22 @@
             h[jj_S] = h_jj_S;
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #endif
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
             
-            cutoff_local = -0.1;
-            do
+
+            if (delta_h_k <= del_h_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6594,19 +6953,22 @@
             h[jj_S] = h_jj_S;
             
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
-            #endif
-            
-            cutoff_local = -0.1;
-            do
+
+
+            if (delta_h_k <= del_h_cutoff)
             {
-                cutoff_local = find_change_max();
+                continue_avalanche();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            else
+            {
+                check_avalanche();
+            }
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -6635,18 +6997,22 @@
         // h_phi_k = *h_phi;
         // delta_phi_k = *delta_phi;
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            old_m[j_S] = m[j_S];
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
         }
         
         ensemble_m();
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
         }
         delta_m = sqrt( delta_m ) ;
 
@@ -6699,7 +7065,7 @@
                 {
                     if (ratio_delta_m <= 1)
                     {
-                        restoring_spin();
+                        restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
                         last_phi_restored = 1;
                         h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
                         
@@ -6719,7 +7085,7 @@
             {
                 if (ratio_delta_m <= 1)
                 {
-                    restoring_spin();
+                    restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
                     last_phi_restored = 1;
                     h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
                     
@@ -6752,18 +7118,22 @@
         // h_phi_k = *h_phi;
         // delta_phi_k = *delta_phi;
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            old_m[j_S] = m[j_S];
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
         }
         
         ensemble_m();
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
         }
         delta_m = sqrt( delta_m ) ;
 
@@ -6816,7 +7186,7 @@
                 {
                     if (ratio_delta_m <= 1)
                     {
-                        restoring_spin();
+                        restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
                         last_h_restored = 1;
                         h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
                         
@@ -6836,7 +7206,7 @@
             {
                 if (ratio_delta_m <= 1)
                 {
-                    restoring_spin();
+                    restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
                     last_h_restored = 1;
                     h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
                     
@@ -6870,18 +7240,22 @@
         // h_phi_k = *h_phi;
         // delta_phi_k = *delta_phi;
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            old_m[j_S] = m[j_S];
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
         }
         
         ensemble_m();
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
         }
         delta_m = sqrt( delta_m ) ;
 
@@ -6945,7 +7319,7 @@
                 {
                     if (ratio_delta_m <= 1)
                     {
-                        restoring_spin();
+                        restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
                         last_phi_restored = 1;
                         h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
                         
@@ -6978,7 +7352,7 @@
             {
                 if (ratio_delta_m <= 1)
                 {
-                    restoring_spin();
+                    restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
                     last_phi_restored = 1;
                     h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
                     
@@ -7018,18 +7392,22 @@
         // h_phi_k = *h_phi;
         // delta_phi_k = *delta_phi;
         int j_S;
-        double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            old_m[j_S] = m[j_S];
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
         }
         
         ensemble_m();
         
         for (j_S=0; j_S<dim_S; j_S++)
         {
-            new_m[j_S] = m[j_S];
-            delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
         }
         delta_m = sqrt( delta_m ) ;
 
@@ -7093,7 +7471,7 @@
                 {
                     if (ratio_delta_m <= 1)
                     {
-                        restoring_spin();
+                        restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
                         last_h_restored = 1;
                         h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
                         
@@ -7126,7 +7504,7 @@
             {
                 if (ratio_delta_m <= 1)
                 {
-                    restoring_spin();
+                    restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
                     last_h_restored = 1;
                     h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
                     
@@ -7150,9 +7528,1206 @@
         }
         return 6;
     }
+    #endif
+
+    #ifndef CHECK_AVALANCHE
+    int const_delta_phi(double h_phi, double delta_phi, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== CONSTANT RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        
+        // printf(  "\n============================\n");
+        if(counter % 100 == 0)
+        {
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+            counter = 0;
+        }
+        else
+        {
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 0);
+        }
+        // printf(  "\n============================\n");
+        counter++;
+
+        return 0;
+    }
+    
+    int const_delta_h_axis(double h_jj_S, double delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== CONSTANT RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+        
+        // printf(  "\n============================\n");
+        if(counter % 10 == 0)
+        {
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+            counter = 0;
+        }
+        else
+        {
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 0);
+        }
+        // printf(  "\n============================\n");
+        counter++;
+
+        return 0;
+    }
+
+    int slope_subdivide_phi(double h_phi, double delta_phi, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        if (delta_phi <= del_phi_cutoff)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+
+            return 0;
+        }
+
+        double h_phi_k, delta_phi_k, cutoff_local;
+        long int slope;
+        if (delta_m > del_phi)
+        {
+            restoring_spin(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+            // ensemble_m();
+            slope = delta_m/del_phi + 1;
+            delta_phi_k = delta_phi / (double) slope;
+            if (delta_phi_k < del_phi_cutoff)
+            {
+                slope = delta_phi/del_phi_cutoff + 1;
+                delta_phi_k = delta_phi / (double) slope;
+            }
+        }
+        else 
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+
+            return 1;
+        }
+
+        long int slope_i;
+        for ( slope_i = 0; slope_i < slope-1; slope_i++ )
+        {
+            h_phi_k = h_phi - delta_phi + delta_phi_k * (double) (slope_i+1);
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+            
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+            slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
+        }
+        {
+            delta_phi_k = h_phi - h_phi_k;
+            h_phi_k = h_phi;
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+            
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+            slope_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+    }
+
+    int slope_subdivide_h_axis(double h_jj_S, double delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        if (delta_h <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+
+            return 0;
+        }
+
+        double h_jj_S_k, delta_h_k, cutoff_local;
+        long int slope;
+        if (delta_m > del_h)
+        {
+            restoring_spin(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+            // ensemble_m();
+            slope = delta_m/del_h + 1;
+            delta_h_k = delta_h / (double) slope;
+            if (delta_h_k < del_h_cutoff*h_start)
+            {
+                slope = delta_h/del_h_cutoff + 1;
+                delta_h_k = delta_h / (double) slope;
+            }
+        }
+        else 
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+
+            return 1;
+        }
+
+        long int slope_i;
+        for ( slope_i = 0; slope_i < slope-1; slope_i++ )
+        {
+            h_jj_S_k = h_jj_S + order[jj_S] * (delta_h - delta_h_k * (double) (slope_i+1));
+            h[jj_S] = h_jj_S;
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+
+            slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        {
+            delta_h_k = h_jj_S - h_jj_S_k;
+            h_jj_S_k = h_jj_S;
+            h[jj_S] = h_jj_S;
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+
+
+            slope_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+    }
+    
+    int binary_subdivide_phi(double h_phi, double delta_phi, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== BINARY ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+       
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        if (delta_phi <= del_phi_cutoff)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+            
+            return 0;
+        }
+
+        double h_phi_k, delta_phi_k, cutoff_local;
+        
+        if (delta_m > del_phi)
+        {
+            restoring_spin(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+            // ensemble_m();
+            delta_phi_k = delta_phi / 2.0;
+        }
+        else 
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 1);
+
+            return 1;
+        }
+
+        
+        // for ( h_phi_k = h_phi - order[jj_S] * delta_phi_k; h_phi_k * order[jj_S] <= h_phi * order[jj_S]; h_phi_k = h_phi_k + order[jj_S] * delta_phi_k )
+        {
+            h_phi_k = h_phi - order[jj_S] * delta_phi_k;
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+            
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+ 
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+            binary_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
+        }
+        
+        {
+            h_phi_k = h_phi;
+            if (jj_S == 0)
+            {
+                h[0] = h_start * cos(2*pie*(h_phi_k));
+                h[1] = h_start * sin(2*pie*(h_phi_k));
+            }
+            else
+            {
+                h[0] = -h_start * sin(2*pie*(h_phi_k));
+                h[1] = h_start * cos(2*pie*(h_phi_k));
+            }
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+            
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+            binary_subdivide_phi(h_phi_k, delta_phi_k, jj_S, h_start);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+        
+    }
+    
+    int binary_subdivide_h_axis(double h_jj_S, double delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== BINARY ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        if (delta_h <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+            
+            return 0;
+        }
+
+        double h_jj_S_k, delta_h_k, cutoff_local;
+        
+        if (delta_m > del_h)
+        {
+            restoring_spin(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+            // ensemble_m();
+            delta_h_k = delta_h / 2.0;
+        }
+        else 
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 1);
+
+            return 1;
+        }
+
+        
+        // for ( h_jj_S_k = h_jj_S - order[jj_S] * delta_h_k; h_jj_S_k * order[jj_S] <= h_jj_S * order[jj_S]; h_jj_S_k = h_jj_S_k + order[jj_S] * delta_h_k )
+        {
+            h_jj_S_k = h_jj_S + order[jj_S] * delta_h_k;
+            h[jj_S] = h_jj_S;
+
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+
+            #ifdef CHECK_AVALANCHE
+            if (delta_h >= del_h)
+            {
+                check_avalanche_max_delta();
+            }
+            else 
+            {
+                if (delta_h <= del_h_cutoff)
+                {
+                    check_avalanche();
+                }
+                else
+                {
+                    continue_avalanche();
+                    
+                }
+            }
+            #else
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+            #endif
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+            binary_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        
+        {
+            h_jj_S_k = h_jj_S;
+            h[jj_S] = h_jj_S;
+            
+            #ifdef enable_CUDA_CODE
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
+            #endif
+            
+            cutoff_local = -0.1;
+
+            do
+            {
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
+            }
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+
+
+            #ifdef enable_CUDA_CODE
+            // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+            #endif
+
+            binary_subdivide_h_axis(h_jj_S_k, delta_h_k, jj_S, h_start);
+        }
+        // printf("\n===\n");
+        // printf(  "=2=");
+        // printf("\n===\n");
+        return 2;
+        
+    }
+
+    int dynamic_binary_subdivide_phi(double *h_phi, double *delta_phi, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        static int last_phi_restored = 0;
+        if (binary_or_slope)
+        {
+            printf("\n ====== DYNAMIC BINARY DIVISION RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+        // double h_phi_k, delta_phi_k;
+        // h_phi_k = *h_phi;
+        // delta_phi_k = *delta_phi;
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        double ratio_delta_m = del_phi/del_phi_cutoff;
+        if (delta_m > del_phi_cutoff)
+        {
+            ratio_delta_m = del_phi/delta_m;
+        }
+
+        if (delta_phi[0] <= del_phi_cutoff)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+            
+            if (ratio_delta_m > 2 && last_phi_restored == 0)
+            {
+                delta_phi[0] = delta_phi[0] * 2;
+                if (delta_phi[0] >= del_phi)
+                {
+                    delta_phi[0] = del_phi;
+                }
+            }
+            else
+            {
+                last_phi_restored = 0;
+            }
+            
+            return 0;
+        }
+        else
+        {
+            if (delta_phi[0] < del_phi)
+            {
+                if (ratio_delta_m > 2 && last_phi_restored == 0)
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+
+                    delta_phi[0] = delta_phi[0] * 2;
+                    if (delta_phi[0] >= del_phi)
+                    {
+                        delta_phi[0] = del_phi;
+                    }
+                    return 1;
+                }
+                else
+                {
+                    if (ratio_delta_m <= 1)
+                    {
+                        restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                        last_phi_restored = 1;
+                        h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
+                        
+                        delta_phi[0] = delta_phi[0] / 2;
+                        return 2;
+                    }
+                    else
+                    {
+                        backing_up_spin();
+                        last_phi_restored = 0;
+                        save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                        return 3;
+                    }
+                }
+            }
+            else
+            {
+                if (ratio_delta_m <= 1)
+                {
+                    restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                    last_phi_restored = 1;
+                    h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
+                    
+                    delta_phi[0] = delta_phi[0] / 2;
+                    return 4;
+                }
+                else
+                {
+                    backing_up_spin();
+                    last_phi_restored = 0;
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                    return 5;
+                }
+            }
+        }
+        return 6;
+    }
+
+    int dynamic_binary_subdivide_h_axis(double *h_jj_S, double *delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static long int counter = 1;
+        static int last_h_restored = 0;
+        if (binary_or_slope)
+        {
+            printf("\n ====== DYNAMIC BINARY DIVISION RATE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+        // double h_phi_k, delta_phi_k;
+        // h_phi_k = *h_phi;
+        // delta_phi_k = *delta_phi;
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        double ratio_delta_m = del_h/del_h_cutoff;
+        if (delta_m > del_h_cutoff)
+        {
+            ratio_delta_m = del_h/delta_m;
+        }
+
+        if (delta_h[0] <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+            
+            if (ratio_delta_m > 2 && last_h_restored == 0)
+            {
+                delta_h[0] = delta_h[0] * 2;
+                if (delta_h[0] >= del_h*h_start)
+                {
+                    delta_h[0] = del_h*h_start;
+                }
+            }
+            else
+            {
+                last_h_restored = 0;
+            }
+            
+            return 0;
+        }
+        else
+        {
+            if (delta_h[0] < del_h*h_start)
+            {
+                if (ratio_delta_m > 2 && last_h_restored == 0)
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+
+                    delta_h[0] = delta_h[0] * 2;
+                    if (delta_h[0] >= del_h*h_start)
+                    {
+                        delta_h[0] = del_h*h_start;
+                    }
+                    return 1;
+                }
+                else
+                {
+                    if (ratio_delta_m <= 1)
+                    {
+                        restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                        last_h_restored = 1;
+                        h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                        
+                        delta_h[0] = delta_h[0] / 2;
+                        return 2;
+                    }
+                    else
+                    {
+                        backing_up_spin();
+                        last_h_restored = 0;
+                        save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                        return 3;
+                    }
+                }
+            }
+            else
+            {
+                if (ratio_delta_m <= 1)
+                {
+                    restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                    last_h_restored = 1;
+                    h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                    
+                    delta_h[0] = delta_h[0] / 2;
+                    return 4;
+                }
+                else
+                {
+                    backing_up_spin();
+                    last_h_restored = 0;
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                    return 5;
+                }
+            }
+        }
+        return 6;
+    }
+
+    int dynamic_binary_slope_divide_phi(double *h_phi, double *delta_phi, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static int last_phi_restored = 0;
+        static const double reqd_ratio = 1.1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== DYNAMIC BINARY DIVISION TO ADJUST TO SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+        // double h_phi_k, delta_phi_k;
+        // h_phi_k = *h_phi;
+        // delta_phi_k = *delta_phi;
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        double ratio_delta_m = del_phi/del_phi_cutoff;
+        if (delta_m > del_phi_cutoff)
+        {
+            ratio_delta_m = del_phi/delta_m;
+        }
+
+        if (delta_phi[0] <= del_phi_cutoff)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+            
+            if (ratio_delta_m > 2 && last_phi_restored == 0)
+            {
+                delta_phi[0] = delta_phi[0] * 2;
+                if (delta_phi[0] >= del_phi)
+                {
+                    delta_phi[0] = del_phi;
+                }
+            }
+            else
+            {
+                if (ratio_delta_m > reqd_ratio && last_phi_restored == 0)
+                {
+                    delta_phi[0] = delta_phi[0] * ratio_delta_m / reqd_ratio;
+                    if (delta_phi[0] >= del_phi)
+                    {
+                        delta_phi[0] = del_phi;
+                    }
+                }
+            }
+            if (last_phi_restored == 1)
+            {
+                last_phi_restored = 0;
+            }
+
+            return 0;
+        }
+        else
+        {
+            if (delta_phi[0] < del_phi)
+            {
+                if (ratio_delta_m > 2 && last_phi_restored == 0)
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+
+                    delta_phi[0] = delta_phi[0] * 2;
+                    if (delta_phi[0] >= del_phi)
+                    {
+                        delta_phi[0] = del_phi;
+                    }
+                    return 1;
+                }
+                else
+                {
+                    if (ratio_delta_m <= 1)
+                    {
+                        restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                        last_phi_restored = 1;
+                        h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
+                        
+                        delta_phi[0] = delta_phi[0] / 2;
+                        return 2;
+                    }
+                    else
+                    {
+                        backing_up_spin();
+
+                        save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                        if (last_phi_restored == 0)
+                        {
+                            delta_phi[0] = delta_phi[0] * ratio_delta_m / reqd_ratio;
+                            if (delta_phi[0] >= del_phi)
+                            {
+                                delta_phi[0] = del_phi;
+                            }
+                        }
+                        else
+                        {
+                            last_phi_restored = 0;
+                        }
+                        
+                        return 3;
+                    }
+                }
+            }
+            else
+            {
+                if (ratio_delta_m <= 1)
+                {
+                    restoring_spin(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                    last_phi_restored = 1;
+                    h_phi[0] = h_phi[0] - delta_phi[0] * order[jj_S];
+                    
+                    delta_phi[0] = delta_phi[0] / 2;
+                    return 4;
+                }
+                else
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_phi[0], delta_phi[0], jj_S, delta_m, "phi", 1);
+                    last_phi_restored = 0;
+                    if (ratio_delta_m < reqd_ratio)
+                    {
+                        delta_phi[0] = delta_phi[0] * ratio_delta_m / reqd_ratio;
+                    }
+                    
+                    return 5;
+                }
+            }
+        }
+        return 6;
+    }
+
+    int dynamic_binary_slope_divide_h_axis(double *h_jj_S, double *delta_h, int jj_S, double h_start)
+    {
+        static int binary_or_slope = 1;
+        static int last_h_restored = 0;
+        static const double reqd_ratio = 1.1;
+        static long int counter = 1;
+        if (binary_or_slope)
+        {
+            printf("\n ====== DYNAMIC BINARY DIVISION TO ADJUST TO SLOPE ====== \n");
+            binary_or_slope = !binary_or_slope;
+        }
+        // double h_phi_k, delta_phi_k;
+        // h_phi_k = *h_phi;
+        // delta_phi_k = *delta_phi;
+        int j_S;
+        
+        // double old_m[dim_S], new_m[dim_S];
+        double delta_m = 0.0;
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // old_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S];
+        }
+        
+        ensemble_m();
+        
+        for (j_S=0; j_S<dim_S; j_S++)
+        {
+            // new_m[j_S] = m[j_S];
+            delta_M[j_S] = m[j_S] - delta_M[j_S];
+            delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+        }
+        delta_m = sqrt( delta_m ) ;
+
+        double ratio_delta_m = del_h/del_h_cutoff;
+        if (delta_m > del_h_cutoff)
+        {
+            ratio_delta_m = del_h/delta_m;
+        }
+
+        if (delta_h[0] <= del_h_cutoff*h_start)
+        {
+            // ensemble_E();
+            backing_up_spin();
+
+            save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+            
+            if (ratio_delta_m > 2 && last_h_restored == 0)
+            {
+                delta_h[0] = delta_h[0] * 2;
+                if (delta_h[0] >= del_h*h_start)
+                {
+                    delta_h[0] = del_h*h_start;
+                }
+            }
+            else
+            {
+                if (ratio_delta_m > reqd_ratio && last_h_restored == 0)
+                {
+                    delta_h[0] = delta_h[0] * ratio_delta_m / reqd_ratio;
+                    if (delta_h[0] >= del_h*h_start)
+                    {
+                        delta_h[0] = del_h*h_start;
+                    }
+                }
+            }
+            if (last_h_restored == 1)
+            {
+                last_h_restored = 0;
+            }
+
+            return 0;
+        }
+        else
+        {
+            if (delta_h[0] < del_h*h_start)
+            {
+                if (ratio_delta_m > 2 && last_h_restored == 0)
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+
+                    delta_h[0] = delta_h[0] * 2;
+                    if (delta_h[0] >= del_h*h_start)
+                    {
+                        delta_h[0] = del_h*h_start;
+                    }
+                    return 1;
+                }
+                else
+                {
+                    if (ratio_delta_m <= 1)
+                    {
+                        restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                        last_h_restored = 1;
+                        h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                        
+                        delta_h[0] = delta_h[0] / 2;
+                        return 2;
+                    }
+                    else
+                    {
+                        backing_up_spin();
+
+                        save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                        if (last_h_restored == 0)
+                        {
+                            delta_h[0] = delta_h[0] * ratio_delta_m / reqd_ratio;
+                            if (delta_h[0] >= del_h*h_start)
+                            {
+                                delta_h[0] = del_h*h_start;
+                            }
+                        }
+                        else
+                        {
+                            last_h_restored = 0;
+                        }
+                        
+                        return 3;
+                    }
+                }
+            }
+            else
+            {
+                if (ratio_delta_m <= 1)
+                {
+                    restoring_spin(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                    last_h_restored = 1;
+                    h_jj_S[0] = h_jj_S[0] + delta_h[0] * order[jj_S];
+                    
+                    delta_h[0] = delta_h[0] / 2;
+                    return 4;
+                }
+                else
+                {
+                    backing_up_spin();
+
+                    save_to_file(h_jj_S[0], delta_h[0], jj_S, delta_m, "h_jj_S", 1);
+                    last_h_restored = 0;
+                    if (ratio_delta_m < reqd_ratio)
+                    {
+                        delta_h[0] = delta_h[0] * ratio_delta_m / reqd_ratio;
+                    }
+                    
+                    return 5;
+                }
+            }
+        }
+        return 6;
+    }
+    #endif
 
     int zero_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start)
     {
+        CUTOFF_M_SQ = 4.0*del_h*del_h;
+        CUTOFF_M_SQ_BY_4 = del_h*del_h;
         #ifdef _OPENMP
         #ifdef BUNDLE
             omp_set_num_threads(BUNDLE);
@@ -7179,33 +8754,33 @@
         #endif */
         
         #ifdef enable_CUDA_CODE
-        #ifdef CUDA_with_managed
-        cudaMemcpy(dev_CUTOFF, &CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(dev_J, J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_BOND
-        cudaMemcpy(dev_J_random, J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_FIELD
-        cudaMemcpy(dev_h_random, h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpy(dev_N_N_I, N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
-        
-        #else
-        cudaMemcpyToSymbol("dev_CUTOFF", &CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpyToSymbol("dev_spin", spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpyToSymbol("dev_J", J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_BOND
-        cudaMemcpyToSymbol("dev_J_random", J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_FIELD
-        cudaMemcpyToSymbol("dev_h_random", h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpyToSymbol("dev_N_N_I", N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
-        
-        #endif
+            #ifdef CUDA_with_managed
+            cudaMemcpy(dev_CUTOFF_SPIN, &CUTOFF_SPIN, sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_J, J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_BOND
+            cudaMemcpy(dev_J_random, J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_FIELD
+            cudaMemcpy(dev_h_random, h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpy(dev_N_N_I, N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
+            
+            #else
+            cudaMemcpyToSymbol("dev_CUTOFF_SPIN", &CUTOFF_SPIN, sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpyToSymbol("dev_spin", spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpyToSymbol("dev_J", J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_BOND
+            cudaMemcpyToSymbol("dev_J_random", J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_FIELD
+            cudaMemcpyToSymbol("dev_h_random", h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpyToSymbol("dev_N_N_I", N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
+            
+            #endif
         #endif
 
         T = 0;
@@ -7474,26 +9049,41 @@
         while (order[jj_S] * h_jj_S >= order[jj_S] * h_end)
         {
             h[jj_S] = h_jj_S;
-            #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE)
-                printf("\n  backing up  \n");
+            #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE) || defined (CONST_RATE) 
                 backing_up_spin();
             #endif
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #endif
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
             
+            
+            #ifdef CHECK_AVALANCHE
+                #ifndef CONST_RATE
+                if (delta_h <= del_h_cutoff)
+                {
+                    continue_avalanche();
+                }
+                else
+                {
+                    check_avalanche();
+                }
+                #else
+                continue_avalanche();
+                #endif
+            #else
             cutoff_local = -0.1;
-            do 
+            do
             {
-                cutoff_local = find_change_max();
-                // printf("\nblac = %g\n", cutoff_local);
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+            #endif
             
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -7530,20 +9120,23 @@
             else
             {
                 int j_S;
-                double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+                
+                // double old_m[dim_S], new_m[dim_S];
+                double delta_m = 0.0;
                 for (j_S=0; j_S<dim_S; j_S++)
                 {
-                    old_m[j_S] = m[j_S];
-                }
-
-                ensemble_m();
-                // ensemble_E();
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    new_m[j_S] = m[j_S];
-                    delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+                    // old_m[j_S] = m[j_S];
+                    delta_M[j_S] = m[j_S];
                 }
                 
+                ensemble_m();
+                
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    // new_m[j_S] = m[j_S];
+                    delta_M[j_S] = m[j_S] - delta_M[j_S];
+                    delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+                }
                 delta_m = sqrt( delta_m ) ;
 
                 save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 0);
@@ -7643,12 +9236,12 @@
             do 
             {
                 
-                cutoff_local = find_change_max();
+                cutoff_local = find_change();
 
                 // printf("\nblac = %g\n", cutoff_local);
 
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
 
             ensemble_m();
             ensemble_E();
@@ -7709,26 +9302,41 @@
         {
             h[jj_S] = h_jj_S;
             
-            #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE)
-                printf("\n  backing up  \n");
+            #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE) || defined (CONST_RATE) 
                 backing_up_spin();
             #endif
 
             #ifdef enable_CUDA_CODE
-            #ifdef CUDA_with_managed
-            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #else
-            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-            #endif
+                #ifdef CUDA_with_managed
+                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #else
+                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                #endif
             #endif
 
+            
+            #ifdef CHECK_AVALANCHE
+                #ifndef CONST_RATE
+                if (delta_h <= del_h_cutoff)
+                {
+                    continue_avalanche();
+                }
+                else
+                {
+                    check_avalanche();
+                }
+                #else
+                continue_avalanche();
+                #endif
+            #else
             cutoff_local = -0.1;
-            do 
+            do
             {
-                cutoff_local = find_change_max();
-                // printf("\nblac = %g\n", cutoff_local);
+                // double cutoff_local_last = cutoff_local;
+                cutoff_local = find_change();
             }
-            while (cutoff_local > CUTOFF); // 10^-14
+            while (cutoff_local > CUTOFF_SPIN); // 10^-14
+            #endif
 
             #ifdef enable_CUDA_CODE
             // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -7764,20 +9372,23 @@
             else
             {
                 int j_S;
-                double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+                
+                // double old_m[dim_S], new_m[dim_S];
+                double delta_m = 0.0;
                 for (j_S=0; j_S<dim_S; j_S++)
                 {
-                    old_m[j_S] = m[j_S];
-                }
-
-                ensemble_m();
-                // ensemble_E();
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    new_m[j_S] = m[j_S];
-                    delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+                    // old_m[j_S] = m[j_S];
+                    delta_M[j_S] = m[j_S];
                 }
                 
+                ensemble_m();
+                
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    // new_m[j_S] = m[j_S];
+                    delta_M[j_S] = m[j_S] - delta_M[j_S];
+                    delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+                }
                 delta_m = sqrt( delta_m ) ;
 
                 save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_jj_S", 0);
@@ -7832,6 +9443,8 @@
 
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start, char output_file_name[])
     {
+        CUTOFF_M_SQ = 4.0*pie*pie*del_phi*del_phi;
+        CUTOFF_M_SQ_BY_4 = pie*pie*del_phi*del_phi;
         #ifdef _OPENMP
         #ifdef BUNDLE
             omp_set_num_threads(BUNDLE);
@@ -7858,33 +9471,33 @@
         #endif */
 
         #ifdef enable_CUDA_CODE
-        #ifdef CUDA_with_managed
-        cudaMemcpy(dev_CUTOFF, &CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpy(dev_J, J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_BOND
-        cudaMemcpy(dev_J_random, J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_FIELD
-        cudaMemcpy(dev_h_random, h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpy(dev_N_N_I, N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
-        
-        #else
-        cudaMemcpyToSymbol("dev_CUTOFF", &CUTOFF, sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpyToSymbol("dev_spin", spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        cudaMemcpyToSymbol("dev_J", J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_BOND
-        cudaMemcpyToSymbol("dev_J_random", J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-        #ifdef RANDOM_FIELD
-        cudaMemcpyToSymbol("dev_h_random", h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
-        #endif
-        cudaMemcpyToSymbol("dev_N_N_I", N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
-        
-        #endif
+            #ifdef CUDA_with_managed
+            cudaMemcpy(dev_CUTOFF_SPIN, &CUTOFF_SPIN, sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_spin, spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpy(dev_J, J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_BOND
+            cudaMemcpy(dev_J_random, J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_FIELD
+            cudaMemcpy(dev_h_random, h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpy(dev_N_N_I, N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
+            
+            #else
+            cudaMemcpyToSymbol("dev_CUTOFF_SPIN", &CUTOFF_SPIN, sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpyToSymbol("dev_spin", spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            cudaMemcpyToSymbol("dev_J", J, dim_L*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_BOND
+            cudaMemcpyToSymbol("dev_J_random", J_random, 2*dim_L*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+            #ifdef RANDOM_FIELD
+            cudaMemcpyToSymbol("dev_h_random", h_random, dim_S*no_of_sites*sizeof(double), cudaMemcpyHostToDevice);
+            #endif
+            cudaMemcpyToSymbol("dev_N_N_I", N_N_I, 2*dim_L*no_of_sites*sizeof(long int), cudaMemcpyHostToDevice);
+            
+            #endif
         #endif
 
         T = 0;
@@ -7950,7 +9563,7 @@
             pFile_1 = fopen(output_file_name, "a");
             h_phi = 0.0;
             #if defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
-                delta_phi = del_phi_cutoff;
+                delta_phi = del_phi;
             #endif
             // for (h_phi = 0.0; h_phi * order[jj_S] <= 1.0; h_phi = h_phi + order[jj_S] * delta_phi)
             while (h_phi * order[jj_S] <= 1.0)
@@ -7971,6 +9584,7 @@
                         checkpoint_backup(1, TYPE_DOUBLE, dim_S, h, 0);
                         checkpoint_backup(0, TYPE_INT, 1, &is_complete, 0);
                         checkpoint_backup(0, TYPE_DOUBLE, 1, &h_phi, 0);
+                        checkpoint_backup(0, TYPE_DOUBLE, 1, &delta_phi, 0); // new
                         checkpoint_backup(0, TYPE_INT, 1, &repeat_loop, 0);
                         checkpoint_backup(0, TYPE_INT, 1, &repeat_cond, 0);
                         checkpoint_backup(0, TYPE_LONGINT, 1, &h_counter, 0);
@@ -7999,6 +9613,7 @@
                         restore_checkpoint(1, TYPE_DOUBLE, dim_S, h, 0);
                         restore_checkpoint(0, TYPE_INT, 1, &is_complete, 0);
                         restore_checkpoint(0, TYPE_DOUBLE, 1, &h_phi, 0);
+                        restore_checkpoint(0, TYPE_DOUBLE, 1, &delta_phi, 0); // new
                         restore_checkpoint(0, TYPE_INT, 1, &repeat_loop, 0);
                         restore_checkpoint(0, TYPE_INT, 1, &repeat_cond, 0);
                         restore_checkpoint(0, TYPE_LONGINT, 1, &h_counter, 0);
@@ -8031,26 +9646,41 @@
                     h[1] = h_start * cos(2*pie*h_phi);
                 }
                 
-                #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE)
-                    printf("\n  backing up  \n");
+                #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE) || defined (CONST_RATE)
                     backing_up_spin();
                 #endif
 
                 #ifdef enable_CUDA_CODE
-                #ifdef CUDA_with_managed
-                cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-                #else
-                cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
-                #endif
+                    #ifdef CUDA_with_managed
+                    cudaMemcpy(dev_h, h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                    #else
+                    cudaMemcpyToSymbol("dev_h", h, dim_S*sizeof(double), cudaMemcpyHostToDevice);
+                    #endif
                 #endif
                 
+                
+                #ifdef CHECK_AVALANCHE
+                    #ifndef CONST_RATE
+                    if (delta_phi <= del_phi_cutoff)
+                    {
+                        continue_avalanche();
+                    }
+                    else
+                    {
+                        check_avalanche();
+                    }
+                    #else
+                    continue_avalanche();
+                    #endif
+                #else
                 cutoff_local = -0.1;
                 do
                 {
                     // double cutoff_local_last = cutoff_local;
-                    cutoff_local = find_change_max();
+                    cutoff_local = find_change();
                 }
-                while (cutoff_local > CUTOFF); // 10^-14
+                while (cutoff_local > CUTOFF_SPIN); // 10^-14
+                #endif
                 
                 #ifdef enable_CUDA_CODE
                 // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
@@ -8086,20 +9716,23 @@
                 else
                 {
                     int j_S;
-                    double old_m[dim_S], new_m[dim_S], delta_m = 0.0;
+                    
+                    // double old_m[dim_S], new_m[dim_S];
+                    double delta_m = 0.0;
                     for (j_S=0; j_S<dim_S; j_S++)
                     {
-                        old_m[j_S] = m[j_S];
-                    }
-
-                    ensemble_m();
-                    // ensemble_E();
-                    for (j_S=0; j_S<dim_S; j_S++)
-                    {
-                        new_m[j_S] = m[j_S];
-                        delta_m += ( old_m[j_S] - new_m[j_S] ) * ( old_m[j_S] - new_m[j_S] );
+                        // old_m[j_S] = m[j_S];
+                        delta_M[j_S] = m[j_S];
                     }
                     
+                    ensemble_m();
+                    
+                    for (j_S=0; j_S<dim_S; j_S++)
+                    {
+                        // new_m[j_S] = m[j_S];
+                        delta_M[j_S] = m[j_S] - delta_M[j_S];
+                        delta_m += ( delta_M[j_S] ) * ( delta_M[j_S] );
+                    }
                     delta_m = sqrt( delta_m ) ;
                     
                     save_to_file(h_phi, delta_phi, jj_S, delta_m, "phi", 0);
@@ -8145,7 +9778,7 @@
                 repeat_cond = 0;
                 for(j_S=0; j_S<dim_S; j_S++)
                 {
-                    if (fabs(m_loop[j_S+i*dim_S] - m[j_S]) > CUTOFF )
+                    if (fabs(m_loop[j_S+i*dim_S] - m[j_S]) > CUTOFF_SPIN )
                     {
                         repeat_cond = 1;
                     }
@@ -8848,7 +10481,7 @@
         {
             counter++;
             
-            cutoff_local = find_change_max();
+            cutoff_local = find_change();
             
             // char append_string[128];
             // char *pos = append_string;
@@ -8866,7 +10499,7 @@
             fflush(stdout);
             fclose(pFile_1);
         }
-        while (cutoff_local > CUTOFF); // 10^-14
+        while (cutoff_local > CUTOFF_SPIN); // 10^-14
         printf("\n");
         char append_string[128];
         char *pos = append_string;
@@ -8974,7 +10607,7 @@
         cudaFree(dev_spin);
         cudaFree(dev_spin_temp);
         cudaFree(dev_spin_bkp);
-        cudaFree(dev_CUTOFF);
+        cudaFree(dev_CUTOFF_SPIN);
         cudaFree(dev_J);
         cudaFree(dev_J_random);
         cudaFree(dev_h);
@@ -9404,7 +11037,7 @@
         double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         
         #ifdef enable_CUDA_CODE
-        cudaMalloc((void **)&dev_CUTOFF, sizeof(double));
+        cudaMalloc((void **)&dev_CUTOFF_SPIN, sizeof(double));
         cudaMalloc((void **)&dev_spin, dim_S*no_of_sites*sizeof(double));
         cudaMalloc((void **)&dev_spin_temp, dim_S*no_of_sites*sizeof(double));
         cudaMalloc((void **)&dev_spin_bkp, dim_S*no_of_sites*sizeof(double));
@@ -9908,4 +11541,17 @@
     }
 
 //===============================================================================//
+/*
+volatile bool flag=false;
 
+#pragma omp parallel for shared(flag)
+for(int i=0; i<=100000; ++i)
+{    
+    if(flag) continue;
+    if(element[i] ...)
+    {
+          ...
+          flag=true;
+    }
+}
+*/
