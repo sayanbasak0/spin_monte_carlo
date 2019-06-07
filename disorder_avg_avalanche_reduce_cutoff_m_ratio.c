@@ -99,7 +99,7 @@ int main(int argc, char** argv)
         }
     }
     // ------------------------ Output 2d array ------------------------ //
-    int no_of_columns_out = 14;
+    int no_of_columns_out = 20;
 
     double **array_tr_out;
     double **array_lc_out;
@@ -159,7 +159,7 @@ int main(int argc, char** argv)
         
         char input_file_1[256];
         char *pos_in_1 = input_file_1;
-        pos_in_1 += sprintf(pos_in_1, "transient_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+        pos_in_1 += sprintf(pos_in_1, "transient_O2_2D_%d_avalanche_cutoff_m_ratio.dat", L_vals[Li] );
 
         pFile_input_1 = fopen(input_file_1, "r");
         
@@ -178,7 +178,7 @@ int main(int argc, char** argv)
         
         char input_file_2[256];
         char *pos_in_2 = input_file_2;
-        pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+        pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_avalanche_cutoff_m_ratio.dat", L_vals[Li] );
 
         pFile_input_2 = fopen(input_file_2, "r");
 
@@ -205,11 +205,20 @@ int main(int argc, char** argv)
     {
         for (hi=0; hi<len_h_field_vals; hi++)
         {
-            array_tr_out[hi][0] = h_field_vals[hi];
-            array_lc_out[hi][0] = h_field_vals[hi];
-            array_to_out[hi][0] = h_field_vals[hi];
+            // array_tr_out[hi][0] = h_field_vals[hi];
+            // array_lc_out[hi][0] = h_field_vals[hi];
+            // array_to_out[hi][0] = h_field_vals[hi];
             
-            for (i_col=1; i_col<no_of_columns_in-3; i_col++)
+            if (array_tr[ci][hi][1] > 0)
+            {
+                array_tr_out[hi][0] += 1.0/array_tr[ci][hi][1];
+            }
+            
+            array_lc_out[hi][0] += 1.0/array_lc[ci][hi][1];
+            
+            array_to_out[hi][0] += 1.0/(array_tr[ci][hi][1] + array_lc[ci][hi][1]);
+            
+            for (i_col=1; i_col<no_of_columns_in; i_col++)
             {
                 array_tr_out[hi][i_col] += array_tr[ci][hi][i_col] ;
                 array_tr_out_stdev[hi][i_col] += array_tr[ci][hi][i_col] * array_tr[ci][hi][i_col] ;
@@ -221,157 +230,59 @@ int main(int argc, char** argv)
                 array_to_out_stdev[hi][i_col] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) * (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) ;
             }
             
-            for (i_col=no_of_columns_in-3; i_col<no_of_columns_in; i_col++)
-            {
-                array_tr_out[hi][i_col] += array_tr[ci][hi][i_col] ;
-                array_tr_out_stdev[hi][i_col] += array_tr[ci][hi][i_col] * array_tr[ci][hi][i_col] ;
-
-                array_lc_out[hi][i_col] += array_lc[ci][hi][i_col] ;
-                array_lc_out_stdev[hi][i_col] += array_lc[ci][hi][i_col] * array_lc[ci][hi][i_col] ;
-
-                if (array_tr[ci][hi][i_col] > array_lc[ci][hi][i_col])
-                {
-                    array_to_out[hi][i_col] += array_tr[ci][hi][i_col] ;
-                    array_to_out_stdev[hi][i_col] += array_tr[ci][hi][i_col] * array_tr[ci][hi][i_col] ;
-                }
-                else
-                {
-                    array_to_out[hi][i_col] += array_lc[ci][hi][i_col] ;
-                    array_to_out_stdev[hi][i_col] += array_lc[ci][hi][i_col] * array_lc[ci][hi][i_col] ;
-                }
-            }
             
-            for (i_col=2; i_col<no_of_columns_in-3; i_col++)
+            for (i_col=2; i_col<no_of_columns_in; i_col++)
             {
                 if (array_tr[ci][hi][1] > 0)
                 {
                     array_tr_out[hi][i_col+6] += array_tr[ci][hi][i_col] / array_tr[ci][hi][1];
                     array_tr_out_stdev[hi][i_col+6] += (array_tr[ci][hi][i_col] / array_tr[ci][hi][1]) * (array_tr[ci][hi][i_col] / array_tr[ci][hi][1]);
                 }
+                
+                
                 array_lc_out[hi][i_col+6] += (array_lc[ci][hi][i_col] / array_lc[ci][hi][1]);
                 array_lc_out_stdev[hi][i_col+6] += (array_lc[ci][hi][i_col] / array_lc[ci][hi][1]) * (array_lc[ci][hi][i_col] / array_lc[ci][hi][1]);
 
                 array_to_out[hi][i_col+6] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1]);
                 array_to_out_stdev[hi][i_col+6] += ((array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1])) * ((array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1]));
             }
-            for (i_col=no_of_columns_in-3; i_col<no_of_columns_in; i_col++)
-            {
-                if ( array_tr[ci][hi][i_col] > array_tr_out[hi][i_col+6] )
-                {
-                    array_tr_out[hi][i_col+6] = array_tr[ci][hi][i_col] ;
-                }
-                if ( array_lc[ci][hi][i_col] > array_lc_out[hi][i_col+6] )
-                {
-                    array_lc_out[hi][i_col+6] = array_lc[ci][hi][i_col] ;
-                }
-                if ( array_tr[ci][hi][i_col] > array_lc[ci][hi][i_col] )
-                {
-                    if ( array_tr[ci][hi][i_col] > array_to_out[hi][i_col+6] )
-                    {
-                        array_to_out[hi][i_col+6] = (array_tr[ci][hi][i_col] ) ;
-                    }
-                }
-                else
-                {
-                    if ( array_lc[ci][hi][i_col] > array_to_out[hi][i_col+6] )
-                    {
-                        array_to_out[hi][i_col+6] = (array_lc[ci][hi][i_col] ) ;
-                    }
 
-                }
+            for (i_col=2; i_col<no_of_columns_in; i_col++)
+            {
+                array_tr_out[hi][i_col+12] += array_tr[ci][hi][i_col] * array_tr[ci][hi][1];
+                array_tr_out_stdev[hi][i_col+12] += (array_tr[ci][hi][i_col] * array_tr[ci][hi][1]) * (array_tr[ci][hi][i_col] * array_tr[ci][hi][1]);
+                
+                array_lc_out[hi][i_col+12] += (array_lc[ci][hi][i_col] * array_lc[ci][hi][1]);
+                array_lc_out_stdev[hi][i_col+12] += (array_lc[ci][hi][i_col] * array_lc[ci][hi][1]) * (array_lc[ci][hi][i_col] * array_lc[ci][hi][1]);
+
+                array_to_out[hi][i_col+12] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) * (array_tr[ci][hi][1] + array_lc[ci][hi][1]);
+                array_to_out_stdev[hi][i_col+12] += ((array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) * (array_tr[ci][hi][1] + array_lc[ci][hi][1])) * ((array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) * (array_tr[ci][hi][1] + array_lc[ci][hi][1]));
             }
         }
     }
     printf(" Disorder Averaging...      \n" );
     fflush(stdout);
 
-    // ------------------------ disorder std dev 3d array to 2d array ------------------------ //
-    /* for (ci=0; ci<config_vals[input] ; ci++)
-    {
-        for (hi=0; hi<len_h_field_vals; hi++)
-        {
-            array_tr_out_stdev[hi][0] = h_field_vals[hi];
-            array_lc_out_stdev[hi][0] = h_field_vals[hi];
-            array_to_out_stdev[hi][0] = h_field_vals[hi];
-            
-            for (i_col=1; i_col<no_of_columns_in-3; i_col++)
-            {
-                array_tr_out_stdev[hi][i_col] += ( array_tr[ci][hi][i_col] - array_tr_out[hi][i_col] / (double)config_vals[input] ) * ( array_tr[ci][hi][i_col] - array_tr_out[hi][i_col] / (double)config_vals[input] );
-                array_lc_out_stdev[hi][i_col] += ( array_lc[ci][hi][i_col] - array_lc_out[hi][i_col] / (double)config_vals[input] ) * ( array_lc[ci][hi][i_col] - array_lc_out[hi][i_col] / (double)config_vals[input] );
-                array_to_out_stdev[hi][i_col] += ( (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) - array_to_out[hi][i_col] / (double)config_vals[input] ) * ( (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) - array_to_out[hi][i_col] / (double)config_vals[input] );
-            }
-            
-            for (i_col=no_of_columns_in-3; i_col<no_of_columns_in; i_col++)
-            {
-                array_tr_out_stdev[hi][i_col] += (array_tr[ci][hi][i_col] - array_tr_out[hi][i_col] / (double)config_vals[input]) * (array_tr[ci][hi][i_col] - array_tr_out[hi][i_col] / (double)config_vals[input]) ;
-                array_lc_out_stdev[hi][i_col] += (array_lc[ci][hi][i_col] - array_lc_out[hi][i_col] / (double)config_vals[input]) * (array_lc[ci][hi][i_col] - array_lc_out[hi][i_col] / (double)config_vals[input]) ;
 
-                if (array_tr[ci][hi][i_col] > array_lc[ci][hi][i_col])
-                {
-                    array_to_out_stdev[hi][i_col] += (array_tr[ci][hi][i_col] - array_to_out[hi][i_col] / (double)config_vals[input]) * (array_tr[ci][hi][i_col] - array_to_out[hi][i_col] / (double)config_vals[input]);
-                }
-                else
-                {
-                    array_to_out_stdev[hi][i_col] += (array_lc[ci][hi][i_col] - array_to_out[hi][i_col] / (double)config_vals[input]) * (array_lc[ci][hi][i_col] - array_to_out[hi][i_col] / (double)config_vals[input]) ;
-                }
-            }
-            
-            for (i_col=2; i_col<no_of_columns_in-3; i_col++)
-            {
-                if (array_tr[ci][hi][1] > 0)
-                {
-                    array_tr_out[hi][i_col+6] += array_tr[ci][hi][i_col] / array_tr[ci][hi][1];
-                }
-                array_lc_out[hi][i_col+6] += array_lc[ci][hi][i_col] / array_lc[ci][hi][1];
-                array_to_out[hi][i_col+6] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1]);
-            }
-            for (i_col=no_of_columns_in-3; i_col<no_of_columns_in; i_col++)
-            {
-                if ( array_tr[ci][hi][i_col] > array_tr_out[hi][i_col+6] )
-                {
-                    array_tr_out[hi][i_col+6] = array_tr[ci][hi][i_col] ;
-                }
-                if ( array_lc[ci][hi][i_col] > array_lc_out[hi][i_col+6] )
-                {
-                    array_lc_out[hi][i_col+6] = array_lc[ci][hi][i_col] ;
-                }
-                if ( array_tr[ci][hi][i_col] > array_lc[ci][hi][i_col] )
-                {
-                    if ( array_tr[ci][hi][i_col] > array_to_out[hi][i_col+6] )
-                    {
-                        array_to_out[hi][i_col+6] = (array_tr[ci][hi][i_col] ) ;
-                    }
-                }
-                else
-                {
-                    if ( array_lc[ci][hi][i_col] > array_to_out[hi][i_col+6] )
-                    {
-                        array_to_out[hi][i_col+6] = (array_lc[ci][hi][i_col] ) ;
-                    }
-
-                }
-            }
-        }
-    } */
     printf(" Disorder Std. deviation...      \n" );
     fflush(stdout);
     // ------------------------ disorder average 2d array and output ------------------------ //
 
     char output_file_1[256];
     char *pos_out_1 = output_file_1;
-    pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_dis_avg_weighted.dat", L_vals[Li] );
+    pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_dis_avalanche_cutoff_m_ratio.dat", L_vals[Li] );
 
     pFile_output_1 = fopen(output_file_1, "a");
     
     char output_file_2[256];
     char *pos_out_2 = output_file_2;
-    pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_dis_avg_weighted.dat", L_vals[Li] );
+    pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_dis_avalanche_cutoff_m_ratio.dat", L_vals[Li] );
 
     pFile_output_2 = fopen(output_file_2, "a");
     
     char output_file_3[256];
     char *pos_out_3 = output_file_3;
-    pos_out_3 += sprintf(pos_out_3, "total_O2_2D_%d_dis_avg_weighted.dat", L_vals[Li] );
+    pos_out_3 += sprintf(pos_out_3, "total_O2_2D_%d_dis_avalanche_cutoff_m_ratio.dat", L_vals[Li] );
 
     pFile_output_3 = fopen(output_file_3, "a");
     
@@ -379,82 +290,140 @@ int main(int argc, char** argv)
     fprintf(pFile_output_1, "---------H----------\t" );
     fprintf(pFile_output_1, "-------<dphi>-------\t" );
     fprintf(pFile_output_1, "------s<dphi>-------\t" );
-    fprintf(pFile_output_1, "-----<dmx^2/dfi>----\t" );
-    fprintf(pFile_output_1, "----s<dmx^2/dfi>----\t" );
-    fprintf(pFile_output_1, "-----<dmy^2/dfi>----\t" );
-    fprintf(pFile_output_1, "----s<dmy^2/dfi>----\t" );
-    fprintf(pFile_output_1, "-----<dm^2/dfi>-----\t" );
-    fprintf(pFile_output_1, "----s<dm^2/dfi>-----\t" );
-    fprintf(pFile_output_1, "------<max(dmx)>----\t" );
-    fprintf(pFile_output_1, "-----s<max(dmx)>----\t" );
-    fprintf(pFile_output_1, "------<max(dmy)>----\t" );
-    fprintf(pFile_output_1, "-----s<max(dmy)>----\t" );
-    fprintf(pFile_output_1, "------<max(dm)>-----\t" );
-    fprintf(pFile_output_1, "-----s<max(dm)>-----\t" );
-    fprintf(pFile_output_1, "-<(dmx^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_1, "s<(dmx^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_1, "-<(dmy^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_1, "s<(dmy^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_1, "-<(dm^2/dfi)/delfi>-\t" );
-    fprintf(pFile_output_1, "s<(dm^2/dfi)/delfi>-\t" );
-    fprintf(pFile_output_1, "----max[max(dmx)]---\t" );
-    fprintf(pFile_output_1, "----max[max(dmy)]---\t" );
-    fprintf(pFile_output_1, "----max[max(dm)]----\t" );
-    fprintf(pFile_output_1, "\n" );
     
+    fprintf(pFile_output_1, "------<<dmx^2>>-----\t" );
+    fprintf(pFile_output_1, "-----s<<dmx^2>>-----\t" );
+    fprintf(pFile_output_1, "------<<dmy^2>>-----\t" );
+    fprintf(pFile_output_1, "-----s<<dmy^2>>-----\t" );
+    fprintf(pFile_output_1, "------<<dm^2>>------\t" );
+    fprintf(pFile_output_1, "-----s<<dm^2>>------\t" );
+    fprintf(pFile_output_1, "------<<|dmx|>>-----\t" );
+    fprintf(pFile_output_1, "-----s<<|dmx|>>-----\t" );
+    fprintf(pFile_output_1, "------<<|dmy|>>-----\t" );
+    fprintf(pFile_output_1, "-----s<<|dmy|>>-----\t" );
+    fprintf(pFile_output_1, "------<<|dm|>>------\t" );
+    fprintf(pFile_output_1, "-----s<<|dm|>>------\t" );
+
+    fprintf(pFile_output_1, "--<<dmx^2>/delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<dmx^2>/delphi>--\t" );
+    fprintf(pFile_output_1, "--<<dmy^2>/delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<dmy^2>/delphi>--\t" );
+    fprintf(pFile_output_1, "--<<dm^2>/delphi>---\t" );
+    fprintf(pFile_output_1, "-s<<dm^2>/delphi>---\t" );
+    fprintf(pFile_output_1, "--<<|dmx|>/delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<|dmx|>/delphi>--\t" );
+    fprintf(pFile_output_1, "--<<|dmy|>/delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<|dmy|>/delphi>--\t" );
+    fprintf(pFile_output_1, "--<<|dm|>/delphi>---\t" );
+    fprintf(pFile_output_1, "-s<<|dm|>/delphi>---\t" );
+    
+    fprintf(pFile_output_1, "--<<dmx^2>*delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<dmx^2>*delphi>--\t" );
+    fprintf(pFile_output_1, "--<<dmy^2>*delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<dmy^2>*delphi>--\t" );
+    fprintf(pFile_output_1, "--<<dm^2>*delphi>---\t" );
+    fprintf(pFile_output_1, "-s<<dm^2>*delphi>---\t" );
+    fprintf(pFile_output_1, "--<<|dmx|>*delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<|dmx|>*delphi>--\t" );
+    fprintf(pFile_output_1, "--<<|dmy|>*delphi>--\t" );
+    fprintf(pFile_output_1, "-s<<|dmy|>*delphi>--\t" );
+    fprintf(pFile_output_1, "--<<|dm|>*delphi>---\t" );
+    fprintf(pFile_output_1, "-s<<|dm|>*delphi>---\t" );
+    fprintf(pFile_output_1, "\n" );
+
     fprintf(pFile_output_2, "-L-\t" );
     fprintf(pFile_output_2, "---------H----------\t" );
     fprintf(pFile_output_2, "-------<dphi>-------\t" );
     fprintf(pFile_output_2, "------s<dphi>-------\t" );
-    fprintf(pFile_output_2, "-----<dmx^2/dfi>----\t" );
-    fprintf(pFile_output_2, "----s<dmx^2/dfi>----\t" );
-    fprintf(pFile_output_2, "-----<dmy^2/dfi>----\t" );
-    fprintf(pFile_output_2, "----s<dmy^2/dfi>----\t" );
-    fprintf(pFile_output_2, "-----<dm^2/dfi>-----\t" );
-    fprintf(pFile_output_2, "----s<dm^2/dfi>-----\t" );
-    fprintf(pFile_output_2, "------<max(dmx)>----\t" );
-    fprintf(pFile_output_2, "-----s<max(dmx)>----\t" );
-    fprintf(pFile_output_2, "------<max(dmy)>----\t" );
-    fprintf(pFile_output_2, "-----s<max(dmy)>----\t" );
-    fprintf(pFile_output_2, "------<max(dm)>-----\t" );
-    fprintf(pFile_output_2, "-----s<max(dm)>-----\t" );
-    fprintf(pFile_output_2, "-<(dmx^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_2, "s<(dmx^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_2, "-<(dmy^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_2, "s<(dmy^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_2, "-<(dm^2/dfi)/delfi>-\t" );
-    fprintf(pFile_output_2, "s<(dm^2/dfi)/delfi>-\t" );
-    fprintf(pFile_output_2, "----max[max(dmx)]---\t" );
-    fprintf(pFile_output_2, "----max[max(dmy)]---\t" );
-    fprintf(pFile_output_2, "----max[max(dm)]----\t" );
-    fprintf(pFile_output_2, "\n" );
     
+    fprintf(pFile_output_2, "------<<dmx^2>>-----\t" );
+    fprintf(pFile_output_2, "-----s<<dmx^2>>-----\t" );
+    fprintf(pFile_output_2, "------<<dmy^2>>-----\t" );
+    fprintf(pFile_output_2, "-----s<<dmy^2>>-----\t" );
+    fprintf(pFile_output_2, "------<<dm^2>>------\t" );
+    fprintf(pFile_output_2, "-----s<<dm^2>>------\t" );
+    fprintf(pFile_output_2, "------<<|dmx|>>-----\t" );
+    fprintf(pFile_output_2, "-----s<<|dmx|>>-----\t" );
+    fprintf(pFile_output_2, "------<<|dmy|>>-----\t" );
+    fprintf(pFile_output_2, "-----s<<|dmy|>>-----\t" );
+    fprintf(pFile_output_2, "------<<|dm|>>------\t" );
+    fprintf(pFile_output_2, "-----s<<|dm|>>------\t" );
+
+    fprintf(pFile_output_2, "--<<dmx^2>/delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<dmx^2>/delphi>--\t" );
+    fprintf(pFile_output_2, "--<<dmy^2>/delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<dmy^2>/delphi>--\t" );
+    fprintf(pFile_output_2, "--<<dm^2>/delphi>---\t" );
+    fprintf(pFile_output_2, "-s<<dm^2>/delphi>---\t" );
+    fprintf(pFile_output_2, "--<<|dmx|>/delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<|dmx|>/delphi>--\t" );
+    fprintf(pFile_output_2, "--<<|dmy|>/delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<|dmy|>/delphi>--\t" );
+    fprintf(pFile_output_2, "--<<|dm|>/delphi>---\t" );
+    fprintf(pFile_output_2, "-s<<|dm|>/delphi>---\t" );
+    
+    fprintf(pFile_output_2, "--<<dmx^2>*delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<dmx^2>*delphi>--\t" );
+    fprintf(pFile_output_2, "--<<dmy^2>*delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<dmy^2>*delphi>--\t" );
+    fprintf(pFile_output_2, "--<<dm^2>*delphi>---\t" );
+    fprintf(pFile_output_2, "-s<<dm^2>*delphi>---\t" );
+    fprintf(pFile_output_2, "--<<|dmx|>*delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<|dmx|>*delphi>--\t" );
+    fprintf(pFile_output_2, "--<<|dmy|>*delphi>--\t" );
+    fprintf(pFile_output_2, "-s<<|dmy|>*delphi>--\t" );
+    fprintf(pFile_output_2, "--<<|dm|>*delphi>---\t" );
+    fprintf(pFile_output_2, "-s<<|dm|>*delphi>---\t" );
+
+    fprintf(pFile_output_2, "\n" );
+
     fprintf(pFile_output_3, "-L-\t" );
     fprintf(pFile_output_3, "---------H----------\t" );
     fprintf(pFile_output_3, "-------<dphi>-------\t" );
     fprintf(pFile_output_3, "------s<dphi>-------\t" );
-    fprintf(pFile_output_3, "-----<dmx^2/dfi>----\t" );
-    fprintf(pFile_output_3, "----s<dmx^2/dfi>----\t" );
-    fprintf(pFile_output_3, "-----<dmy^2/dfi>----\t" );
-    fprintf(pFile_output_3, "----s<dmy^2/dfi>----\t" );
-    fprintf(pFile_output_3, "-----<dm^2/dfi>-----\t" );
-    fprintf(pFile_output_3, "----s<dm^2/dfi>-----\t" );
-    fprintf(pFile_output_3, "------<max(dmx)>----\t" );
-    fprintf(pFile_output_3, "-----s<max(dmx)>----\t" );
-    fprintf(pFile_output_3, "------<max(dmy)>----\t" );
-    fprintf(pFile_output_3, "-----s<max(dmy)>----\t" );
-    fprintf(pFile_output_3, "------<max(dm)>-----\t" );
-    fprintf(pFile_output_3, "-----s<max(dm)>-----\t" );
-    fprintf(pFile_output_3, "-<(dmx^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_3, "s<(dmx^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_3, "-<(dmy^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_3, "s<(dmy^2/dfi)/delfi>\t" );
-    fprintf(pFile_output_3, "-<(dm^2/dfi)/delfi>-\t" );
-    fprintf(pFile_output_3, "s<(dm^2/dfi)/delfi>-\t" );
-    fprintf(pFile_output_3, "----max[max(dmx)]---\t" );
-    fprintf(pFile_output_3, "----max[max(dmy)]---\t" );
-    fprintf(pFile_output_3, "----max[max(dm)]----\t" );
+
+    fprintf(pFile_output_3, "------<<dmx^2>>-----\t" );
+    fprintf(pFile_output_3, "-----s<<dmx^2>>-----\t" );
+    fprintf(pFile_output_3, "------<<dmy^2>>-----\t" );
+    fprintf(pFile_output_3, "-----s<<dmy^2>>-----\t" );
+    fprintf(pFile_output_3, "------<<dm^2>>------\t" );
+    fprintf(pFile_output_3, "-----s<<dm^2>>------\t" );
+    fprintf(pFile_output_3, "------<<|dmx|>>-----\t" );
+    fprintf(pFile_output_3, "-----s<<|dmx|>>-----\t" );
+    fprintf(pFile_output_3, "------<<|dmy|>>-----\t" );
+    fprintf(pFile_output_3, "-----s<<|dmy|>>-----\t" );
+    fprintf(pFile_output_3, "------<<|dm|>>------\t" );
+    fprintf(pFile_output_3, "-----s<<|dm|>>------\t" );
+    
+    fprintf(pFile_output_3, "--<<dmx^2>/delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<dmx^2>/delphi>--\t" );
+    fprintf(pFile_output_3, "--<<dmy^2>/delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<dmy^2>/delphi>--\t" );
+    fprintf(pFile_output_3, "--<<dm^2>/delphi>---\t" );
+    fprintf(pFile_output_3, "-s<<dm^2>/delphi>---\t" );
+    fprintf(pFile_output_3, "--<<|dmx|>/delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<|dmx|>/delphi>--\t" );
+    fprintf(pFile_output_3, "--<<|dmy|>/delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<|dmy|>/delphi>--\t" );
+    fprintf(pFile_output_3, "--<<|dm|>/delphi>---\t" );
+    fprintf(pFile_output_3, "-s<<|dm|>/delphi>---\t" );
+    
+    fprintf(pFile_output_3, "--<<dmx^2>*delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<dmx^2>*delphi>--\t" );
+    fprintf(pFile_output_3, "--<<dmy^2>*delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<dmy^2>*delphi>--\t" );
+    fprintf(pFile_output_3, "--<<dm^2>*delphi>---\t" );
+    fprintf(pFile_output_3, "-s<<dm^2>*delphi>---\t" );
+    fprintf(pFile_output_3, "--<<|dmx|>*delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<|dmx|>*delphi>--\t" );
+    fprintf(pFile_output_3, "--<<|dmy|>*delphi>--\t" );
+    fprintf(pFile_output_3, "-s<<|dmy|>*delphi>--\t" );
+    fprintf(pFile_output_3, "--<<|dm|>*delphi>---\t" );
+    fprintf(pFile_output_3, "-s<<|dm|>*delphi>---\t" );
+
     fprintf(pFile_output_3, "\n" );
+    
+    
 
     for (hi=0; hi<len_h_field_vals; hi++)
     {
@@ -468,22 +437,51 @@ int main(int argc, char** argv)
         fprintf(pFile_output_3, "%d\t", L_vals[Li] );
         fprintf(pFile_output_3, "%.14e\t", h_field_vals[hi] );
 
-        for (i_col=1; i_col<no_of_columns_out-3; i_col++)
+        for (i_col=1; i_col<no_of_columns_in; i_col++)
         {
             fprintf(pFile_output_1, "%.14e\t", array_tr_out[hi][i_col] / (double)config_vals[input] );
-            fprintf(pFile_output_1, "%.14e\t", sqrt(array_tr_out_stdev[hi][i_col] / (double)config_vals[input] - (array_tr_out[hi][i_col] / (double)config_vals[input])*(array_tr_out[hi][i_col] / (double)config_vals[input]) ) );
+            fprintf(pFile_output_1, "%.14e\t", sqrt( fabs( (array_tr_out_stdev[hi][i_col] / (double)config_vals[input]) - (array_tr_out[hi][i_col] / (double)config_vals[input])*(array_tr_out[hi][i_col] / (double)config_vals[input]) ) ) );
             fprintf(pFile_output_2, "%.14e\t", array_lc_out[hi][i_col] / (double)config_vals[input] );
-            fprintf(pFile_output_2, "%.14e\t", sqrt(array_lc_out_stdev[hi][i_col] / (double)config_vals[input] - (array_lc_out[hi][i_col] / (double)config_vals[input])*(array_lc_out[hi][i_col] / (double)config_vals[input]) ) );
+            fprintf(pFile_output_2, "%.14e\t", sqrt( fabs( (array_lc_out_stdev[hi][i_col] / (double)config_vals[input]) - (array_lc_out[hi][i_col] / (double)config_vals[input])*(array_lc_out[hi][i_col] / (double)config_vals[input]) ) ) );
             fprintf(pFile_output_3, "%.14e\t", array_to_out[hi][i_col] / (double)config_vals[input] );
-            fprintf(pFile_output_3, "%.14e\t", sqrt(array_to_out_stdev[hi][i_col] / (double)config_vals[input] - (array_to_out[hi][i_col] / (double)config_vals[input])*(array_to_out[hi][i_col] / (double)config_vals[input]) ) );
+            fprintf(pFile_output_3, "%.14e\t", sqrt( fabs( (array_to_out_stdev[hi][i_col] / (double)config_vals[input]) - (array_to_out[hi][i_col] / (double)config_vals[input])*(array_to_out[hi][i_col] / (double)config_vals[input]) ) ) );
+        }
+        for (i_col=2; i_col<no_of_columns_in; i_col++)
+        {
+            if ( array_tr_out[hi][0] > 0 )
+            {
+                fprintf(pFile_output_1, "%.14e\t", array_tr_out[hi][i_col+6] / array_tr_out[hi][0] );
+                fprintf(pFile_output_1, "%.14e\t", sqrt( fabs( (array_tr_out_stdev[hi][i_col+6] / array_tr_out[hi][0]) - (array_tr_out[hi][i_col+6] / array_tr_out[hi][0])*(array_tr_out[hi][i_col+6] / array_tr_out[hi][0]) ) ) );
+            }
+            else
+            {
+                fprintf(pFile_output_1, "%.14e\t", 0.0 );
+                fprintf(pFile_output_1, "%.14e\t", 0.0 );
+            }
+            
+            fprintf(pFile_output_2, "%.14e\t", array_lc_out[hi][i_col+6] / array_lc_out[hi][0] );
+            fprintf(pFile_output_2, "%.14e\t", sqrt( fabs( (array_lc_out_stdev[hi][i_col+6] / array_lc_out[hi][0]) - (array_lc_out[hi][i_col+6] / array_lc_out[hi][0])*(array_lc_out[hi][i_col+6] / array_lc_out[hi][0]) ) ) );
+            fprintf(pFile_output_3, "%.14e\t", array_to_out[hi][i_col+6] / array_to_out[hi][0] );
+            fprintf(pFile_output_3, "%.14e\t", sqrt( fabs( (array_to_out_stdev[hi][i_col+6] / array_to_out[hi][0]) - (array_to_out[hi][i_col+6] / array_to_out[hi][0])*(array_to_out[hi][i_col+6] / array_to_out[hi][0]) ) ) );
+        }
+        for (i_col=2; i_col<no_of_columns_in; i_col++)
+        {
+            if ( array_tr_out[hi][1] > 0 )
+            {
+                fprintf(pFile_output_1, "%.14e\t", array_tr_out[hi][i_col+12] / array_tr_out[hi][1] );
+                fprintf(pFile_output_1, "%.14e\t", sqrt( fabs( (array_tr_out_stdev[hi][i_col+12] / array_tr_out[hi][1]) - (array_tr_out[hi][i_col+12] / array_tr_out[hi][1])*(array_tr_out[hi][i_col+12] / array_tr_out[hi][1]) ) ) );
+            }
+            else
+            {
+                fprintf(pFile_output_1, "%.14e\t", 0.0 );
+                fprintf(pFile_output_1, "%.14e\t", 0.0 );
+            }
+            fprintf(pFile_output_2, "%.14e\t", array_lc_out[hi][i_col+12] / array_lc_out[hi][1] );
+            fprintf(pFile_output_2, "%.14e\t", sqrt( fabs( (array_lc_out_stdev[hi][i_col+12] / array_lc_out[hi][1]) - (array_lc_out[hi][i_col+12] / array_lc_out[hi][1])*(array_lc_out[hi][i_col+12] / array_lc_out[hi][1]) ) ) );
+            fprintf(pFile_output_3, "%.14e\t", array_to_out[hi][i_col+12] / array_to_out[hi][1] );
+            fprintf(pFile_output_3, "%.14e\t", sqrt( fabs( (array_to_out_stdev[hi][i_col+12] / array_to_out[hi][1]) - (array_to_out[hi][i_col+12] / array_to_out[hi][1])*(array_to_out[hi][i_col+12] / array_to_out[hi][1]) ) ) );
         }
 
-        for (i_col=no_of_columns_out-3; i_col<no_of_columns_out; i_col++)
-        {
-            fprintf(pFile_output_1, "%.14e\t", array_tr_out[hi][i_col] );
-            fprintf(pFile_output_2, "%.14e\t", array_lc_out[hi][i_col] );
-            fprintf(pFile_output_3, "%.14e\t", array_to_out[hi][i_col] );
-        }
         fprintf(pFile_output_1, "\n" );
         fprintf(pFile_output_2, "\n" );
         fprintf(pFile_output_3, "\n" );

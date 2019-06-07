@@ -213,10 +213,8 @@ int main(int argc, char** argv)
             {
                 array_tr_out[hi][i_col] += array_tr[ci][hi][i_col] ;
                 array_tr_out_stdev[hi][i_col] += array_tr[ci][hi][i_col] * array_tr[ci][hi][i_col] ;
-                
                 array_lc_out[hi][i_col] += array_lc[ci][hi][i_col] ;
                 array_lc_out_stdev[hi][i_col] += array_lc[ci][hi][i_col] * array_lc[ci][hi][i_col] ;
-
                 array_to_out[hi][i_col] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) ;
                 array_to_out_stdev[hi][i_col] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) * (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) ;
             }
@@ -225,18 +223,15 @@ int main(int argc, char** argv)
             {
                 array_tr_out[hi][i_col] += array_tr[ci][hi][i_col] ;
                 array_tr_out_stdev[hi][i_col] += array_tr[ci][hi][i_col] * array_tr[ci][hi][i_col] ;
-
                 array_lc_out[hi][i_col] += array_lc[ci][hi][i_col] ;
                 array_lc_out_stdev[hi][i_col] += array_lc[ci][hi][i_col] * array_lc[ci][hi][i_col] ;
 
                 if (array_tr[ci][hi][i_col] > array_lc[ci][hi][i_col])
                 {
-                    array_to_out[hi][i_col] += array_tr[ci][hi][i_col] ;
                     array_to_out_stdev[hi][i_col] += array_tr[ci][hi][i_col] * array_tr[ci][hi][i_col] ;
                 }
                 else
                 {
-                    array_to_out[hi][i_col] += array_lc[ci][hi][i_col] ;
                     array_to_out_stdev[hi][i_col] += array_lc[ci][hi][i_col] * array_lc[ci][hi][i_col] ;
                 }
             }
@@ -245,13 +240,9 @@ int main(int argc, char** argv)
             {
                 if (array_tr[ci][hi][1] > 0)
                 {
-                    array_tr_out[hi][i_col+6] += array_tr[ci][hi][i_col] / array_tr[ci][hi][1];
-                    array_tr_out_stdev[hi][i_col+6] += (array_tr[ci][hi][i_col] / array_tr[ci][hi][1]) * (array_tr[ci][hi][i_col] / array_tr[ci][hi][1]);
+                    array_tr_out_stdev[hi][i_col+6] += array_tr[ci][hi][i_col] / array_tr[ci][hi][1] * array_tr[ci][hi][i_col] / array_tr[ci][hi][1];
                 }
-                array_lc_out[hi][i_col+6] += (array_lc[ci][hi][i_col] / array_lc[ci][hi][1]);
                 array_lc_out_stdev[hi][i_col+6] += (array_lc[ci][hi][i_col] / array_lc[ci][hi][1]) * (array_lc[ci][hi][i_col] / array_lc[ci][hi][1]);
-
-                array_to_out[hi][i_col+6] += (array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1]);
                 array_to_out_stdev[hi][i_col+6] += ((array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1])) * ((array_tr[ci][hi][i_col] + array_lc[ci][hi][i_col]) / (array_tr[ci][hi][1] + array_lc[ci][hi][1]));
             }
             for (i_col=no_of_columns_in-3; i_col<no_of_columns_in; i_col++)

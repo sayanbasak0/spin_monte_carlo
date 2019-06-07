@@ -117,11 +117,11 @@ int main(int argc, char** argv)
 
             char input_file_1[256];
             char *pos_in_1 = input_file_1;
-            pos_in_1 += sprintf(pos_in_1, "transient_O2_2D_%d_%lf.dat", L_vals[Li], h_field_vals[hi] );
+            pos_in_1 += sprintf(pos_in_1, "transient_O2_2D_%d_%lf_reconstruct.dat", L_vals[Li], h_field_vals[hi] );
             
             char input_file_2[256];
             char *pos_in_2 = input_file_2;
-            pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_%lf.dat", L_vals[Li], h_field_vals[hi] );
+            pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_%lf_reconstruct.dat", L_vals[Li], h_field_vals[hi] );
 
             int loop_no = 1;
             long int nth_loop_array_size[] = { 0, 0 } ;
@@ -229,8 +229,12 @@ int main(int argc, char** argv)
             fflush(stdout);
             // ------------------------ reduce data in arrays ------------------------ //
 
-            double dphi[2] = { 0.00, 0.00,}; 
+            double dphi[2] = { 0.00, 0.00 }; 
 
+            double dmx_abs[2] = { 0.00, 0.00 };
+            double dmy_abs[2] = { 0.00, 0.00 };
+            double dm_abs[2] = { 0.00, 0.00 };
+            
             double dmx_max[2] = { 0.00, 0.00 };
             double dmy_max[2] = { 0.00, 0.00 };
             double dm_max[2] = { 0.00, 0.00 };
@@ -238,12 +242,23 @@ int main(int argc, char** argv)
             double dmx_sq_dphi[2] = { 0.00, 0.00 };
             double dmy_sq_dphi[2] = { 0.00, 0.00 };
             double dm_sq_dphi[2] = { 0.00, 0.00 };
+            
+            double dmx_abs_avg[2] = { 0.00, 0.00 };
+            double dmy_abs_avg[2] = { 0.00, 0.00 };
+            double dm_abs_avg[2] = { 0.00, 0.00 };
 
-            #pragma omp parallel for private(i_loop,j_array) reduction(+:dmx_sq_dphi[:2], dmy_sq_dphi[:2], dm_sq_dphi[:2]) reduction( max:dmx_max[:2], dmy_max[:2], dm_max[:2] )
+            double dmx_sq_avg[2] = { 0.00, 0.00 };
+            double dmy_sq_avg[2] = { 0.00, 0.00 };
+            double dm_sq_avg[2] = { 0.00, 0.00 };
+
+            double number_of_avalanche[2] = { 0.00, 0.00 };
+
             for (i_loop=0; i_loop<=loop_no; i_loop++)
             {
                 dphi[i_loop] = phi[i_loop][nth_loop_array_size[i_loop]-1] - phi[i_loop][0];
                 
+
+                #pragma omp parallel for private(i_loop,j_array) reduction(+: dmx_sq_dphi[:2], dmy_sq_dphi[:2], dm_sq_dphi[:2], dmx_abs[:2], dmy_abs[:2], dm_abs[:2], dmx_abs_avg[:2], dmy_abs_avg[:2], dm_abs_avg[:2], dmx_sq_avg[:2], dmy_sq_avg[:2], dm_sq_avg[:2], number_of_avalanche[:2]) reduction(max:dmx_max[:2], dmy_max[:2], dm_max[:2] )
                 for (j_array=0; j_array<nth_loop_array_size[i_loop]; j_array++)
                 {
                     // dphi[i_loop] += del_phi[i_loop][j_array] ;
@@ -251,54 +266,141 @@ int main(int argc, char** argv)
                     double del_mx_sq = del_mx[i_loop][j_array]*del_mx[i_loop][j_array];
                     double del_my_sq = del_my[i_loop][j_array]*del_my[i_loop][j_array];
                     double del_m_sq = del_mx_sq + del_my_sq;
+                    double del_mx_abs = fabs(del_mx[i_loop][j_array]);
+                    double del_my_abs = fabs(del_my[i_loop][j_array]);
+                    double del_m_abs = sqrt(del_m_sq);
 
-                    if (del_mx_sq > dmx_max[i_loop])
+                    if ( del_m_abs * (double)(L_vals[input] * L_vals[input]) > 2.56 )
                     {
-                        dmx_max[i_loop] = fabs(del_mx[i_loop][j_array]);
+                        number_of_avalanche[i_loop] += 1.0;
+                        dmx_sq_avg[i_loop] += del_mx_sq ;
+                        dmy_sq_avg[i_loop] += del_my_sq ;
+                        dm_sq_avg[i_loop] += del_m_sq ;
+                        dmx_abs_avg[i_loop] += del_mx_abs ;
+                        dmy_abs_avg[i_loop] += del_my_abs ;
+                        dm_abs_avg[i_loop] += del_m_abs ;
                     }
-                    if (del_my_sq > dmy_max[i_loop])
+
+                    dmx_abs[i_loop] += del_mx_abs ; // fabs(del_mx[i_loop][j_array]);
+                    dmy_abs[i_loop] += del_my_abs ; // fabs(del_my[i_loop][j_array]);
+                    dm_abs[i_loop] += del_m_abs ;
+                    
+                    if (del_mx_abs > dmx_max[i_loop])
                     {
-                        dmy_max[i_loop] = fabs(del_my[i_loop][j_array]);
+                        dmx_max[i_loop] = del_mx_abs;
                     }
-                    if (del_m_sq > dm_max[i_loop])
+                    if (del_my_abs > dmy_max[i_loop])
                     {
-                        dm_max[i_loop] = sqrt(del_m_sq);
+                        dmy_max[i_loop] = del_my_abs;
+                    }
+                    if (del_m_abs > dm_max[i_loop])
+                    {
+                        dm_max[i_loop] = del_m_abs;
                     }
 
 
                     if (del_phi[i_loop][j_array] > 0)
                     {
-                        dmx_sq_dphi[i_loop] += del_mx_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        dmy_sq_dphi[i_loop] += del_my_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        dm_sq_dphi[i_loop] += del_m_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        // dmx_sq_dphi[i_loop] += del_mx_sq / del_phi[i_loop][j_array];
-                        // dmy_sq_dphi[i_loop] += del_my_sq / del_phi[i_loop][j_array];
-                        // dm_sq_dphi[i_loop] += del_m_sq / del_phi[i_loop][j_array];
+                        // dmy_sq_dphi[i_loop] += del_my_sq * (delta_phi_min / del_phi[i_loop][j_array]);
+                        // dmx_sq_dphi[i_loop] += del_mx_sq * (delta_phi_min / del_phi[i_loop][j_array]);
+                        // dm_sq_dphi[i_loop] += del_m_sq * (delta_phi_min / del_phi[i_loop][j_array]);
+                        dmx_sq_dphi[i_loop] += del_mx_sq / del_phi[i_loop][j_array];
+                        dmy_sq_dphi[i_loop] += del_my_sq / del_phi[i_loop][j_array];
+                        dm_sq_dphi[i_loop] += del_m_sq / del_phi[i_loop][j_array];
                     }
                 }
+                
+
                 printf("\rfolder = %s : L = %d : sigma_h = %lf... Reduced [%d].                        ", folder_name, L_vals[input], h_field_vals[hi], i_loop );
                 fflush(stdout);
             }
             
+            if (dphi[1] < 1 )
+            {
+                printf("\n%d\t%ld\t%d\t%d\t%le\t%le\t", 1, nth_loop_array_size[1], hi, ci, phi[1][nth_loop_array_size[1]-1], phi[1][0]);
+                return 0;
+            }
+
+            for (i_loop=0; i_loop<=loop_no; i_loop++)
+            {
+                if ( dphi[i_loop] > 0 )
+                {
+                    dmx_sq_dphi[i_loop] /= dphi[i_loop];
+                    dmy_sq_dphi[i_loop] /= dphi[i_loop];
+                    dm_sq_dphi[i_loop] /= dphi[i_loop];
+                    
+                    dmx_abs[i_loop] /= dphi[i_loop];
+                    dmy_abs[i_loop] /= dphi[i_loop];
+                    dm_abs[i_loop] /= dphi[i_loop];
+                }
+                else // if ( dphi == 0 )
+                {
+                    dmx_sq_dphi[i_loop] = 0;
+                    dmy_sq_dphi[i_loop] = 0;
+                    dm_sq_dphi[i_loop] = 0;
+                    
+                    dmx_abs[i_loop] = 0;
+                    dmy_abs[i_loop] = 0;
+                    dm_abs[i_loop] = 0;
+                }
+                
+                if ( number_of_avalanche[i_loop] > 0 )
+                {
+                    dmx_sq_avg[i_loop] /= number_of_avalanche[i_loop] ;
+                    dmy_sq_avg[i_loop] /= number_of_avalanche[i_loop] ;
+                    dm_sq_avg[i_loop] /= number_of_avalanche[i_loop] ;
+                    
+                    dmx_abs_avg[i_loop] /= number_of_avalanche[i_loop] ;
+                    dmy_abs_avg[i_loop] /= number_of_avalanche[i_loop] ;
+                    dm_abs_avg[i_loop] /= number_of_avalanche[i_loop] ;
+                }
+                else // if ( number_of_avalanche == 0 )
+                {
+                    dmx_sq_avg[i_loop] = 0 ;
+                    dmy_sq_avg[i_loop] = 0 ;
+                    dm_sq_avg[i_loop] = 0 ;
+
+                    dmx_abs_avg[i_loop] = 0 ;
+                    dmy_abs_avg[i_loop] = 0 ;
+                    dm_abs_avg[i_loop] = 0 ;
+                }
+            }
+
             printf("\rfolder = %s : L = %d : sigma_h = %lf... Reduced data.                       ", folder_name, L_vals[input], h_field_vals[hi] );
             fflush(stdout);
+            
             // ------------------------ store reduced data in file ------------------------ //
             
             char output_file_1[256];
             char *pos_out_1 = output_file_1;
-            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_reconstructed.dat", L_vals[Li] );
 
             pFile_output_1 = fopen(output_file_1, "a");
             
             fprintf(pFile_output_1, "%.14e\t", h_field_vals[hi] );
             fprintf(pFile_output_1, "%.14e\t", dphi[0] );
+            fprintf(pFile_output_1, "%.14e\t", number_of_avalanche[0] );
 
+            fprintf(pFile_output_1, "%.14e\t", dmx_abs[0] );
+            fprintf(pFile_output_1, "%.14e\t", dmy_abs[0] );
+            fprintf(pFile_output_1, "%.14e\t", dm_abs[0] );
+
+            fprintf(pFile_output_1, "%.14e\t", dmx_abs_avg[0] );
+            fprintf(pFile_output_1, "%.14e\t", dmy_abs_avg[0] );
+            fprintf(pFile_output_1, "%.14e\t", dm_abs_avg[0] );
+            
             fprintf(pFile_output_1, "%.14e\t", dmx_sq_dphi[0] );
             fprintf(pFile_output_1, "%.14e\t", dmy_sq_dphi[0] );
             fprintf(pFile_output_1, "%.14e\t", dm_sq_dphi[0] );
+            
+            fprintf(pFile_output_1, "%.14e\t", dmx_sq_avg[0] );
+            fprintf(pFile_output_1, "%.14e\t", dmy_sq_avg[0] );
+            fprintf(pFile_output_1, "%.14e\t", dm_sq_avg[0] );
+            
             fprintf(pFile_output_1, "%.14e\t", dmx_max[0] );
             fprintf(pFile_output_1, "%.14e\t", dmy_max[0] );
             fprintf(pFile_output_1, "%.14e\t", dm_max[0] );
+            
             fprintf(pFile_output_1, "\n" );
 
             fclose(pFile_output_1);
@@ -306,19 +408,35 @@ int main(int argc, char** argv)
             
             char output_file_2[256];
             char *pos_out_2 = output_file_2;
-            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_reconstructed.dat", L_vals[Li] );
 
             pFile_output_2 = fopen(output_file_2, "a");
             
             fprintf(pFile_output_2, "%.14e\t", h_field_vals[hi] );
             fprintf(pFile_output_2, "%.14e\t", dphi[1] );
+            fprintf(pFile_output_2, "%.14e\t", number_of_avalanche[1] );
 
+            fprintf(pFile_output_2, "%.14e\t", dmx_abs[1] );
+            fprintf(pFile_output_2, "%.14e\t", dmy_abs[1] );
+            fprintf(pFile_output_2, "%.14e\t", dm_abs[1] );
+
+            fprintf(pFile_output_2, "%.14e\t", dmx_abs_avg[1] );
+            fprintf(pFile_output_2, "%.14e\t", dmy_abs_avg[1] );
+            fprintf(pFile_output_2, "%.14e\t", dm_abs_avg[1] );
+            
+            
             fprintf(pFile_output_2, "%.14e\t", dmx_sq_dphi[1] );
             fprintf(pFile_output_2, "%.14e\t", dmy_sq_dphi[1] );
             fprintf(pFile_output_2, "%.14e\t", dm_sq_dphi[1] );
+            
+            fprintf(pFile_output_2, "%.14e\t", dmx_sq_avg[1] );
+            fprintf(pFile_output_2, "%.14e\t", dmy_sq_avg[1] );
+            fprintf(pFile_output_2, "%.14e\t", dm_sq_avg[1] );
+            
             fprintf(pFile_output_2, "%.14e\t", dmx_max[1] );
             fprintf(pFile_output_2, "%.14e\t", dmy_max[1] );
             fprintf(pFile_output_2, "%.14e\t", dm_max[1] );
+
             fprintf(pFile_output_2, "\n" );
 
             fclose(pFile_output_2);
@@ -375,13 +493,26 @@ int main(int argc, char** argv)
         fprintf(pFile_output_1, "\n" );
         fprintf(pFile_output_1, "H\t" );
         fprintf(pFile_output_1, "dphi\t" );
+        fprintf(pFile_output_1, "N_avalanche\t" );
 
-        fprintf(pFile_output_1, "(dmx^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "(dmy^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "(dm^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "dmx_max\t" );
-        fprintf(pFile_output_1, "dmy_max\t" );
-        fprintf(pFile_output_1, "dm_max\t" );
+        fprintf(pFile_output_1, "|dmx|/dphi\t" );
+        fprintf(pFile_output_1, "|dmy|/dphi\t" );
+        fprintf(pFile_output_1, "|dm|/dphi\t" );
+        fprintf(pFile_output_1, "<|dmx|>\t" );
+        fprintf(pFile_output_1, "<|dmy|>\t" );
+        fprintf(pFile_output_1, "<|dm|>\t" );
+        fprintf(pFile_output_1, "dmx^2/dphi\t" );
+        fprintf(pFile_output_1, "dmy^2/dphi\t" );
+        fprintf(pFile_output_1, "dm^2/dphi\t" );
+        fprintf(pFile_output_1, "<dmx^2>\t" );
+        fprintf(pFile_output_1, "<dmy^2>\t" );
+        fprintf(pFile_output_1, "<dm^2>\t" );
+        fprintf(pFile_output_1, "|dmx|_max\t" );
+        fprintf(pFile_output_1, "|dmy|_max\t" );
+        fprintf(pFile_output_1, "|dm|_max\t" );
+
+
+
         fprintf(pFile_output_1, "\n" );
         fprintf(pFile_output_1, "-------column label------" );
         fprintf(pFile_output_1, "\n" );

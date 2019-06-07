@@ -159,7 +159,7 @@ int main(int argc, char** argv)
         
         char input_file_1[256];
         char *pos_in_1 = input_file_1;
-        pos_in_1 += sprintf(pos_in_1, "transient_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+        pos_in_1 += sprintf(pos_in_1, "transient_O2_2D_%d_reduced_weighted_sq.dat", L_vals[Li] );
 
         pFile_input_1 = fopen(input_file_1, "r");
         
@@ -178,7 +178,7 @@ int main(int argc, char** argv)
         
         char input_file_2[256];
         char *pos_in_2 = input_file_2;
-        pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+        pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_reduced_weighted_sq.dat", L_vals[Li] );
 
         pFile_input_2 = fopen(input_file_2, "r");
 
@@ -359,19 +359,19 @@ int main(int argc, char** argv)
 
     char output_file_1[256];
     char *pos_out_1 = output_file_1;
-    pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_dis_avg_weighted.dat", L_vals[Li] );
+    pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_dis_avg_weighted_sq.dat", L_vals[Li] );
 
     pFile_output_1 = fopen(output_file_1, "a");
     
     char output_file_2[256];
     char *pos_out_2 = output_file_2;
-    pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_dis_avg_weighted.dat", L_vals[Li] );
+    pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_dis_avg_weighted_sq.dat", L_vals[Li] );
 
     pFile_output_2 = fopen(output_file_2, "a");
     
     char output_file_3[256];
     char *pos_out_3 = output_file_3;
-    pos_out_3 += sprintf(pos_out_3, "total_O2_2D_%d_dis_avg_weighted.dat", L_vals[Li] );
+    pos_out_3 += sprintf(pos_out_3, "total_O2_2D_%d_dis_avg_weighted_sq.dat", L_vals[Li] );
 
     pFile_output_3 = fopen(output_file_3, "a");
     

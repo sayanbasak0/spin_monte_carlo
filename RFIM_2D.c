@@ -24,7 +24,7 @@
 
 // #define RANDOM_BOND 1 // for random bond disorder
 
-#define dim_L 2 // 3D
+#define dim_L 2 // 2D
 #define dim_S 1 // Ising Model
 
 #define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
@@ -82,8 +82,8 @@
     char C_R_L[] = "CRL"; 
 
 //====================      NN-interaction (J)               ====================//
-    double J[dim_L] = { 1.0, 1.0, 1.0 }; 
-    double sigma_J[dim_L] = { 0.0, 0.0, 0.0 };
+    double J[dim_L] = { 1.0, 1.0 }; 
+    double sigma_J[dim_L] = { 0.0, 0.0 };
     double *J_random;
     #ifdef RANDOM_BOND
         int J_random_reqd = 1;

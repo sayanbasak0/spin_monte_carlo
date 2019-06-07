@@ -239,7 +239,7 @@ int main(int argc, char** argv)
             double dmy_sq_dphi[2] = { 0.00, 0.00 };
             double dm_sq_dphi[2] = { 0.00, 0.00 };
 
-            #pragma omp parallel for private(i_loop,j_array) reduction(+:dmx_sq_dphi[:2], dmy_sq_dphi[:2], dm_sq_dphi[:2]) reduction( max:dmx_max[:2], dmy_max[:2], dm_max[:2] )
+            #pragma omp parallel for private(i_loop,j_array) reduction(+:dmx_sq_dphi[:2], dmy_sq_dphi[:2], dm_sq_dphi[:2],dmx_max[:2], dmy_max[:2], dm_max[:2] )
             for (i_loop=0; i_loop<=loop_no; i_loop++)
             {
                 dphi[i_loop] = phi[i_loop][nth_loop_array_size[i_loop]-1] - phi[i_loop][0];
@@ -251,26 +251,24 @@ int main(int argc, char** argv)
                     double del_mx_sq = del_mx[i_loop][j_array]*del_mx[i_loop][j_array];
                     double del_my_sq = del_my[i_loop][j_array]*del_my[i_loop][j_array];
                     double del_m_sq = del_mx_sq + del_my_sq;
+                    // if ( del_m_sq * (double)(L_vals[input] *L_vals[input]*L_vals[input]*L_vals[input]) < 8.0 )
+                    // {
+                    //     del_mx_sq = 0.0;
+                    //     del_my_sq = 0.0;
+                    //     del_m_sq = 0.0;
+                    // }
 
-                    if (del_mx_sq > dmx_max[i_loop])
-                    {
-                        dmx_max[i_loop] = fabs(del_mx[i_loop][j_array]);
-                    }
-                    if (del_my_sq > dmy_max[i_loop])
-                    {
-                        dmy_max[i_loop] = fabs(del_my[i_loop][j_array]);
-                    }
-                    if (del_m_sq > dm_max[i_loop])
-                    {
-                        dm_max[i_loop] = sqrt(del_m_sq);
-                    }
+                    dmx_max[i_loop] += sqrt(del_mx_sq); // fabs(del_mx[i_loop][j_array]);
+                    dmy_max[i_loop] += sqrt(del_my_sq); // fabs(del_my[i_loop][j_array]);
+                    dm_max[i_loop] += sqrt(del_m_sq);
+                    
 
 
                     if (del_phi[i_loop][j_array] > 0)
                     {
-                        dmx_sq_dphi[i_loop] += del_mx_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        dmy_sq_dphi[i_loop] += del_my_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        dm_sq_dphi[i_loop] += del_m_sq * delta_phi_min / del_phi[i_loop][j_array];
+                        dmx_sq_dphi[i_loop] += del_mx_sq * (delta_phi_min / del_phi[i_loop][j_array])*(delta_phi_min / del_phi[i_loop][j_array]);
+                        dmy_sq_dphi[i_loop] += del_my_sq * (delta_phi_min / del_phi[i_loop][j_array])*(delta_phi_min / del_phi[i_loop][j_array]);
+                        dm_sq_dphi[i_loop] += del_m_sq * (delta_phi_min / del_phi[i_loop][j_array])*(delta_phi_min / del_phi[i_loop][j_array]);
                         // dmx_sq_dphi[i_loop] += del_mx_sq / del_phi[i_loop][j_array];
                         // dmy_sq_dphi[i_loop] += del_my_sq / del_phi[i_loop][j_array];
                         // dm_sq_dphi[i_loop] += del_m_sq / del_phi[i_loop][j_array];
@@ -286,7 +284,7 @@ int main(int argc, char** argv)
             
             char output_file_1[256];
             char *pos_out_1 = output_file_1;
-            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_weighted_1st_2nd.dat", L_vals[Li] );
 
             pFile_output_1 = fopen(output_file_1, "a");
             
@@ -306,7 +304,7 @@ int main(int argc, char** argv)
             
             char output_file_2[256];
             char *pos_out_2 = output_file_2;
-            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_weighted_1st_2nd.dat", L_vals[Li] );
 
             pFile_output_2 = fopen(output_file_2, "a");
             
@@ -379,9 +377,9 @@ int main(int argc, char** argv)
         fprintf(pFile_output_1, "(dmx^2) dphi_min/dphi\t" );
         fprintf(pFile_output_1, "(dmy^2) dphi_min/dphi\t" );
         fprintf(pFile_output_1, "(dm^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "dmx_max\t" );
-        fprintf(pFile_output_1, "dmy_max\t" );
-        fprintf(pFile_output_1, "dm_max\t" );
+        fprintf(pFile_output_1, "|dmx|\t" );
+        fprintf(pFile_output_1, "|dmy|\t" );
+        fprintf(pFile_output_1, "|dm|\t" );
         fprintf(pFile_output_1, "\n" );
         fprintf(pFile_output_1, "-------column label------" );
         fprintf(pFile_output_1, "\n" );

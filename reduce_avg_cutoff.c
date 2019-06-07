@@ -251,14 +251,20 @@ int main(int argc, char** argv)
                     double del_mx_sq = del_mx[i_loop][j_array]*del_mx[i_loop][j_array];
                     double del_my_sq = del_my[i_loop][j_array]*del_my[i_loop][j_array];
                     double del_m_sq = del_mx_sq + del_my_sq;
+                    if ( del_m_sq * (double)(L_vals[input] *L_vals[input]*L_vals[input]*L_vals[input]) < 8.0 )
+                    {
+                        del_mx_sq = 0.0;
+                        del_my_sq = 0.0;
+                        del_m_sq = 0.0;
+                    }
 
                     if (del_mx_sq > dmx_max[i_loop])
                     {
-                        dmx_max[i_loop] = fabs(del_mx[i_loop][j_array]);
+                        dmx_max[i_loop] = sqrt(del_mx_sq); // fabs(del_mx[i_loop][j_array]);
                     }
                     if (del_my_sq > dmy_max[i_loop])
                     {
-                        dmy_max[i_loop] = fabs(del_my[i_loop][j_array]);
+                        dmy_max[i_loop] = sqrt(del_my_sq); // fabs(del_my[i_loop][j_array]);
                     }
                     if (del_m_sq > dm_max[i_loop])
                     {
@@ -286,7 +292,7 @@ int main(int argc, char** argv)
             
             char output_file_1[256];
             char *pos_out_1 = output_file_1;
-            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_cutoff.dat", L_vals[Li] );
 
             pFile_output_1 = fopen(output_file_1, "a");
             
@@ -306,7 +312,7 @@ int main(int argc, char** argv)
             
             char output_file_2[256];
             char *pos_out_2 = output_file_2;
-            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_cutoff.dat", L_vals[Li] );
 
             pFile_output_2 = fopen(output_file_2, "a");
             

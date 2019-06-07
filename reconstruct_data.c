@@ -17,22 +17,112 @@
 #endif
 
 
-FILE *pFile_input_1, *pFile_input_2, *pFile_output_1, *pFile_output_2, *pFile_output_3;
+FILE *pFile_input_1, *pFile_input_2, *pFile_output_1, *pFile_output_2, *pFile_output_3, *pFile_output[3];
 
 double CUTOFF = 0.000000000001;
 double CUTOFF_PHI = 0.00000001;
+double delta_phi_max = 0.0001;
+double delta_phi_min;
+char folder_name[128];
+int hi;
+int Li;
+int si;
+int ci;
 
+double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
+int L_vals[] = { 64, 80, 100, 128, 160 };
+char *append_string[] = { "Mx", "My", "M", "absM" };
+int config_vals[] = { 75, 60, 50, 40, 30 };
+int input;
+long int nth_loop_array_size[] = { 0, 0 } ;
+
+double **phi ;// = (double **)malloc((loop_no+1)*sizeof(double *));
+double **mx ;// = (double **)malloc((loop_no+1)*sizeof(double *));
+double **my ;// = (double **)malloc((loop_no+1)*sizeof(double *));
+double **del_phi ;// = (double **)malloc((loop_no+1)*sizeof(double *));
+double **del_mx ;// = (double **)malloc((loop_no+1)*sizeof(double *));
+double **del_my ;// = (double **)malloc((loop_no+1)*sizeof(double *));
+
+int save_to_file(int i_loop, long int j_array)
+{
+    if (j_array>0)
+    {
+        fprintf(pFile_output[i_loop], "%.14e\t", phi[i_loop][j_array]-phi[i_loop][j_array-1]);
+        fprintf(pFile_output[i_loop], "%.14e\t", mx[i_loop][j_array]-mx[i_loop][j_array-1]);
+        fprintf(pFile_output[i_loop], "%.14e\t", my[i_loop][j_array]-my[i_loop][j_array-1]);
+        fprintf(pFile_output[i_loop], "\n");
+    }
+    
+    
+    fprintf(pFile_output[i_loop], "%.14e\t", phi[i_loop][j_array]);
+    fprintf(pFile_output[i_loop], "%.14e\t", mx[i_loop][j_array]);
+    fprintf(pFile_output[i_loop], "%.14e\t", my[i_loop][j_array]);
+    // fprintf(pFile_output[i_loop], "\n");
+    
+
+    if (j_array==nth_loop_array_size[i_loop]-1)
+    {
+        fprintf(pFile_output[i_loop], "%.14e\t", phi[1][0]-phi[i_loop][j_array]);
+        fprintf(pFile_output[i_loop], "%.14e\t", mx[1][0]-mx[i_loop][j_array]);
+        fprintf(pFile_output[i_loop], "%.14e\t", my[1][0]-my[i_loop][j_array]);
+        fprintf(pFile_output[i_loop], "\n");
+    }
+    printf("\rfolder = %s : L = %d : sigma_h = %lf... phi = %.10f                ", folder_name, L_vals[input], h_field_vals[hi], phi[i_loop][j_array]);
+    fflush(stdout);
+    return 0;
+}
+
+long int subdivide_phi(double del_phi_temp, int i_loop, long int j_array)
+{
+    long int j_bkp = j_array;
+    double dphi_temp = phi[i_loop][j_array] - phi[i_loop][j_bkp];
+    while (fabs(del_phi_temp - dphi_temp) > delta_phi_min/2)
+    {
+        if (j_array == nth_loop_array_size[i_loop]-1)
+        {
+            break;
+        }
+        j_array++;
+        dphi_temp = phi[i_loop][j_array] - phi[i_loop][j_bkp];
+    }
+
+    // if (del_phi_temp < delta_phi_min)
+    if (fabs(dphi_temp - delta_phi_min) < delta_phi_min/2)
+    {
+        j_bkp = j_array;
+        save_to_file(i_loop, j_array);
+        return j_bkp;
+    }
+    double dmx_temp = mx[i_loop][j_array];
+    double dmy_temp = my[i_loop][j_array];
+    double dm_temp = sqrt(dmx_temp*dmx_temp + dmy_temp*dmy_temp);
+
+    if (dm_temp * L_vals[input]*L_vals[input] <= 2.56)
+    {
+        j_bkp = j_array;
+        save_to_file(i_loop, j_array);
+        return j_bkp;
+    }
+    else // if (dm_temp * L_vals[input]*L_vals[input] > 2.56)
+    {
+        j_bkp = subdivide_phi(del_phi_temp/2, i_loop, j_bkp);
+        j_bkp = subdivide_phi(del_phi_temp/2, i_loop, j_bkp);
+        return j_bkp;
+    }
+    return 0;
+}
 
 int main(int argc, char** argv)
 {
-    double delta_phi_max = 0.0001;
-    double delta_phi_min = delta_phi_max ;
+    delta_phi_max = 0.0001;
+    delta_phi_min = delta_phi_max ;
     while (delta_phi_min > CUTOFF_PHI)
     {
         delta_phi_min = delta_phi_min / 2.0;
     }
 
-    int i, j, k, l, input;
+    // int i, j, k, l, input;
+    int i, j, k, l;
     if (argc == 1)
     {
         printf("Argument required! ");
@@ -61,23 +151,23 @@ int main(int argc, char** argv)
         input -= 1;
     }
 
-    double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
+    // double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
     int len_h_field_vals = sizeof(h_field_vals) / sizeof(h_field_vals[0]);
-    int hi;
+    // int hi;
 
-    int L_vals[] = { 64, 80, 100, 128, 160 };
+    // int L_vals[] = { 64, 80, 100, 128, 160 };
     // int L_vals[] = { 64 };
     int len_L_vals = sizeof(L_vals) / sizeof(L_vals[0]);
-    int Li;
+    // int Li;
     
-    char *append_string[] = { "Mx", "My", "M", "absM" };
+    // char *append_string[] = { "Mx", "My", "M", "absM" };
     int len_append_str = sizeof(append_string) / sizeof(append_string[0]);
-    int si;
+    // int si;
 
-    int config_vals[] = { 75, 60, 50, 40, 30 };
+    // int config_vals[] = { 75, 60, 50, 40, 30 };
     // int L_vals[] = { 64 };
     int len_config_vals = sizeof(config_vals) / sizeof(config_vals[0]);
-    int ci;
+    // int ci;
 
     long size;
     char *buf;
@@ -90,7 +180,7 @@ int main(int argc, char** argv)
     
     for (ci=0; ci<config_vals[input] ; ci++)
     {
-        char folder_name[128];
+        // char folder_name[128];
         char *pos_0 = folder_name;
         // pos += sprintf(pos, buf, i);
         pos_0 += sprintf(pos_0, "config_%d", ci );
@@ -124,7 +214,7 @@ int main(int argc, char** argv)
             pos_in_2 += sprintf(pos_in_2, "limit_cycle_O2_2D_%d_%lf.dat", L_vals[Li], h_field_vals[hi] );
 
             int loop_no = 1;
-            long int nth_loop_array_size[] = { 0, 0 } ;
+            // long int nth_loop_array_size[] = { 0, 0 } ;
             int transient_loops = 0;
             int limit_cycle = 1;
 
@@ -164,12 +254,12 @@ int main(int argc, char** argv)
             fflush(stdout);
             // ------------------------ collect data in arrays ------------------------ //
 
-            double **phi = (double **)malloc((loop_no+1)*sizeof(double *));
-            double **mx = (double **)malloc((loop_no+1)*sizeof(double *));
-            double **my = (double **)malloc((loop_no+1)*sizeof(double *));
-            double **del_phi = (double **)malloc((loop_no+1)*sizeof(double *));
-            double **del_mx = (double **)malloc((loop_no+1)*sizeof(double *));
-            double **del_my = (double **)malloc((loop_no+1)*sizeof(double *));
+            phi = (double **)malloc((loop_no+1)*sizeof(double *));
+            mx = (double **)malloc((loop_no+1)*sizeof(double *));
+            my = (double **)malloc((loop_no+1)*sizeof(double *));
+            del_phi = (double **)malloc((loop_no+1)*sizeof(double *));
+            del_mx = (double **)malloc((loop_no+1)*sizeof(double *));
+            del_my = (double **)malloc((loop_no+1)*sizeof(double *));
 
             for (i=0; i<=loop_no; i++)
             {
@@ -227,124 +317,39 @@ int main(int argc, char** argv)
 
             printf("\rfolder = %s : L = %d : sigma_h = %lf... Collected data.                     ", folder_name, L_vals[input], h_field_vals[hi] );
             fflush(stdout);
-            // ------------------------ reduce data in arrays ------------------------ //
 
-            double dphi[2] = { 0.00, 0.00,}; 
-
-            double dmx_max[2] = { 0.00, 0.00 };
-            double dmy_max[2] = { 0.00, 0.00 };
-            double dm_max[2] = { 0.00, 0.00 };
-
-            double dmx_sq_dphi[2] = { 0.00, 0.00 };
-            double dmy_sq_dphi[2] = { 0.00, 0.00 };
-            double dm_sq_dphi[2] = { 0.00, 0.00 };
-
-            #pragma omp parallel for private(i_loop,j_array) reduction(+:dmx_sq_dphi[:2], dmy_sq_dphi[:2], dm_sq_dphi[:2]) reduction( max:dmx_max[:2], dmy_max[:2], dm_max[:2] )
-            for (i_loop=0; i_loop<=loop_no; i_loop++)
-            {
-                dphi[i_loop] = phi[i_loop][nth_loop_array_size[i_loop]-1] - phi[i_loop][0];
-                
-                for (j_array=0; j_array<nth_loop_array_size[i_loop]; j_array++)
-                {
-                    // dphi[i_loop] += del_phi[i_loop][j_array] ;
-
-                    double del_mx_sq = del_mx[i_loop][j_array]*del_mx[i_loop][j_array];
-                    double del_my_sq = del_my[i_loop][j_array]*del_my[i_loop][j_array];
-                    double del_m_sq = del_mx_sq + del_my_sq;
-
-                    if (del_mx_sq > dmx_max[i_loop])
-                    {
-                        dmx_max[i_loop] = fabs(del_mx[i_loop][j_array]);
-                    }
-                    if (del_my_sq > dmy_max[i_loop])
-                    {
-                        dmy_max[i_loop] = fabs(del_my[i_loop][j_array]);
-                    }
-                    if (del_m_sq > dm_max[i_loop])
-                    {
-                        dm_max[i_loop] = sqrt(del_m_sq);
-                    }
-
-
-                    if (del_phi[i_loop][j_array] > 0)
-                    {
-                        dmx_sq_dphi[i_loop] += del_mx_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        dmy_sq_dphi[i_loop] += del_my_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        dm_sq_dphi[i_loop] += del_m_sq * delta_phi_min / del_phi[i_loop][j_array];
-                        // dmx_sq_dphi[i_loop] += del_mx_sq / del_phi[i_loop][j_array];
-                        // dmy_sq_dphi[i_loop] += del_my_sq / del_phi[i_loop][j_array];
-                        // dm_sq_dphi[i_loop] += del_m_sq / del_phi[i_loop][j_array];
-                    }
-                }
-                printf("\rfolder = %s : L = %d : sigma_h = %lf... Reduced [%d].                        ", folder_name, L_vals[input], h_field_vals[hi], i_loop );
-                fflush(stdout);
-            }
-            
-            printf("\rfolder = %s : L = %d : sigma_h = %lf... Reduced data.                       ", folder_name, L_vals[input], h_field_vals[hi] );
-            fflush(stdout);
-            // ------------------------ store reduced data in file ------------------------ //
-            
+            // ------------------------ rereconstruct data in arrays ------------------------ //
             char output_file_1[256];
             char *pos_out_1 = output_file_1;
-            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_1 += sprintf(pos_out_1, "transient_O2_2D_%d_%lf_reconstruct.dat", L_vals[Li], h_field_vals[hi] );
 
-            pFile_output_1 = fopen(output_file_1, "a");
-            
-            fprintf(pFile_output_1, "%.14e\t", h_field_vals[hi] );
-            fprintf(pFile_output_1, "%.14e\t", dphi[0] );
-
-            fprintf(pFile_output_1, "%.14e\t", dmx_sq_dphi[0] );
-            fprintf(pFile_output_1, "%.14e\t", dmy_sq_dphi[0] );
-            fprintf(pFile_output_1, "%.14e\t", dm_sq_dphi[0] );
-            fprintf(pFile_output_1, "%.14e\t", dmx_max[0] );
-            fprintf(pFile_output_1, "%.14e\t", dmy_max[0] );
-            fprintf(pFile_output_1, "%.14e\t", dm_max[0] );
-            fprintf(pFile_output_1, "\n" );
-
-            fclose(pFile_output_1);
-
+            pFile_output[0] = fopen(output_file_1, "a");
             
             char output_file_2[256];
             char *pos_out_2 = output_file_2;
-            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_reduced_weighted.dat", L_vals[Li] );
+            pos_out_2 += sprintf(pos_out_2, "limit_cycle_O2_2D_%d_%lf_reconstruct.dat", L_vals[Li], h_field_vals[hi] );
 
-            pFile_output_2 = fopen(output_file_2, "a");
+            pFile_output[1] = fopen(output_file_2, "a");
             
-            fprintf(pFile_output_2, "%.14e\t", h_field_vals[hi] );
-            fprintf(pFile_output_2, "%.14e\t", dphi[1] );
+            for (i_loop=0; i_loop<=loop_no; i_loop++)
+            {
+                double phi_temp = phi[i_loop][0];
+                j_array = 0;
+                save_to_file(i_loop, j_array);
 
-            fprintf(pFile_output_2, "%.14e\t", dmx_sq_dphi[1] );
-            fprintf(pFile_output_2, "%.14e\t", dmy_sq_dphi[1] );
-            fprintf(pFile_output_2, "%.14e\t", dm_sq_dphi[1] );
-            fprintf(pFile_output_2, "%.14e\t", dmx_max[1] );
-            fprintf(pFile_output_2, "%.14e\t", dmy_max[1] );
-            fprintf(pFile_output_2, "%.14e\t", dm_max[1] );
-            fprintf(pFile_output_2, "\n" );
+                // while (phi_temp < phi[i_loop][nth_loop_array_size[i_loop]-1])
+                while (j_array < nth_loop_array_size[i_loop]-1)
+                {
+                    double del_phi_temp = delta_phi_max;
 
-            fclose(pFile_output_2);
+                    j_array = subdivide_phi(del_phi_temp, i_loop, j_array);
 
+                }
+
+            }
+            fclose(pFile_output[0]);
+            fclose(pFile_output[1]);
             
-            // char output_file_3[256];
-            // char *pos_out_3 = output_file_3;
-            // pos_out_3 += sprintf(pos_out_3, "total_O2_2D_%d_reduced.dat", L_vals[Li] );
-
-            // pFile_output_3 = fopen(output_file_3, "a");
-            
-            // fprintf(pFile_output_3, "%.14e\t", h_field_vals[hi] );
-            // fprintf(pFile_output_3, "%.14e\t", dphi[0] + dphi[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dmx_sq[0] + dmx_sq[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dmy_sq[0] + dmy_sq[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dm_sq[0] + dm_sq[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dmx_sq_dphi_sq[0] + dmx_sq_dphi_sq[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dmy_sq_dphi_sq[0] + dmy_sq_dphi_sq[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dm_sq_dphi_sq[0] + dm_sq_dphi_sq[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dmx_max[0] + dmx_max[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dmy_max[0] + dmy_max[1] );
-            // fprintf(pFile_output_3, "%.14e\t", dm_max[0] + dm_max[1] );
-            // fprintf(pFile_output_3, "\n" );
-
-            // fclose(pFile_output_3);
-
             printf("\rfolder = %s : L = %d : sigma_h = %lf... Stored data in file.                ", folder_name, L_vals[input], h_field_vals[hi] );
             fflush(stdout);
             // ------------------------ Free pointers ------------------------ //
@@ -369,19 +374,17 @@ int main(int argc, char** argv)
         printf("\rfolder = %s : L = %d : sigma_h = %lf-%lf... Done.                             \n", folder_name, L_vals[input], h_field_vals[0], h_field_vals[len_h_field_vals-1] );
         fflush(stdout);
 
-        pFile_output_1 = fopen("header_reduced_data_weighted.dat", "a");
+        pFile_output_1 = fopen("header_reconstructed.dat", "a");
         
         fprintf(pFile_output_1, "-------column label------" );
         fprintf(pFile_output_1, "\n" );
-        fprintf(pFile_output_1, "H\t" );
-        fprintf(pFile_output_1, "dphi\t" );
+        fprintf(pFile_output_1, "phi\t" );
 
-        fprintf(pFile_output_1, "(dmx^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "(dmy^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "(dm^2) dphi_min/dphi\t" );
-        fprintf(pFile_output_1, "dmx_max\t" );
-        fprintf(pFile_output_1, "dmy_max\t" );
-        fprintf(pFile_output_1, "dm_max\t" );
+        fprintf(pFile_output_1, "mx\t" );
+        fprintf(pFile_output_1, "my\t" );
+        fprintf(pFile_output_1, "dphi\t" );
+        fprintf(pFile_output_1, "dmx\t" );
+        fprintf(pFile_output_1, "dmy\t" );
         fprintf(pFile_output_1, "\n" );
         fprintf(pFile_output_1, "-------column label------" );
         fprintf(pFile_output_1, "\n" );
