@@ -19,7 +19,7 @@ cd $PBS_O_WORKDIR
 
 export OMP_NUM_THREADS=24
 
-time ./a_80_0.048.out > log_80_0.048.txt &
+time ./a.out &
 
 wait
 

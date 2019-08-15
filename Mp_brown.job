@@ -1,0 +1,32 @@
+#!/bin/bash -l
+
+#PBS -o "XY_18_0.048_80.%j.%N.out"
+#PBS -e "XY_18_0.048_80.%j.%N.err"
+#PBS -l walltime=4:00:00
+#PBS -M basak@purdue.edu
+#PBS -q standby
+#PBS -m ae
+#PBS -l nodes=1:ppn=24
+#PBS -V
+
+#set -x
+
+e0=`date +%s`
+
+module load intel/18.0.1.163
+
+cd $PBS_O_WORKDIR
+
+export OMP_NUM_THREADS=24
+
+time ./a.out 
+
+wait
+
+e1=`date +%s`
+
+et=$(($e1-$e0))
+
+echo "All done - $et seconds elapsed."
+
+exit 0

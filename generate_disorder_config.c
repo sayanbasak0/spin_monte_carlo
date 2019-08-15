@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 #include "mt19937-64.h"
@@ -25,7 +26,7 @@ const double pie = 3.14159265358979323846;
 int lattice_size[dim_L] = { 100, 100 };
 long int no_of_sites = 1;
 
-int no_of_disorder_configs = 128;
+int no_of_disorder_configs = 1;
 
 long int *N_N_I;
 
@@ -616,14 +617,61 @@ int free_memory()
 
 int main()
 {
-    srand(time(NULL));
+    int j_L, j_S, i;
+    long initial_seed ;
+    long *initial_seed_ptr = &initial_seed;
+
+    char seed_file[128];
+    char *pos = seed_file;
+    pos += sprintf(pos, "h_seed_");
+    for (j_S = 0 ; j_S != dim_S ; j_S++) 
+    {
+        if (j_S) 
+        {
+            pos += sprintf(pos, "-");
+        }
+        pos += sprintf(pos, "%lf", sigma_h[j_S]);
+    }
+    pos += sprintf(pos, "_");
+    for (j_L = 0 ; j_L != dim_L ; j_L++) 
+    {
+        if (j_L) 
+        {
+            pos += sprintf(pos, "x");
+        }
+        pos += sprintf(pos, "%d", lattice_size[j_L]);
+    }
+    
+    strcat(seed_file, ".dat");
+        
+    pFile_1 = fopen(seed_file, "r");
+    if (pFile_1 == NULL)
+    {
+        pFile_1 = fopen(seed_file, "a");
+        initial_seed = (long) time(initial_seed_ptr);
+        
+        fprintf(pFile_1, "%ld", initial_seed );
+        fprintf(pFile_1, "\n" );
+        fclose(pFile_1);
+    }
+    else
+    {
+        fscanf(pFile_1, "%ld", &initial_seed );
+        fclose(pFile_1);
+    }
+
+    srand(initial_seed);
+    printf("\n----------\n initial_seed = %ld \n first call to rand() = %d \n----------\n", *initial_seed_ptr, rand());
+    srand(initial_seed);
+    
+    
     // unsigned long long init[4]={0x12345ULL, 0x23456ULL, 0x34567ULL, 0x45678ULL}, length=4;
     // unsigned long long init[4]={(unsigned long long)rand() * 0x12345ULL, (unsigned long long)rand() * 0x23456ULL, (unsigned long long)rand() * 0x34567ULL, (unsigned long long)rand() * 0x45678ULL}, length=4;
     init_genrand64( (unsigned long long) rand() );
     // init_by_array64(init, length);
     // printf("%lld %lld %lld %lld \n", init[0], init[1], init[2], init[3] );
     
-    int j_L, i;
+    
     
     for (j_L=0; j_L<dim_L; j_L++)
     {

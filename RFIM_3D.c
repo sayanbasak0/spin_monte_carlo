@@ -24,7 +24,7 @@
 
 // #define RANDOM_BOND 1 // for random bond disorder
 
-#define dim_L 2 // 3D
+#define dim_L 3 // 3D
 #define dim_S 1 // Ising Model
 
 #define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
@@ -47,7 +47,7 @@
 
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 64, 64 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 16, 16, 16 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -65,7 +65,7 @@
 
 //====================      Near neighbor /Boundary Cond     ====================//
     long int *N_N_I; int N_N_I_reqd = 1;
-    double BC[dim_L] = { 1, 1 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic -- Boundary Condition
+    double BC[dim_L] = { 1, 1, 1 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic -- Boundary Condition
 
 //====================      Spin variable                    ====================//
     double *spin; int spin_reqd = 1;
@@ -73,7 +73,7 @@
 //====================      Initialization type              ====================//
     double order[dim_S] = { 1.0 }; //  Initialize all spins along this direction
     int h_order = 0; // 0/1 Initialize spin along RF direction
-    int r_order = 0; // 0/1 Random initialize spin
+    int r_order = 1; // 0/1 Random initialize spin
 
 //====================      MC-update type                   ====================//
     int Gl_Me = 1; // 0 -> Glauber , 1 -> Metropolis
@@ -147,8 +147,8 @@
     double B = 0;
 
 //====================      MC-update iterations             ====================//
-    long int thermal_i = 128*10; // thermalizing MCS
-    long int average_j = 128*1; // no. of measurements
+    long int thermal_i = 128*100; // thermalizing MCS
+    long int average_j = 128*10; // no. of measurements
     int sampling_inter = 16; // random no. of MCS before taking each measurement 
 
 //====================      Hysteresis                       ====================//
@@ -3138,20 +3138,20 @@
         
         
         // repeat thermalization and averaging n-times
-        evolution_at_T_h(/*n=*/200); // argument : n(=1)-> repeat n-times
+        evolution_at_T_h(/*n=*/2000); // argument : n(=1)-> repeat n-times
         
         // argument 'n'th direction of field
-        evo_diff_ini_spin_at_T_h(/*n=*/0); 
+        // evo_diff_ini_spin_at_T_h(/*n=*/0); 
         
         // arg=0-> cooling: Temp_max -> Temp_min or Temp_min -> Temp_max 
         // arg=1-> heating: Temp_min -> Temp_max or Temp_min -> Temp_max 
         // arg=2-> cooling then heating: Temp_max -> Temp_min -> Temp_max 
         // arg=3-> heating then cooling: Temp_min -> Temp_max -> Temp_min 
-        fc_fh_or_both(/*arg=*/2);  
+        // fc_fh_or_both(/*arg=*/2);  
 
         // hysteresis along 'n'th spin direction 
         // initialized from ordered spin configuration: 'start' = +1 or -1
-        hysteresis_protocol(/*n=*/0, /*start=*/1.0);
+        // hysteresis_protocol(/*n=*/0, /*start=*/1.0);
 
         
         

@@ -1,5 +1,5 @@
 // using bitbucket
-// #define enable_CUDA_CODE 1
+#define enable_CUDA_CODE 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,9 +24,9 @@
 // #define OLD_COMPILER 1
 // #define BUNDLE 4
 
-#define CONST_RATE 1 // uncomment only one
+// #define CONST_RATE 1 // uncomment only one
 // #define DIVIDE_BY_SLOPE 1 // uncomment only one
-// #define BINARY_DIVISION 1 // uncomment only one
+#define BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
 
@@ -38,7 +38,7 @@
 #define dim_L 2
 #define dim_S 2
 
-#define SAVE_SPIN_AFTER 100
+// #define SAVE_SPIN_AFTER 100
 
 #define TYPE_VOID 0
 #define TYPE_INT 1
@@ -46,17 +46,18 @@
 #define TYPE_FLOAT 3
 #define TYPE_DOUBLE 4
 
-// #define CHECKPOINT_TIME 14400.00 // in seconds
+#define CHECKPOINT_TIME 7200.00 // in seconds
 #define RESTORE_CHKPT_VALUE 1 // 0 for initialization, 1 for restoring
 
 // #define UPDATE_ALL_NON_EQ 1 // uncomment only one
 #define UPDATE_CHKR_NON_EQ 1 // uncomment only one
 
 #define UPDATE_CHKR_EQ_MC 1 
+#define UPDATE_WOLFF_GHOST 1 // https://journals-aps-org.ezproxy.lib.purdue.edu/pre/pdf/10.1103/PhysRevE.98.063306
 
 // #define CHECK_AVALANCHE 1
 
-#define PRINT_OUTPUT 1
+// #define PRINT_OUTPUT 1
 
 // #define OLD_FUNCTION 1
 
@@ -83,7 +84,7 @@
 
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 160, 160 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 16, 16 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -118,7 +119,16 @@
 
 //====================      Wolff/Cluster variables          ====================//
     double reflection_plane[dim_S];
-    int *cluster; int cluster_reqd = 0;
+    double reflection_matrix[dim_S*dim_S];
+    int *cluster; int cluster_reqd = 1;
+    double delta_E_cluster = 0;
+    double *h_ghost;
+    double reflection_matrix[dim_S*dim_S];
+    double ghost_spin[dim_S];
+    double ghost_matrix[dim_S*dim_S];
+    #ifdef UPDATE_WOLFF_GHOST
+    int h_ghost_reqd = 1;
+    #endif
 
 //====================      Near neighbor /Boundary Cond     ====================//
     long int *N_N_I; int N_N_I_reqd = 1;
@@ -264,7 +274,7 @@
     long int hysteresis_MCS = 1; 
     long int hysteresis_MCS_min = 1; 
     long int hysteresis_MCS_max = 100;
-    int hysteresis_repeat = 32;
+    int hysteresis_repeat = 1;
     long int hysteresis_MCS_multiplier = 10;
     long int h_counter = 0;
     // #define CUTOFF_BY_SUM 1 // for find_change sum
@@ -3399,31 +3409,33 @@
         double Energy_nu=0.0, s_mod=0.0;
         double limit = 0.01 * dim_S;
         
-        do
+        if (dim_S == 1)
         {
-            s_mod=0.0;
-            for(j_S=0; j_S<dim_S; j_S=j_S+1)
-            {
-                spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                // spin_local[j_S] = (-1.0 + 2.0 * 0.75);
-                s_mod = s_mod + spin_local[j_S] * spin_local[j_S];
-            }
+            spin_local[0] = -spin[xyzi*dim_S+0];
+            
+            Energy_nu = Energy_nu + field_local[0] * spin_local[0];
         }
-        while(s_mod >= 1 || s_mod <= limit);
-        s_mod = sqrt(s_mod);
-        
-        // spin_new[0] = spin_new[0] / s_mod;
-        // if (spin_old[0] == spin_new[0])
-        // {
-        //     spin_new[0] = -spin_new[0];
-        // }
-        // Energy_nu = Energy_nu + field_site[0] * spin_new[0];
-        for(j_S=0; j_S<dim_S; j_S++)
+        else
         {
-            spin_local[j_S] = spin_local[j_S] / s_mod;
-            // spin_new[dim_S*xyzi + j_S] = spin_local[j_S];
-            // Energy_nu = Energy_nu + field_site[dim_S*xyzi + j_S] * spin_local[j_S];
-            Energy_nu = Energy_nu + field_local[j_S] * spin_local[j_S];
+            do
+            {
+                s_mod=0.0;
+                for(j_S=0; j_S<dim_S; j_S=j_S+1)
+                {
+                    spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                    // spin_local[j_S] = (-1.0 + 2.0 * 0.75);
+                    s_mod = s_mod + spin_local[j_S] * spin_local[j_S];
+                }
+            }
+            while(s_mod >= 1 || s_mod <= limit);
+            s_mod = sqrt(s_mod);
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                spin_local[j_S] = spin_local[j_S] / s_mod;
+                // spin_new[dim_S*xyzi + j_S] = spin_local[j_S];
+                // Energy_nu = Energy_nu + field_site[dim_S*xyzi + j_S] * spin_local[j_S];
+                Energy_nu = Energy_nu + field_local[j_S] * spin_local[j_S];
+            }
         }
         
         return Energy_nu;
@@ -3652,7 +3664,7 @@
 
 //====================      MonteCarlo-Wolff/Cluster         ====================//
 
-    int generate_random_axis()
+    int generate_random_axis(double *reflection_planes)
     {
         int j_S;
         double s_mod = 0.0;
@@ -3662,8 +3674,10 @@
             s_mod = 0.0;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
-                reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                s_mod = s_mod + (reflection_plane[j_S] * reflection_plane[j_S]);
+                // reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                reflection_planes[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                // s_mod = s_mod + (reflection_plane[j_S] * reflection_plane[j_S]);
+                s_mod = s_mod + (reflection_planes[j_S] * reflection_planes[j_S]);
             }
         }
         while(s_mod >= 1 || s_mod <= limit);
@@ -3671,7 +3685,24 @@
         
         for(j_S=0; j_S<dim_S; j_S++)
         {
-            reflection_plane[j_S] = reflection_plane[j_S] / s_mod;
+            // reflection_plane[j_S] = reflection_plane[j_S] / s_mod;
+            reflection_planes[j_S] = reflection_planes[j_S] / s_mod;
+        }
+        return 0;
+    }
+
+    // int matrix_from_reflection_axis()
+    int matrix_from_reflection_axis(double *reflection_planes, double *reflection_matrices)
+    {
+        int j_S, jj_S;
+        for (j_S; j_S<dim_S; j_S++)
+        {
+            for (jj_S; jj_S<dim_S; jj_S++)
+            {
+                // reflection_matrix[j_S*dim_S+jj_S] = reflection_plane[j_S] * reflection_plane[jj_S];
+                reflection_matrices[j_S*dim_S+jj_S] = -2 * reflection_planes[j_S] * reflection_planes[jj_S];
+            }
+            reflection_matrices[j_S*dim_S+j_S] += 1;
         }
         return 0;
     }
@@ -3730,44 +3761,100 @@
 
     double E_bond_old(long int xyzi, int j_L, int k_L, long int xyzi_nn)
     {
-        double energy_site = 0;
+        double energy_bond = 0;
         double Si_dot_ref = 0;
         int j_S;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
             #ifdef RANDOM_BOND
-            energy_site = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin[dim_S*xyzi_nn + j_S];
+            energy_bond = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin[dim_S*xyzi_nn + j_S];
             #else
-            energy_site = -(J[j_L]) * spin[dim_S*xyzi + j_S] * spin[dim_S*xyzi_nn + j_S];
+            energy_bond = -(J[j_L]) * spin[dim_S*xyzi + j_S] * spin[dim_S*xyzi_nn + j_S];
             #endif
         }
 
-        return energy_site;
+        return energy_bond;
     }
 
     double E_bond_new(long int xyzi, int j_L, int k_L, double* __restrict__ spin_local)
     {
-        double energy_site = 0;
+        double energy_bond = 0;
         double Si_dot_ref = 0;
         int j_S;
 
         for (j_S=0; j_S<dim_S; j_S++)
         {
             #ifdef RANDOM_BOND
-            energy_site = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin_local[j_S];
+            energy_bond = -(J[j_L] + J_random[2*dim_L*xyzi + 2*j_L + k_L]) * spin[dim_S*xyzi + j_S] * spin_local[j_S];
             #else
-            energy_site = -(J[j_L]) * spin[dim_S*xyzi + j_S] * spin_local[j_S];
+            energy_bond = -(J[j_L]) * spin[dim_S*xyzi + j_S] * spin_local[j_S];
             #endif
         }
 
-        return energy_site;
+        return energy_bond;
     }
 
+    #ifdef UPDATE_WOLFF_GHOST
     int nucleate_from_site(long int xyzi)
     {
-
+        
+        // double p_cluster = 0;
+        double spin_reflected[dim_S];
+        transform_spin(xyzi, spin_reflected);
+        delta_E_cluster -= E_site_old(xyzi);
+        delta_E_cluster += E_site_new(xyzi, spin_reflected);
+        update_spin_single(xyzi, spin_reflected);
         cluster[xyzi] = 1;
+        /*     if (delta_E_cluster <= 0)
+            {
+                update_spin_single(xyzi, spin_reflected);
+            }
+            else
+            {
+                if (T > 0)
+                {
+                    p_cluster = exp(delta_E_cluster/T);
+                }
+                else
+                {
+                    p_cluster = 1;
+                }
+                double r_cluster = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                if (r_cluster < p_cluster)
+                {
+                    update_spin_single(xyzi, spin_reflected);
+                }
+            }
+            cluster[xyzi] = 1; 
+        */
+        
+        /*     double delta_E_site = 0;
+            double spin_reflected[dim_S];
+            transform_spin(xyzi, spin_reflected);
+            delta_E_site -= E_site_old(xyzi);
+            delta_E_site += E_site_new(xyzi, spin_reflected);
+            if (delta_E_site <= 0)
+            {
+                update_spin_single(xyzi, spin_reflected);
+                cluster[xyzi] = 1;
+            }
+            else
+            {
+                double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                if (r_site<exp(-delta_E_site/T))
+                {
+                    update_spin_single(xyzi, spin_reflected);
+                    cluster[xyzi] = 1;
+                }
+                // else
+                // {
+                //     return 0;
+                // }
+            }
+        */
+
+        
         int j_L, k_L;
 
         for (j_L=0; j_L<dim_L; j_L++)
@@ -3780,7 +3867,8 @@
                     double p_bond = 0;
                     double spin_reflected[dim_S];
                     transform_spin(xyzi_nn, spin_reflected);
-                    double delta_E_bond = -E_bond_old(xyzi, j_L, k_L, xyzi_nn);
+                    double delta_E_bond = 0;
+                    delta_E_bond -= E_bond_old(xyzi, j_L, k_L, xyzi_nn);
                     delta_E_bond += E_bond_new(xyzi, j_L, k_L, spin_reflected);
                     if (delta_E_bond < 0)
                     {
@@ -3790,54 +3878,133 @@
                         }
                         else
                         {
-                            if (delta_E_bond < 0)
-                            {
-                                p_bond = 1;
-                            }
+                            p_bond = 1;
                         }
                         double r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
-                        /* if (r_bond < p_bond)
+                        if (r_bond < p_bond)
                         {
                             nucleate_from_site(xyzi_nn);
-                        } */
-
-                        if (p_bond > 0)
-                        {
-                            double p_site = 1;
-                            double delta_E_site = -E_site_old(xyzi_nn);
-                            delta_E_site += E_site_new(xyzi_nn, spin_reflected);
-                            // if (delta_E_site > 0)
-                            // {
-                                if (T > 0)
-                                {
-                                    p_site = exp(-delta_E_site/T);
-                                }
-                                else
-                                {
-                                    if (delta_E_site > 0)
-                                    {
-                                        p_site = 0;
-                                    }
-                                }
-                                double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
-                                if (r_site < p_site*p_bond)
-                                {
-                                    update_spin_single(xyzi, spin_reflected);
-                                    nucleate_from_site(xyzi_nn);
-                                }
-                            // }
                         }
                     }
 
-                    // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
-                    // if (r < p)
-                    // {
-                    //     nucleate_from_site(xyzi_nn);
-                    // }
                 }
             }
         }
 
+        return 0;
+    }
+    #else
+    int nucleate_from_site(long int xyzi)
+    {
+        // double p_cluster = 0;
+        double spin_reflected[dim_S];
+        transform_spin(xyzi, spin_reflected);
+        delta_E_cluster -= E_site_old(xyzi);
+        delta_E_cluster += E_site_new(xyzi, spin_reflected);
+        update_spin_single(xyzi, spin_reflected);
+        cluster[xyzi] = 1;
+        /*     if (delta_E_cluster <= 0)
+            {
+                update_spin_single(xyzi, spin_reflected);
+            }
+            else
+            {
+                if (T > 0)
+                {
+                    p_cluster = exp(delta_E_cluster/T);
+                }
+                else
+                {
+                    p_cluster = 1;
+                }
+                double r_cluster = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                if (r_cluster < p_cluster)
+                {
+                    update_spin_single(xyzi, spin_reflected);
+                }
+            }
+            cluster[xyzi] = 1; 
+        */
+        
+        /*  double delta_E_site = 0;
+            double spin_reflected[dim_S];
+            transform_spin(xyzi, spin_reflected);
+            delta_E_site -= E_site_old(xyzi);
+            delta_E_site += E_site_new(xyzi, spin_reflected);
+            if (delta_E_site <= 0)
+            {
+                update_spin_single(xyzi, spin_reflected);
+                cluster[xyzi] = 1;
+            }
+            else
+            {
+                double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                if (r_site<exp(-delta_E_site/T))
+                {
+                    update_spin_single(xyzi, spin_reflected);
+                    cluster[xyzi] = 1;
+                }
+                // else
+                // {
+                //     return 0;
+                // }
+            }
+        */
+
+        
+        int j_L, k_L;
+
+        for (j_L=0; j_L<dim_L; j_L++)
+        {
+            for (k_L=0; k_L<2; k_L++)
+            {
+                long int xyzi_nn = N_N_I[2*dim_L*xyzi + 2*j_L + k_L];
+                if (cluster[xyzi_nn] == 0)
+                {
+                    double p_bond = 0;
+                    double spin_reflected[dim_S];
+                    transform_spin(xyzi_nn, spin_reflected);
+                    double delta_E_bond = 0;
+                    delta_E_bond -= E_bond_old(xyzi, j_L, k_L, xyzi_nn);
+                    delta_E_bond += E_bond_new(xyzi, j_L, k_L, spin_reflected);
+                    if (delta_E_bond < 0)
+                    {
+                        if (T > 0)
+                        {
+                            p_bond = 1 - exp(delta_E_bond/T);
+                        }
+                        else
+                        {
+                            p_bond = 1;
+                        }
+                        double r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                        if (r_bond < p_bond)
+                        {
+                            nucleate_from_site(xyzi_nn);
+                        }
+                    }
+
+                }
+            }
+        }
+
+        return 0;
+    }
+    #endif
+
+    int revert_cluster()
+    {
+        long int i;
+        for (i=0; i<no_of_sites; i++)
+        {
+            if (cluster[i] == 1)
+            {
+                double spin_reflected[dim_S];
+                transform_spin(i, spin_reflected);
+                update_spin_single(i, spin_reflected);
+            }
+        }
+        
         return 0;
     }
 
@@ -3852,6 +4019,33 @@
         return 0;
     }
 
+    #ifdef UPDATE_WOLFF_GHOST
+    int random_Wolff_sweep(long int iter)
+    {
+        long int xyzi;
+        int i, j_S;
+        for (i=0; i<iter; i++)
+        {
+            set_cluster_s(0);
+            
+            generate_random_axis(reflection_plane);
+            matrix_from_reflection_axis(reflection_plane, reflection_matrix);
+            generate_random_axis(ghost_spin);
+            matrix_from_reflection_axis(ghost_spin, ghost_matrix);
+            delta_E_cluster = 0;
+            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()]) % no_of_sites;
+            for (xyzi=0; xyzi<no_of_sites; xyzi++)
+            {
+                if (cluster[xyzi] == 0)
+                {
+                    nucleate_from_site(xyzi);
+                }
+            }
+        }
+
+        return 0;
+    }
+    #else
     int random_Wolff_sweep(long int iter)
     {
         long int xyzi;
@@ -3862,25 +4056,35 @@
             
             // do
             // {
-                generate_random_axis();
+                generate_random_axis(reflection_plane);
+                delta_E_cluster = 0;
                 xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()]) % no_of_sites;
-                double delta_E_site = -E_site_old(xyzi);
-                double spin_reflected[dim_S];
-                transform_spin(xyzi, spin_reflected);
-                delta_E_site += E_site_new(xyzi, spin_reflected);
-                if (delta_E_site <= 0)
+
+                nucleate_from_site(xyzi);
+                double p_cluster;
+                // if (r_cluster<exp(delta_E_cluster/T))
+                // {
+                //     revert_cluster();
+                // }
+                if (delta_E_cluster <= 0)
                 {
-                    update_spin_single(xyzi, spin_reflected);
-                    nucleate_from_site(xyzi);
+                    p_cluster = 1.0;
                 }
-                else
+                else 
                 {
-                    double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
-                    if (r<exp(-delta_E_site/T))
+                    if (T == 0)
                     {
-                        update_spin_single(xyzi, spin_reflected);
-                        nucleate_from_site(xyzi);
+                        p_cluster = 0.0;
                     }
+                    else 
+                    {
+                        p_cluster = exp(-delta_E_cluster/T);
+                    }
+                }
+                double r_cluster = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+                if(r_cluster >= p_cluster)
+                {
+                    revert_cluster();
                 }
             // }
             // while (cluster[xyzi] != 1);
@@ -3888,6 +4092,7 @@
 
         return 0;
     }
+    #endif
 
 //====================      MonteCarlo-Sweep                 ====================//
 
@@ -3998,9 +4203,9 @@
         // set_sum_of_moment_Y_ab_mu_0();
         
         set_sum_of_moment_m_0();
-        set_sum_of_moment_m_higher_0();
+        // set_sum_of_moment_m_higher_0();
         // set_sum_of_moment_m_vec_0();
-        // set_sum_of_moment_m_abs_0();
+        set_sum_of_moment_m_abs_0();
         // set_sum_of_moment_E_0();
 
         printf("Averaging iterations... h=%lf", h[0]);
@@ -4021,9 +4226,9 @@
             // ensemble_Y_ab_mu();
             // sum_of_moment_m_vec();
             sum_of_moment_m();
-            sum_of_moment_m_higher();
+            // sum_of_moment_m_higher();
             // sum_of_moment_B();
-            // sum_of_moment_m_abs();
+            sum_of_moment_m_abs();
             // sum_of_moment_E();
             // sum_of_moment_Y_ab_mu();
             MCS_counter = MCS_counter + 1;
@@ -4033,10 +4238,10 @@
         printf("Done.\n");
 
         average_of_moment_m(MCS_counter);
-        average_of_moment_m_higher(MCS_counter);
+        // average_of_moment_m_higher(MCS_counter);
         // average_of_moment_m_vec(MCS_counter);
         // average_of_moment_B(MCS_counter);
-        // average_of_moment_m_abs(MCS_counter);
+        average_of_moment_m_abs(MCS_counter);
         // average_of_moment_E(MCS_counter);
         // average_of_moment_Y_ab_mu(MCS_counter);
 
@@ -4625,7 +4830,7 @@
             pFile_1 = fopen(output_file_name, "a");
 
             fprintf(pFile_1, "%.12e\t", T);
-            // fprintf(pFile_1, "%.12e\t", m_abs_avg);
+            fprintf(pFile_1, "%.12e\t", m_abs_avg);
 
             for(j_S=0; j_S<dim_S; j_S++)
             {
@@ -4741,6 +4946,23 @@
             {
                 fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
             }
+            
+            // for(j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     fprintf(pFile_1, "%.12e\t", m_2_vec_avg[j_S]);
+            //     fprintf(pFile_1, "%.12e\t", m_4_vec_avg[j_S]);
+            // } 
+            
+            for(j_S=0; j_S<dim_S; j_S++)
+            {
+                for(j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    fprintf(pFile_1, "%.12e\t", m_ab_avg[j_S*dim_S+j_SS]);
+                }
+            }
+            fprintf(pFile_1, "%.12e\t", m_2_avg);
+            fprintf(pFile_1, "%.12e\t", m_4_avg);
+
             /* for (j_S=0; j_S<dim_S; j_S++)
             {
                 for (j_SS=0; j_SS<dim_S; j_SS++)
@@ -4751,7 +4973,8 @@
                     }
                 }
             } */
-            fprintf(pFile_1, "%.12e\t", E_avg);
+
+            // fprintf(pFile_1, "%.12e\t", E_avg);
             fprintf(pFile_1, "\n");
             fclose(pFile_1);
         }
@@ -4787,7 +5010,7 @@
         {
             T = Temp_min;
         }
-        load_spin_config("");
+        // load_spin_config("");
         // print statements:
         {
             printf("order = ({%lf", order[0]);
@@ -4825,27 +5048,31 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_(%lf,%lf)-[%lf]", Temp_min, Temp_max, delta_T);
-            /* pos += sprintf(pos, "_{");
+            pos += sprintf(pos, "_(%.3f,%.3f)-[%.3f]", Temp_min, Temp_max, delta_T);
+            
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", J[j_L]);
+                pos += sprintf(pos, "%.3f", J[j_L]);
             }
-            pos += sprintf(pos, "}");     */
-            /* pos += sprintf(pos, "_{");    
+            pos += sprintf(pos, "}");
+            
+            #ifdef RANDOM_BOND
+            pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
-            } */
-            // pos += sprintf(pos, "}");    
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
+            } 
+            pos += sprintf(pos, "}");    
+            #endif
             // pos += sprintf(pos, "_{");    
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
@@ -4853,19 +5080,20 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
+            //     pos += sprintf(pos, "%f", J_dev_avg[j_L]);
             // }
             // pos += sprintf(pos, "}");
-            /* pos += sprintf(pos, "_{");
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", h[j_S]);
+                pos += sprintf(pos, "%.3f", h[j_S]);
             }
-            pos += sprintf(pos, "}"); */    
+            pos += sprintf(pos, "}"); 
+            #ifdef RANDOM_FIELD
             pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -4873,9 +5101,10 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
             pos += sprintf(pos, "}");    
+            #endif
             // pos += sprintf(pos, "_{");    
             // for (j_S = 0 ; j_S != dim_S ; j_S++) 
             // {
@@ -4893,7 +5122,7 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", order[j_S]);
+                pos += sprintf(pos, "%.3f", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
         }
@@ -4934,6 +5163,158 @@
             cooling_protocol(output_file_0);
         }
         
+        return 0;
+    }
+    
+    int fc_fh_or_both(int c_h_ch_hc)
+    {
+        printf("\n__________________________________________________________\n");
+        int j_S, j_SS, j_L;
+        printf("\nField Cooling/Heating with (thermalizing steps+averaging steps)/delta_T=(%ld+%ld)/%lf at h={%lf", thermal_i, average_j, delta_T, h[0]);
+        for (j_S=1; j_S<dim_S; j_S++)
+        {
+            printf(",%lf", h[j_S]);
+        }
+        printf("}..\n");
+
+
+        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
+        {
+            T = Temp_max;
+        }
+        if (c_h_ch_hc == 1 || c_h_ch_hc == 3)
+        {
+            T = Temp_min;
+        }
+        
+
+        // create file name and pointer. 
+        {
+
+            char *pos = output_file_0;
+            pos += sprintf(pos, "O(%d)_%dD_FC-FH_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L) 
+                {
+                    pos += sprintf(pos, "x");
+                }
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+            pos += sprintf(pos, "_(%.3f<->%.3f)-[%.3f]", Temp_min, Temp_max, delta_T);
+
+            pos += sprintf(pos, "_{");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", J[j_L]);
+            }
+            pos += sprintf(pos, "}");
+            
+            #ifdef RANDOM_BOND
+            pos += sprintf(pos, "_{");    
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
+            } 
+            pos += sprintf(pos, "}");    
+            #endif
+            // pos += sprintf(pos, "_{");    
+            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            // {
+            //     if (j_L)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%f", J_dev_avg[j_L]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", h[j_S]);
+            }
+            pos += sprintf(pos, "}"); 
+            #ifdef RANDOM_FIELD
+            pos += sprintf(pos, "_{");    
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
+            }
+            pos += sprintf(pos, "}");    
+            #endif
+            // pos += sprintf(pos, "_{");    
+            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            // {
+            //     if (j_S)
+            //     {
+            //         pos += sprintf(pos, ",");
+            //     }
+            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
+            // }
+            // pos += sprintf(pos, "}");
+            pos += sprintf(pos, "_{");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", order[j_S]);
+            }
+            pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
+        }
+        // column labels and parameters
+        print_header_column(output_file_0);
+        pFile_1 = fopen(output_file_0, "a");
+        {
+            fprintf(pFile_1, "T\t|m|\t");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                fprintf(pFile_1, "<m[%d]>\t", j_S);
+            } 
+
+            fprintf(pFile_1, "<E>\t");
+            fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
+        }
+        fclose(pFile_1);
+        
+        printf("\n");
+        initialize_spin_config();
+        printf("\n");
+        int i;
+        for (i=0; i<hysteresis_repeat; i++)
+        {
+            if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
+            {
+                cooling_protocol(output_file_0);
+            }
+            if (c_h_ch_hc == 1 || c_h_ch_hc == 2 || c_h_ch_hc == 3)
+            {
+                heating_protocol(output_file_0);
+            }
+            if (c_h_ch_hc == 3)
+            {
+                cooling_protocol(output_file_0);
+            }
+        }
+
+        printf("\n__________________________________________________________\n");
         return 0;
     }
 
