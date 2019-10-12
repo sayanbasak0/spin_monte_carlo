@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 #include "mt19937-64.h"
@@ -8,19 +9,24 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+
+#define MARSAGLIA 1 // uncomment only one
+// #define REJECTION 1 // uncomment only one
+// #define BOX_MULLER 1 // uncomment only one
+
 #define dim_L 2
 #define dim_S 2
 
 FILE *pFile_1;
 
-const double pie = 3.141592625359;
+const double pie = 3.14159265358979323846;
 
 // int dim_L = 2;
 // int dim_S = 2;
-int lattice_size[dim_L] = { 128, 128 };
+int lattice_size[dim_L] = { 100, 100 };
 long int no_of_sites = 1;
 
-int no_of_disorder_configs = 128;
+int no_of_disorder_configs = 1;
 
 long int *N_N_I;
 
@@ -79,10 +85,34 @@ long int nearest_neighbor(long int xyzi, int j_L, int k_L)
 
 double generate_gaussian() // Marsaglia polar method
 {
-    double U1, U2, W, mult;
+    static int which_method = 0;
+    double sigma = 1.0;
+    #ifdef REJECTION
+        if (which_method == 0)
+        {
+            which_method = !which_method;
+            printf("\n Rejection Sampling method used to generate Gaussian Distribution.\n");
+        }
+        double X, r;
+
+        double P_max = 1; // 1/( sqrt(2*pie) * sigma );
+        double P_x;
+
+        do
+        {
+            X = (-10 + 20 * genrand64_real1());
+            r = genrand64_real1();
+            P_x =  exp( - X*X / (2 * sigma*sigma ) );
+        }
+        while (r >= P_x/P_max);
+    
+        return ( sigma * (double) X);
+    #endif
+
+    double U1, U2, rho, theta, W, mult;
     static double X1, X2;
     static int call = 0;
-    double sigma = 1.0;
+    
 
     if (call == 1)
     {
@@ -90,17 +120,39 @@ double generate_gaussian() // Marsaglia polar method
         return (sigma * (double) X2);
     }
 
-    do
-    {
-        U1 = -1.0 + genrand64_real3() * 2.0;
-        // U1 = -1 + ((double) rand () / RAND_MAX) * 2;
-        U2 = -1.0 + genrand64_real3() * 2.0;
-        // U2 = -1 + ((double) rand () / RAND_MAX) * 2;
-        W = U1*U1 + U2*U2;
-    }
-    while (W >= 1 || W == 0);
-    
-    mult = sqrt ((-2 * log (W)) / W);
+    #ifdef MARSAGLIA
+        if (which_method == 0)
+        {
+            which_method = !which_method;
+            printf("\n Marsaglia Polar method used to generate Gaussian Distribution.\n");
+        }
+        do
+        {
+            U1 = -1.0 + 2.0 * genrand64_real2() ; // ((double) rand () / RAND_MAX) * 2;
+            U2 = -1.0 + 2.0 * genrand64_real2() ; // ((double) rand () / RAND_MAX) * 2;
+            W = U1*U1 + U2*U2;
+        }
+        while (W >= 1 || W == 0);
+
+        mult = sqrt ((-2.0 * log (W)) / W);
+    #endif
+
+    #ifdef BOX_MULLER
+        if (which_method == 0)
+        {
+            which_method = !which_method;
+            printf("\n Box-Muller transform used to generate Gaussian Distribution.\n");
+        }
+        rho = genrand64_real2();
+        theta = genrand64_real2();
+        
+        U1 = sin(2*pie*theta);
+        U2 = cos(2*pie*theta);
+
+        mult = sqrt (-2 * log (1-rho));
+    #endif
+
+
     X1 = U1 * mult;
     X2 = U2 * mult;
     
@@ -222,19 +274,19 @@ int save_h_config()
         
     pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
     
-    fprintf(pFile_1, "%lf ", h_i_min);
+    fprintf(pFile_1, "%le ", h_i_min);
     printf( "\nh_i_min=%lf ", h_i_min);
     // fprintf(pFile_1, "\n");
-    fprintf(pFile_1, "%lf ", h_i_max);
+    fprintf(pFile_1, "%le ", h_i_max);
     printf( "h_i_max=%lf \n", h_i_max);
     fprintf(pFile_1, "\n");
 
     for (j_S=0; j_S<dim_S; j_S++)
     {
-        fprintf(pFile_1, "%lf ", h[j_S]);
-        fprintf(pFile_1, "%lf ", sigma_h[j_S]);
+        fprintf(pFile_1, "%le ", h[j_S]);
+        fprintf(pFile_1, "%le ", sigma_h[j_S]);
         printf( "sigma_h[%d]=%lf \n", j_S, sigma_h[j_S]);
-        fprintf(pFile_1, "%lf ", h_dev_avg[j_S]);
+        fprintf(pFile_1, "%le ", h_dev_avg[j_S]);
         printf( "h_dev_avg[%d]=%lf \n", j_S, h_dev_avg[j_S]);
         fprintf(pFile_1, "\n");
     }
@@ -244,7 +296,7 @@ int save_h_config()
     {
         for (j_S = 0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%lf ", h_random[dim_S*i + j_S]);
+            fprintf(pFile_1, "%le ", h_random[dim_S*i + j_S]);
         }
         fprintf(pFile_1, "\n");
         
@@ -296,20 +348,20 @@ int load_h_config()
     pFile_1 = fopen(input_file_1, "r"); // opens file for reading
 
     h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-    fscanf(pFile_1, "%lf", &h_i_min);
-    fscanf(pFile_1, "%lf", &h_i_max);
+    fscanf(pFile_1, "%le", &h_i_min);
+    fscanf(pFile_1, "%le", &h_i_max);
     for (j_S=0; j_S<dim_S; j_S++)
     {
-        fscanf(pFile_1, "%lf", &h[j_S]);
-        fscanf(pFile_1, "%lf", &sigma_h[j_S]);
-        fscanf(pFile_1, "%lf", &h_dev_avg[j_S]);
+        fscanf(pFile_1, "%le", &h[j_S]);
+        fscanf(pFile_1, "%le", &sigma_h[j_S]);
+        fscanf(pFile_1, "%le", &h_dev_avg[j_S]);
     }
     
     for (i = 0; i < no_of_sites; i++)
     {
         for (j_S = 0; j_S<dim_S; j_S++)
         {
-            fscanf(pFile_1, "%lf", &h_random[dim_S*i + j_S]);
+            fscanf(pFile_1, "%le", &h_random[dim_S*i + j_S]);
         }
     }
     fclose(pFile_1);
@@ -418,16 +470,16 @@ int save_J_config()
     
     pFile_1 = fopen(output_file_1, "w"); // opens new file for writing
     
-    fprintf(pFile_1, "%lf ", J_i_min);
+    fprintf(pFile_1, "%le ", J_i_min);
     // fprintf(pFile_1, "\n");
-    fprintf(pFile_1, "%lf ", J_i_max);
+    fprintf(pFile_1, "%le ", J_i_max);
     fprintf(pFile_1, "\n");
 
     for (j_L=0; j_L<dim_L; j_L++)
     {
-        fprintf(pFile_1, "%lf ", J[j_L]);
-        fprintf(pFile_1, "%lf ", sigma_J[j_L]);
-        fprintf(pFile_1, "%lf ", J_dev_avg[j_L]);
+        fprintf(pFile_1, "%le ", J[j_L]);
+        fprintf(pFile_1, "%le ", sigma_J[j_L]);
+        fprintf(pFile_1, "%le ", J_dev_avg[j_L]);
         fprintf(pFile_1, "\n");
     }
     fprintf(pFile_1, "\n");
@@ -438,7 +490,7 @@ int save_J_config()
         {
             for (k_L = 0; k_L<2; k_L++)
             {
-                fprintf(pFile_1, "%lf ", J_random[2*dim_L*i + 2*j_L + k_L]);
+                fprintf(pFile_1, "%le ", J_random[2*dim_L*i + 2*j_L + k_L]);
             }
         }
         fprintf(pFile_1, "\n");
@@ -492,13 +544,13 @@ int load_J_config()
     pFile_1 = fopen(input_file_1, "r"); // opens file for reading
 
     J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
-    fscanf(pFile_1, "%lf", &J_i_min);
-    fscanf(pFile_1, "%lf", &J_i_max);
+    fscanf(pFile_1, "%le", &J_i_min);
+    fscanf(pFile_1, "%le", &J_i_max);
     for (j_L=0; j_L<dim_L; j_L++)
     {
-        fscanf(pFile_1, "%lf", &J[j_L]);
-        fscanf(pFile_1, "%lf", &sigma_J[j_L]);
-        fscanf(pFile_1, "%lf", &J_dev_avg[j_L]);
+        fscanf(pFile_1, "%le", &J[j_L]);
+        fscanf(pFile_1, "%le", &sigma_J[j_L]);
+        fscanf(pFile_1, "%le", &J_dev_avg[j_L]);
     }
     
     for (i = 0; i < no_of_sites; i++)
@@ -507,7 +559,7 @@ int load_J_config()
         {
             for (k_L = 0; k_L<2; k_L++)
             {
-                fscanf(pFile_1, "%lf", &J_random[2*dim_L*i + 2*j_L + k_L]);
+                fscanf(pFile_1, "%le", &J_random[2*dim_L*i + 2*j_L + k_L]);
             }
         }
     }
@@ -565,14 +617,61 @@ int free_memory()
 
 int main()
 {
-    srand(time(NULL));
+    int j_L, j_S, i;
+    long initial_seed ;
+    long *initial_seed_ptr = &initial_seed;
+
+    char seed_file[128];
+    char *pos = seed_file;
+    pos += sprintf(pos, "h_seed_");
+    for (j_S = 0 ; j_S != dim_S ; j_S++) 
+    {
+        if (j_S) 
+        {
+            pos += sprintf(pos, "-");
+        }
+        pos += sprintf(pos, "%lf", sigma_h[j_S]);
+    }
+    pos += sprintf(pos, "_");
+    for (j_L = 0 ; j_L != dim_L ; j_L++) 
+    {
+        if (j_L) 
+        {
+            pos += sprintf(pos, "x");
+        }
+        pos += sprintf(pos, "%d", lattice_size[j_L]);
+    }
+    
+    strcat(seed_file, ".dat");
+        
+    pFile_1 = fopen(seed_file, "r");
+    if (pFile_1 == NULL)
+    {
+        pFile_1 = fopen(seed_file, "a");
+        initial_seed = (long) time(initial_seed_ptr);
+        
+        fprintf(pFile_1, "%ld", initial_seed );
+        fprintf(pFile_1, "\n" );
+        fclose(pFile_1);
+    }
+    else
+    {
+        fscanf(pFile_1, "%ld", &initial_seed );
+        fclose(pFile_1);
+    }
+
+    srand(initial_seed);
+    printf("\n----------\n initial_seed = %ld \n first call to rand() = %d \n----------\n", *initial_seed_ptr, rand());
+    srand(initial_seed);
+    
+    
     // unsigned long long init[4]={0x12345ULL, 0x23456ULL, 0x34567ULL, 0x45678ULL}, length=4;
     // unsigned long long init[4]={(unsigned long long)rand() * 0x12345ULL, (unsigned long long)rand() * 0x23456ULL, (unsigned long long)rand() * 0x34567ULL, (unsigned long long)rand() * 0x45678ULL}, length=4;
     init_genrand64( (unsigned long long) rand() );
     // init_by_array64(init, length);
     // printf("%lld %lld %lld %lld \n", init[0], init[1], init[2], init[3] );
     
-    int j_L, i;
+    
     
     for (j_L=0; j_L<dim_L; j_L++)
     {
@@ -591,7 +690,7 @@ int main()
     if ((buf = (char *)malloc((size_t)size)) != NULL)
         ptr = getcwd(buf, (size_t)size);
 
-    for (int i=0; i<=no_of_disorder_configs; i++)
+    for (i=0; i<=no_of_disorder_configs; i++)
     {
         // load_h_config();
         // save_J_config();
