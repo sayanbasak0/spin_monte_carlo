@@ -41,7 +41,7 @@
 #define dim_L 2
 #define dim_S 2
 
-// #define SAVE_SPIN_AFTER 100
+#define SAVE_SPIN_AFTER 1250
 
 #define TYPE_VOID 0
 #define TYPE_INT 1
@@ -49,7 +49,7 @@
 #define TYPE_FLOAT 3
 #define TYPE_DOUBLE 4
 
-#define CHECKPOINT_TIME 60.00 // in seconds
+#define CHECKPOINT_TIME 300.00 // in seconds
 #define RESTORE_CHKPT_VALUE 1 // 0 for initialization, 1 for restoring
 
 // #define UPDATE_ALL_NON_EQ 1 // uncomment only one
@@ -64,6 +64,12 @@
 #define PRINT_OUTPUT 1
 
 // #define OLD_FUNCTION 1
+
+#define EXPLORE_ENERGY_LANDSCAPE 1
+
+#define WALLTIME_LIMIT 600000.00 // in seconds
+
+#define BLACK_WHITE 1
 
 //===============================================================================//
 //====================      Variables                        ====================//
@@ -88,7 +94,7 @@
 
 //===============================================================================//
 //====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 64, 64 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 160, 160 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -210,6 +216,7 @@
     double delta_S_abs[dim_S] = { 0.0, 0.0 };
     double delta_S_max = 0.0 ;
     double delta_M[dim_S] = { 0.0, 0.0 };
+    double delta_E = 0.0 ;
 
 //====================      Magnetisation <M>                ====================//
     double m[dim_S];
@@ -237,7 +244,7 @@
 
 //====================      Energy <E>                       ====================//
     double E = 0;
-    double E_bkp[dim_S];
+    double E_bkp = 0;
     double E_sum = 0;
     double E_avg = 0;
     double E_2_sum = 0;
@@ -274,6 +281,8 @@
     long int hysteresis_MCS_min = 1; 
     long int hysteresis_MCS_max = 100;
     int hysteresis_repeat = 32000;
+    int repeat_sweep = 0;
+    int repeat_loop = 0;
     long int hysteresis_MCS_multiplier = 10;
     long int h_counter = 0;
     // #define CUTOFF_BY_SUM 1 // for find_change sum
@@ -3606,7 +3615,7 @@
     int checkerboard_Metropolis_sweep(long int iter)
     {
         // THIS PART IS PARALLELIZABLE. *modifications may be needed
-        static int black_or_white = 0;
+        static int black_or_white = BLACK_WHITE;
         long int i;
         while(iter > 0)
         {
@@ -3790,7 +3799,7 @@
     int checkerboard_Glauber_sweep(long int iter)
     {
         // THIS PART IS PARALLELIZABLE. *modifications may be needed
-        static int black_or_white = 0;
+        static int black_or_white = BLACK_WHITE;
         long int i;
         while(iter > 0)
         {
@@ -7252,7 +7261,7 @@
             cudaMalloc(&dev_cutoff_local, sizeof(int));
             // cudaMallocManaged(&dev_spin_temp, dim_S*no_of_sites*sizeof(double));
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
 
             // if (update_all_or_checker == 0)
             #ifdef UPDATE_ALL_NON_EQ
@@ -7278,10 +7287,10 @@
                 cutoff_local = 0;
                 // cudaMemcpy(dev_cutoff_local, &cutoff_local, sizeof(double), cudaMemcpyHostToDevice);
                 cudaMemset(dev_cutoff_local, 0, sizeof(int));
-                update_to_minimum_checkerboard<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[0], dev_cutoff_local, 0);
+                update_to_minimum_checkerboard<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[BLACK_WHITE], dev_cutoff_local, BLACK_WHITE);
                 cudaDeviceSynchronize();
                 
-                update_to_minimum_checkerboard<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[1], dev_cutoff_local, 1);
+                update_to_minimum_checkerboard<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[!BLACK_WHITE], dev_cutoff_local, !BLACK_WHITE);
                 cudaDeviceSynchronize();
 
                 cudaMemcpy(&cutoff_local, dev_cutoff_local, sizeof(int), cudaMemcpyDeviceToHost);
@@ -7303,7 +7312,7 @@
             int cutoff_local;
             
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
 
             // if (update_all_or_checker == 0)
             #ifdef UPDATE_ALL_NON_EQ
@@ -7391,7 +7400,7 @@
             double cutoff_change;
             
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
 
             // if (update_all_or_checker == 0)
             #ifdef UPDATE_ALL_NON_EQ
@@ -7484,6 +7493,7 @@
         backing_up_spin_on_device<<< dim_S*no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites);
         // backing_up_spin_on_device<<< 1, dim_S*no_of_sites >>>(no_of_sites);
         backing_up_m_on_device<<< 1, dim_S >>>();
+        /* backing_up_E_on_device<<< 1, 1 >>>(); */
         #else
         #pragma omp parallel for
         for(i=0; i<no_of_sites*dim_S; i++)
@@ -7495,6 +7505,9 @@
         {
             m_bkp[j_S] = m[j_S];
         }
+        #ifdef EXPLORE_ENERGY_LANDSCAPE
+        E_bkp = E;
+        #endif
         #endif
         return 0;
     }
@@ -7529,6 +7542,7 @@
         restoring_spin_on_device<<< dim_S*no_of_sites/gpu_threads + 1, gpu_threads >>>(no_of_sites);
         // restoring_spin_on_device<<< 1, dim_S*no_of_sites >>>(no_of_sites);
         restoring_m_on_device<<< 1, dim_S >>>();
+        /* restoring_E_on_device<<< 1, 1 >>>(); */
         #else
         #pragma omp parallel for
         for(i=0; i<no_of_sites*dim_S; i++)
@@ -7540,6 +7554,9 @@
         {
             m[j_S] = m_bkp[j_S];
         }
+        #ifdef EXPLORE_ENERGY_LANDSCAPE
+        E = E_bkp;
+        #endif
         #endif
         #ifdef PRINT_OUTPUT
         // if(reqd_to_print == 1)
@@ -7547,11 +7564,14 @@
             // printf(  "\n============================\n");
             printf(  "\r=1= %s = %.3e ", text, h_text );
             #ifndef CHECK_AVALANCHE
-            printf(    ", delta_m = %.3e ", delta_m );
+            printf(    ", d_m = %.3e ", delta_m );
             #else
-            printf(    ", delta_S = %.3e ", delta_m );
+            printf(    ", d_S = %.3e ", delta_m );
             #endif
-            printf(    ", delta_%s = %.3e ", text, order[jj_S]*delta_text );
+            #ifdef EXPLORE_ENERGY_LANDSCAPE
+            printf(    ", d_E = %.3e ", delta_E );
+            #endif
+            printf(    ", d_%s = %.3e ", text, order[jj_S]*delta_text );
             printf(    " -[ restore ]- ");
             printf(    " Time = %.3e s | ", omp_get_wtime() - start_time );
             fflush(stdout);
@@ -7592,37 +7612,50 @@
         {
             fprintf(pFile_1, "%.12e\t", delta_M[j_S]);
         }
-        for(j_S=0; j_S<dim_S; j_S++)
-        {
-            fprintf(pFile_1, "%.12e\t", delta_M[j_S]*delta_M[j_S]);
-        }
+        // for(j_S=0; j_S<dim_S; j_S++)
+        // {
+        //     fprintf(pFile_1, "%.12e\t", delta_M[j_S]*delta_M[j_S]);
+        // }
         // fprintf(pFile_1, "%.12e\t", delta_m);
         #endif
         fprintf(pFile_1, "%.12e\t", delta_m);
+        #ifdef EXPLORE_ENERGY_LANDSCAPE
+        fprintf(pFile_1, "%.12e\t", E);
+        fprintf(pFile_1, "%.12e\t", delta_E);
+        #endif
         fprintf(pFile_1, "\n");
         
         #ifdef SAVE_SPIN_AFTER
-            double temp_h[dim_S];
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                temp_h[j_S] = h[j_S];
-                if (sweep_or_loop == 1)
-                {
-                    h[j_S] = 0.0;
-                }
-            }
-            h[jj_S] = h_init[0];
             
             if ( h_counter % SAVE_SPIN_AFTER == 0 )
             {
+                double temp_h[dim_S];
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    temp_h[j_S] = h[j_S];
+                    if (sweep_or_loop == 1)
+                    {
+                        h[j_S] = 0.0;
+                    }
+                }
+                h[jj_S] = h_init[0];
+
                 char append_string[128];
                 char *pos = append_string;
-                pos += sprintf(pos, "_step_%ld", h_counter);
+                if (sweep_or_loop == 1)
+                {
+                    pos += sprintf(pos, "_step_%d_%ld", repeat_loop, h_counter);
+                }
+                else
+                {
+                    pos += sprintf(pos, "_step_%d_%ld", repeat_sweep, h_counter);
+                }
                 save_spin_config(append_string, "a", 0);
-            }
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                h[j_S] = temp_h[j_S];
+                
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    h[j_S] = temp_h[j_S];
+                }
             }
             h_counter++;
         #endif
@@ -7633,11 +7666,14 @@
             // printf(  "\n============================\n");
             printf(  "\r=1= %s = %.3e ", text, h_text );
             #ifndef CHECK_AVALANCHE
-            printf(    ", delta_m = %.3e ", delta_m );
+            printf(    ", d_m = %.3e ", delta_m );
             #else
-            printf(    ", delta_S = %.3e ", delta_m );
+            printf(    ", d_S = %.3e ", delta_m );
             #endif
-            printf(    ", delta_%s = %.3e ", text, order[jj_S]*delta_text );
+            #ifdef EXPLORE_ENERGY_LANDSCAPE
+            printf(    ", d_E = %.3e ", delta_E );
+            #endif
+            printf(    ", d_%s = %.3e ", text, order[jj_S]*delta_text );
             printf(    " -[ backup ]-  ");
             printf(    " Time = %.3e s | ", omp_get_wtime() - start_time );
             fflush(stdout);
@@ -7672,7 +7708,7 @@
             cudaMalloc(&dev_cutoff_check, 2*sizeof(int));
             int j_S;
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
             do
             {
                 cudaMemset(dev_cutoff_check, 0, 2*sizeof(int));
@@ -7699,10 +7735,10 @@
                 #ifdef UPDATE_CHKR_NON_EQ
                 {
                     // cutoff_check[0] = 0;
-                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[0], dev_cutoff_check, 0);
+                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[BLACK_WHITE], dev_cutoff_check, BLACK_WHITE);
                     cudaDeviceSynchronize();
                     
-                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[1]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[1], dev_cutoff_check, 1);
+                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[1]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[!BLACK_WHITE], dev_cutoff_check, !BLACK_WHITE);
                     cudaDeviceSynchronize();
 
                     cudaMemcpy(cutoff_check, dev_cutoff_check, 2*sizeof(int), cudaMemcpyDeviceToHost);
@@ -7725,7 +7761,7 @@
             cudaMalloc(&dev_cutoff_check, 2*sizeof(int));
             int j_S;
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
             do
             {
                 cudaMemset(dev_cutoff_check, 0, 2*sizeof(int));
@@ -7752,10 +7788,10 @@
                 #ifdef UPDATE_CHKR_NON_EQ
                 {
                     // cutoff_check[0] = 0;
-                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[0], dev_cutoff_check, 0);
+                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[0]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[BLACK_WHITE], dev_cutoff_check, BLACK_WHITE);
                     cudaDeviceSynchronize();
                     
-                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[1]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[1], dev_cutoff_check, 1);
+                    update_to_minimum_checkerboard_cutoff_continue<<< no_of_black_white_sites[1]/gpu_threads + 1, gpu_threads >>>(no_of_black_white_sites[!BLACK_WHITE], dev_cutoff_check, !BLACK_WHITE);
                     cudaDeviceSynchronize();
 
                     cudaMemcpy(cutoff_check, dev_cutoff_check, 2*sizeof(int), cudaMemcpyDeviceToHost);
@@ -7777,7 +7813,7 @@
             
             int j_S;
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
             do
             {
                 cutoff_check[0] = 0;
@@ -7906,7 +7942,7 @@
             
             int j_S;
             long int site_i;
-            static int black_or_white = 0;
+            static int black_or_white = BLACK_WHITE;
             do
             {
                 cutoff_check[0] = 0;
@@ -9110,6 +9146,19 @@
             return delta_m;
         }
 
+        int calculate_Energy_change()
+        {
+            // double delta_E = 0.0;
+            
+            delta_E = E;
+            
+            ensemble_E();
+            
+            delta_E = E - delta_E;
+            
+            return 0;
+        }
+
         int const_delta_phi(double h_phi, double delta_phi, int jj_S, double h_start)
         {
             static int binary_or_slope = 1;
@@ -9125,7 +9174,9 @@
             
             // double old_m[dim_S], new_m[dim_S];
             double delta_m = calculate_magnetization_change();
-            
+            #ifdef EXPLORE_ENERGY_LANDSCAPE
+            calculate_Energy_change();
+            #endif
             #ifdef OLD_FUNCTION
             if (h_phi == 0.0)
             {
@@ -9171,7 +9222,9 @@
             
             // double old_m[dim_S], new_m[dim_S];
             double delta_m = calculate_magnetization_change();
-
+            #ifdef EXPLORE_ENERGY_LANDSCAPE
+            calculate_Energy_change();
+            #endif
             #ifdef OLD_FUNCTION
             if (h_jj_S == order[jj_S]*h_start)
             {
@@ -10614,7 +10667,7 @@
         fclose(pFile_1);
 
         long int site_i;
-        int black_or_white = 0;
+        int black_or_white = BLACK_WHITE;
         double h_jj_S;
 
 
@@ -11167,9 +11220,9 @@
         printf("\nztne RFXY h axial sweep along h[%d] at T=%lf.. \n", jj_S, T);
 
         // long int site_i;
-        // int black_or_white = 0;
+        // int black_or_white = BLACK_WHITE;
 
-        int repeat_sweep = 1;
+        repeat_sweep = 1; //int repeat_sweep = 1;
         int repeat_cond = 1;
         int restore_chkpt = 1;
         int resume_chkpt = 0;
@@ -11236,6 +11289,9 @@
                     #endif
                 #endif
                 ensemble_m();
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                ensemble_E();
+                #endif
                 backing_up_spin();
             
                 #ifdef CHECK_AVALANCHE
@@ -11251,6 +11307,10 @@
                     // while (cutoff_local > 0); // 10^-14
                 #endif
 
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                calculate_Energy_change();
+                #endif
+
                 #ifdef CHECK_AVALANCHE
                     ensemble_delta_S_squared_max();
                     ensemble_m();
@@ -11258,6 +11318,7 @@
                     save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_j", &h_start[jj_S], 2);
                 #else
                     double delta_m = calculate_magnetization_change();
+                    
                     backing_up_spin();
                     save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_j", &h_start[jj_S], 2);
                 #endif
@@ -11453,11 +11514,11 @@
             save_spin_config(append_string, "a", 1);
             repeat_sweep++;
             order[jj_S] = -order[jj_S];
+            h_counter = 0;
             if (repeat_sweep-1 == hysteresis_repeat)
             {
                 break;
             }
-            // h_counter = 0;
         }
         is_complete = 1;
         delta_h = del_h;
@@ -11607,9 +11668,9 @@
         printf("\nztne RFXY h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
 
         // long int site_i;
-        // int black_or_white = 0;
+        // int black_or_white = BLACK_WHITE;
 
-        int repeat_loop = 1;
+        repeat_loop = 1;
         int repeat_cond = 1;
         int restore_chkpt = 1;
         int is_complete = 0;
@@ -11994,9 +12055,9 @@
         printf("\nztne RFXY h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
 
         // long int site_i;
-        // int black_or_white = 0;
+        // int black_or_white = BLACK_WHITE;
 
-        int repeat_loop = 1;
+        repeat_loop = 1;
         int repeat_cond = 1;
         int restore_chkpt = 1;
         int resume_chkpt = 0;
@@ -12075,6 +12136,9 @@
                     #endif
                 #endif
                 ensemble_m();
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                ensemble_E();
+                #endif
                 backing_up_spin();
             
                 #ifdef CHECK_AVALANCHE
@@ -12088,6 +12152,10 @@
                     //     cutoff_local = find_change();
                     // }
                     // while (cutoff_local > 0); // 10^-14
+                #endif
+
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                calculate_Energy_change();
                 #endif
 
                 #ifdef CHECK_AVALANCHE
@@ -12287,11 +12355,11 @@
             pos += sprintf(pos, "_loop_%d", repeat_loop);
             save_spin_config(append_string, "a", 1);
             repeat_loop++;
+            h_counter = 0;
             if (repeat_loop-1 == hysteresis_repeat)
             {
                 break;
             }
-            // h_counter = 0;
         }
         is_complete = 1;
         h_phi = 0.0;
@@ -12616,7 +12684,7 @@
         fclose(pFile_1);
 
         long int site_i;
-        int black_or_white = 0;
+        int black_or_white = BLACK_WHITE;
         double h_jj_S;
 
 
@@ -13169,9 +13237,9 @@
         printf("\nftne RFXY h axial sweep along h[%d] at T=%lf.. \n", jj_S, T);
 
         // long int site_i;
-        // int black_or_white = 0;
+        // int black_or_white = BLACK_WHITE;
 
-        int repeat_sweep = 1;
+        repeat_sweep = 1; //int repeat_sweep = 1;
         int repeat_cond = 1;
         int restore_chkpt = 1;
         int resume_chkpt = 0;
@@ -13238,6 +13306,9 @@
                     #endif
                 #endif
                 ensemble_m();
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                ensemble_E();
+                #endif
                 backing_up_spin();
             
                 #ifdef CHECK_AVALANCHE
@@ -13251,6 +13322,10 @@
                     //     cutoff_local = find_change();
                     // }
                     // while (cutoff_local > 0); // 10^-14
+                #endif
+
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                calculate_Energy_change();
                 #endif
 
                 #ifdef CHECK_AVALANCHE
@@ -13459,11 +13534,11 @@
             save_spin_config(append_string, "a", 1);
             repeat_sweep++;
             order[jj_S] = -order[jj_S];
+            h_counter = 0;
             if (repeat_sweep-1 == hysteresis_repeat)
             {
                 break;
             }
-            // h_counter = 0;
         }
         is_complete = 1;
         delta_h = del_h;
@@ -13613,9 +13688,9 @@
         printf("\nftne RFXY h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
 
         // long int site_i;
-        // int black_or_white = 0;
+        // int black_or_white = BLACK_WHITE;
 
-        int repeat_loop = 1;
+        repeat_loop = 1;
         int repeat_cond = 1;
         int restore_chkpt = 1;
         int is_complete = 0;
@@ -14000,9 +14075,9 @@
         printf("\nftne RFXY h rotating with |h|=%lf at T=%lf.. \n", h_start, T);
 
         // long int site_i;
-        // int black_or_white = 0;
+        // int black_or_white = BLACK_WHITE;
 
-        int repeat_loop = 1;
+        repeat_loop = 1;
         int repeat_cond = 1;
         int restore_chkpt = 1;
         int resume_chkpt = 0;
@@ -14081,6 +14156,9 @@
                     #endif
                 #endif
                 ensemble_m();
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                ensemble_E();
+                #endif
                 backing_up_spin();
             
                 #ifdef CHECK_AVALANCHE
@@ -14094,6 +14172,10 @@
                     //     cutoff_local = find_change();
                     // }
                     // while (cutoff_local > 0); // 10^-14
+                #endif
+
+                #ifdef EXPLORE_ENERGY_LANDSCAPE
+                calculate_Energy_change();
                 #endif
 
                 #ifdef CHECK_AVALANCHE
@@ -14297,12 +14379,12 @@
             pos += sprintf(pos, "_loop_%d", repeat_loop);
             save_spin_config(append_string, "a", 1);
             repeat_loop++;
+            h_counter = 0;
             if (repeat_loop-1 == hysteresis_repeat)
             {
                 break;
             }
             repeat_cond = 1;
-            // h_counter = 0;
             
         }
         is_complete = 1;
@@ -16455,7 +16537,7 @@
         // cudaDeviceReset();
         // #endif
         srand(time(NULL));
-        start_time = omp_get_wtime();
+        double abs_start_time = omp_get_wtime();
         printf("\n---- BEGIN ----\n");
         allocate_memory();
         
@@ -16541,14 +16623,14 @@
         // double h_field_vals[] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15 };
         // double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
         // double h_field_vals[] = { 0.100, 0.500, 1.000, 0.800, 0.300, 2.000 };
-        double h_field_vals[] = { 0.0580 };
+        double h_field_vals[] = { 0.0480 };
         int len_h_field_vals = sizeof(h_field_vals) / sizeof(h_field_vals[0]);
         for (i=0; i<len_h_field_vals; i++)
         {
             is_chkpt = -1;
             while (is_chkpt == -1)
             {
-                start_time = omp_get_wtime();
+                
                 double start_time_loop[2];
                 double end_time_loop[2];
                 
@@ -16565,8 +16647,8 @@
                 // zero_temp_RFXY_hysteresis_axis_checkerboard_old(0, -1);
                 // zero_temp_RFXY_hysteresis_axis_checkerboard_old(1, -1);
                 
-                
-                is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i], /* zero_or_finite */0.010);
+                start_time = omp_get_wtime();
+                is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i], /* zero_or_finite */0.100);
                 
                 
                 end_time_loop[0] = omp_get_wtime();
@@ -16583,6 +16665,7 @@
                 
 
                 start_time_loop[1] = omp_get_wtime();
+                // start_time = omp_get_wtime();
                 // zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
                 // evolution_at_T(100);
                 end_time_loop[1] = omp_get_wtime();
@@ -16595,6 +16678,13 @@
                 // printf("\nHysteresis along x ( Max(|sigma_h|)=%lf ) = %lf \n", sigma_h[0], end_time_loop[0] - start_time_loop[0] );
                 // printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
                 // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
+                #ifdef WALLTIME_LIMIT
+                if ( end_time_loop[1] - abs_start_time > WALLTIME_LIMIT/* 12600.0 */ )
+                {
+                    printf("\n %lf s Elapsed: To be continued... \n", end_time_loop[1] - abs_start_time );
+                    break;
+                }
+                #endif
             }
         }
         
@@ -16670,8 +16760,8 @@
         
         
         free_memory();
-        double end_time = omp_get_wtime();
-        printf("\nCPU Time elapsed total = %lf s\n", end_time-start_time);
+        double abs_end_time = omp_get_wtime();
+        printf("\nCPU Time elapsed total = %lf s\n", abs_end_time-abs_start_time);
         printf("\n----- END -----\n");
         // is_chkpt = -1;
         return -is_chkpt;
