@@ -38,8 +38,8 @@
 
 // #define RFIM 1
 
-#define dim_L 2
-#define dim_S 2
+#define dim_L 2 // Lattice dimensions
+#define dim_S 2 // Spin dimensions
 
 #define SAVE_SPIN_AFTER 1250
 
@@ -49,7 +49,7 @@
 #define TYPE_FLOAT 3
 #define TYPE_DOUBLE 4
 
-#define CHECKPOINT_TIME 300.00 // in seconds
+#define CHECKPOINT_TIME 300.00 // intervals between checkpoints in seconds
 #define RESTORE_CHKPT_VALUE 1 // 0 for initialization, 1 for restoring
 
 // #define UPDATE_ALL_NON_EQ 1 // uncomment only one
@@ -270,7 +270,6 @@
     double B = 0;
     double B_dir[dim_S] = { 0, 0 };
     
-
 //====================      MC-update iterations             ====================//
     long int thermal_i = 128*10*10*10; // thermalizing MCS 
     long int average_j = 128*10*10; // no. of measurements 
