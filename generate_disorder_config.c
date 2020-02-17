@@ -296,7 +296,7 @@ int save_h_config()
     {
         for (j_S = 0; j_S<dim_S; j_S++)
         {
-            fprintf(pFile_1, "%le ", h_random[dim_S*i + j_S]);
+            fprintf(pFile_1, "%.17e ", h_random[dim_S*i + j_S]);
         }
         fprintf(pFile_1, "\n");
         
