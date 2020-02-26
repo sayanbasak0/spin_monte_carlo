@@ -9,7 +9,9 @@
 #include <time.h>
 #include <math.h>
 #include "mt19937-64.h"
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 #include <unistd.h> // chdir 
 #include <errno.h> // strerror
 #include <sys/types.h>
@@ -45,11 +47,14 @@
 // #define BIMODAL_BOND 1 // for random bimodal bonds
 
 // #define RFIM 1
+#ifdef RFIM
+#define RFIM_MULTIPLE 1
+#endif
 
 #define dim_L 2 // Lattice dimensions
 #define dim_S 2 // Spin dimensions
 
-// #define SAVE_SPIN_AFTER 1250
+// #define SAVE_SPIN_AFTER 1250 // -1 for saving after del_m_counter change
 
 #define TYPE_VOID 0
 #define TYPE_INT 1
@@ -64,7 +69,9 @@
 #define UPDATE_CHKR_NON_EQ 1 // uncomment only one
 
 #define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
-#define PARALLEL_RANDOM_MC_SWEEP // parallelized random updates
+#ifdef _FOPENMP
+#define PARALLEL_RANDOM_MC_SWEEP 1 // parallelized random updates
+#endif
 // #define UPDATE_WOLFF_GHOST 1 // https://journals-aps-org.ezproxy.lib.purdue.edu/pre/pdf/10.1103/PhysRevE.98.063306
 
 // #define CHECK_AVALANCHE 1
@@ -79,10 +86,10 @@
 
 #define BLACK_WHITE 1
 
-//===============================================================================//
-//====================      Variables                        ====================//
+//========================================================================//
+//====================  Variables                     ====================//
 
-    FILE *pFile_1, *pFile_2, *pFile_phase, *pFile_output = NULL, *pFile_chkpt, *pFile_temp;
+    FILE *pFile_1, *pFile_2, *pFile_phase, *pFile_output = NULL, *pFile_chkpt, *pFile_temp, *pFile_ising_spin, *pFile_ising_h;
     char output_file_0[256];
 
     const double pie = 3.14159265358979323846;
@@ -101,15 +108,15 @@
     int output_prepend = 0; 
     int output_append = 0;
 
-//===============================================================================//
-//====================      Lattice size                     ====================//
-    int lattice_size[dim_L] = { 16, 16 }; // lattice_size[dim_L]
+//========================================================================//
+//====================  Lattice size                  ====================//
+    int lattice_size[dim_L] = { 128, 128 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
     long int no_of_black_white_sites[2];
 
-//====================      Checkerboard variables           ====================//
+//====================  Checkerboard variables        ====================//
     // long int *black_white_checkerboard[2]; 
     long int *black_white_checkerboard; 
     #if defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
@@ -121,22 +128,25 @@
     long int *white_checkerboard; int white_checkerboard_reqd = 0;
     int site_to_dir_index[dim_L];
 
-//====================      Ising hysteresis sorted list     ====================//
-    long int *sorted_h_index; 
-    #if defined (RFIM)
-        int sorted_h_index_reqd = 1; 
+//====================  Ising hysteresis              ====================//
+    long int *nucleation_sites; 
+    #ifdef RFIM
+        int nucleation_sites_reqd = 1; 
     #else
-        int sorted_h_index_reqd = 0; 
-    #endif
-    long int *next_in_queue; 
-    #if defined (RFIM)
-        int next_in_queue_reqd = 1;
-    #else
-        int next_in_queue_reqd = 0;
+        int nucleation_sites_reqd = 0; 
     #endif
     long int remaining_sites;
 
-//====================      Wolff/Cluster variables          ====================//
+//====================  Random MC variables           ====================//
+    long int *random_sites;
+    #ifdef PARALLEL_RANDOM_MC_SWEEP
+        int random_sites_reqd = 1;
+    #else
+        int random_sites_reqd = 0;
+    #endif
+    // int cluster_reqd = 1;
+
+//====================  Wolff/Cluster variables       ====================//
     double reflection_plane[dim_S];
     double reflection_matrix[dim_S*dim_S];
     int *cluster; int cluster_reqd = 1;
@@ -144,11 +154,11 @@
     double ghost_spin[dim_S];
     double ghost_matrix[dim_S*dim_S];
 
-//====================      Near neighbor /Boundary Cond     ====================//
+//====================  Near neighbor /Boundary Cond  ====================//
     long int *N_N_I; int N_N_I_reqd = 1;
     double BC[dim_L] = { 1, 1 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic -- Boundary Condition
 
-//====================      Spin variable                    ====================//
+//====================  Spin variable                 ====================//
     double *spin; int spin_reqd = 1;
     double *spin_bkp;
     #if defined (BINARY_DIVISION) || defined (DIVIDE_BY_SLOPE) || defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE) || defined (CONST_RATE)
@@ -167,7 +177,7 @@
     // int *spin_sum; int spin_sum_reqd = 1; 
     // double spin_0[dim_S];
 
-//====================      Initialization type              ====================//
+//====================  Initialization type           ====================//
     double order[dim_S] = { 1.0, 0.0 };//  Initialize all spins along this direction (Norm(order) = Norm(spin) = 1)
     int h_order = 0; // 1/0 (Yes/No) Initialize spin along RF direction
     int r_order = 0; // 1/0 (Yes/No) Random initialize spin
@@ -176,13 +186,18 @@
     int ax_ro = 1; // 0/1 axial/rotating driving field
     char a_r[] = "ar";
 
-//====================      MC-update type                   ====================//
-    int Gl_Me_Wo = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
+//====================  MC-update type                ====================//
+    int MC_algo_type = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
     char G_M_W[] = "GMW";
-    int Ch_Ra_Li = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
+    int MC_update_type = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
     char C_R_L[] = "CRL";
 
-//====================      NN-interaction (J)               ====================//
+//====================  MC-update iterations          ====================//
+    long int thermal_i = 128*10*10*10; // thermalizing MCS 
+    long int average_j = 128*10*10; // no. of measurements 
+    long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-rand()%sampling_inter
+
+//====================  NN-interaction (J)            ====================//
     double J[dim_L] = { 1.0, 1.0 }; 
     int output_J = 0;
     double sigma_J[dim_L] = { 0.0, 0.0 };
@@ -199,7 +214,7 @@
     double J_dev_net[dim_L];
     double J_dev_avg[dim_L];
 
-//====================      on-site field (h)                ====================//
+//====================  on-site field (h)             ====================//
     double h[dim_S] = { 0.0, 0.0 }; // uniform field 
     int output_h = 0;
     double sigma_h[dim_S] = { 1.00, 0.00 }; // random field strength ( R = { R_x, R_y, ... } )
@@ -218,14 +233,14 @@
     double h_dev_avg[dim_S];
     double *field_site; int field_site_reqd = 0; // field experienced by spin due to nearest neighbors and on-site field
 
-//====================      Temperature                      ====================//
+//====================  Temperature                   ====================//
     double T = 3.00;
     double Temp_min = 0.02;
     double Temp_max = 2.00;
     double delta_T = 0.05;
     int output_T = 0;
 
-//====================      Avalanche delta(S)               ====================//
+//====================  Avalanche delta(S)            ====================//
     double delta_S_squared[dim_S] = { 0.0, 0.0 };
     int output_delta_S_squared = 0;
     double delta_S_abs[dim_S] = { 0.0, 0.0 };
@@ -237,7 +252,7 @@
     double delta_E = 0.0 ;
     int output_delta_E = 0;
 
-//====================      Magnetisation <M>                ====================//
+//====================  Magnetization <M>             ====================//
     double m[dim_S];
     int output_m = 0;
     double m_bkp[dim_S];
@@ -273,7 +288,7 @@
     double m_ab_avg[dim_S*dim_S] = { 0 };
     int output_m_ab_avg = 0;
 
-//====================      Energy <E>                       ====================//
+//====================  Energy <E>                    ====================//
     double E = 0;
     int output_E = 0;
     double E_bkp = 0;
@@ -284,7 +299,7 @@
     double E_2_avg = 0;
     int output_E_2_avg = 0;
 
-//====================      Helicity <Y>                     ====================//
+//====================  Helicity <Y>                  ====================//
     // double Y_1[dim_S*dim_S*dim_L] = { 0 };
     // double Y_2[dim_S*dim_S*dim_L] = { 0 };
     double Y_1[dim_L] = { 0 };
@@ -305,36 +320,30 @@
     double Y_x_mu[dim_L] = { 0 };
     int output_Y_x_mu = 0;
 
-//====================      Specific heat Cv                 ====================//
+//====================  Specific heat Cv              ====================//
     double Cv = 0;
     int output_Cv = 0;
 
-//====================      Susceptibility (Tensor) X        ====================//
+//====================  Susceptibility (Tensor) X     ====================//
     double X = 0;
     int output_X = 0;
     double X_ab[dim_S*dim_S] = { 0 };
     int output_X_ab = 0;
 
-//====================      Binder Parameter B               ====================//
+//====================  Binder Parameter B            ====================//
     double B = 0;
     int output_B = 0;
-    double B_a[dim_S] = { 0, 0 };
+    double B_a[dim_S] = { 0 };
     int output_B_a = 0;
     
-//====================      MC-update iterations             ====================//
-    long int thermal_i = 128*10*10*10; // thermalizing MCS 
-    long int average_j = 128*10*10; // no. of measurements 
-    long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-rand()%sampling_inter
-
-//====================      Hysteresis                       ====================//
-    long int hysteresis_MCS = 1; 
-    long int hysteresis_MCS_min = 1; 
-    long int hysteresis_MCS_max = 100;
-    int hysteresis_repeat = 32000;
+//====================  Hysteresis                    ====================//
+    long int hysteresis_MCS = 10; 
+    int hysteresis_repeat = 4;
     int repeat_sweep = 0;
     int repeat_loop = 0;
-    long int hysteresis_MCS_multiplier = 10;
     long int h_counter = 0;
+    double del_m_counter = 1.0/128.0;
+    double m_counter = 1.0;
     // #define CUTOFF_BY_SUM 1 // for find_change sum
     #ifdef CUTOFF_BY_SUM
     double CUTOFF_SPIN = 1.0000000000000e-10; 
@@ -348,7 +357,7 @@
     int cutoff_check[2] = { 0, 0 };
     double Spin_Saturation_Limit = 0.80;
 
-//====================      CUDA device ptr                  ====================//
+//====================  CUDA device ptr               ====================//
     #ifdef enable_CUDA_CODE
         #ifdef CUDA_with_managed
         __managed__ __device__ double *dev_spin;
@@ -394,12 +403,12 @@
     long int no_of_sites_max_power_2;
     long int no_of_sites_remaining_power_2;
 
-//===============================================================================//
+//========================================================================//
 
-//===============================================================================//
-//====================      Functions                        ====================//
-//===============================================================================//
-//====================      Custom                           ====================//
+//========================================================================//
+//====================  Functions                     ====================//
+//========================================================================//
+//====================  Custom                        ====================//
 
     long int custom_int_pow(long int base, int power)
     {
@@ -572,7 +581,7 @@
         }
     #endif
 
-//====================      Initialization                   ====================//
+//====================  Initialization                ====================//
 
     int initialize_h_zero()
     {
@@ -1012,7 +1021,7 @@
     }
 
     
-//====================      Save J, h, Spin                  ====================//
+//====================  Save J, h, Spin               ====================//
 
     int save_spin_config(char append_string[], char write_mode[], int reqd_to_print)
     {
@@ -1027,103 +1036,173 @@
         long int i;
         int j_S, j_L;
 
-        char output_file_1[256];
-        char *pos = output_file_1;
-        pos += sprintf(pos, "Spin_%.3f_", T);
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        if (reqd_to_print*reqd_to_print == 1)
         {
-            if (j_S) 
-            {
-                pos += sprintf(pos, "-");
-            }
-            pos += sprintf(pos, "%.3f", sigma_h[j_S]);
-        }
-        pos += sprintf(pos, "_");
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
-        {
-            if (j_S) 
-            {
-                pos += sprintf(pos, "-");
-            }
-            pos += sprintf(pos, "%lf", h[j_S]);
-        }
-        pos += sprintf(pos, "_");
-        for (j_L = 0 ; j_L != dim_L ; j_L++) 
-        {
-            if (j_L) 
-            {
-                pos += sprintf(pos, "x");
-            }
-            pos += sprintf(pos, "%d", lattice_size[j_L]);
-        }
-        strcat(output_file_1, append_string);
-        strcat(output_file_1, ".dat");
-            
-        pFile_2 = fopen(output_file_1, write_mode); // opens new file for writing
-
-
-        for (i = 0; i < no_of_sites; i++)
-        {
-            for (j_S = 0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_2, "%.17e\t", spin[dim_S*i + j_S]);
-            }
-            fprintf(pFile_2, "\n");
-        }
-        fclose(pFile_2);
-
-        if (reqd_to_print == 1)
-        {
-            printf("Saved spin config. Output file name: %s", output_file_1);
-        }
-        else
-        {
-            char output_file_phase[256];
-            char *pos_phase = output_file_phase;
-            pos_phase += sprintf(pos_phase, "Angle_%.3f_", T);
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S) 
-                {
-                    pos_phase += sprintf(pos_phase, "-");
-                }
-                pos_phase += sprintf(pos_phase, "%.3f", sigma_h[j_S]);
-            }
-            pos_phase += sprintf(pos_phase, "_");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S) 
-                {
-                    pos_phase += sprintf(pos_phase, "-");
-                }
-                pos_phase += sprintf(pos_phase, "%lf", h[j_S]);
-            }
-            pos_phase += sprintf(pos_phase, "_");
+            char output_file_1[256];
+            char *pos = output_file_1;
+            pos += sprintf(pos, "Spin(%d)_", dim_S);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
                 {
-                    pos_phase += sprintf(pos_phase, "x");
+                    pos += sprintf(pos, "x");
                 }
-                pos_phase += sprintf(pos_phase, "%d", lattice_size[j_L]);
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            strcat(output_file_phase, append_string);
-            strcat(output_file_phase, ".dat");
-                
-            pFile_phase = fopen(output_file_phase, write_mode); // opens new file for writing
-
-            int ix, iy;
-            double angle;
-            for (ix = 0; ix < lattice_size[0]; ix++)
+            pos += sprintf(pos, "_%.3f", T);
+            #ifdef RANDOM_FIELD
+            pos += sprintf(pos, "_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
-                for (iy = 0; iy < lattice_size[1]; iy++)
+                if (j_S) 
                 {
-                    angle = ( (1.0-custom_double_sign(spin[dim_S*(lattice_size[0]*iy + ix) + 1])) + custom_double_sign(spin[dim_S*(lattice_size[0]*iy + ix) + 1]) * acos(spin[dim_S*(lattice_size[0]*iy + ix) + 0]) / pie ) / 2.0; 
-                    fprintf(pFile_phase, "%.8e\t", angle );
+                    pos += sprintf(pos, ",");
                 }
-                fprintf(pFile_phase, "\n");
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
-            fclose(pFile_phase);
+            #endif
+            pos += sprintf(pos, "_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", h[j_S]);
+            }
+            strcat(output_file_1, append_string);
+            strcat(output_file_1, ".dat");
+                
+            pFile_2 = fopen(output_file_1, write_mode); // opens new file for writing
+
+            for (i = 0; i < no_of_sites; i++)
+            {
+                for (j_S = 0; j_S<dim_S; j_S++)
+                {
+                    fprintf(pFile_2, "%.17e\t", spin[dim_S*i + j_S]);
+                }
+                fprintf(pFile_2, "\n");
+            }
+            fclose(pFile_2);
+
+            if (reqd_to_print == 1)
+            {
+                printf("Saved spin config. Output file name: %s", output_file_1);
+                reqd_to_print = -reqd_to_print;
+            }
+        }
+        else
+        {
+            if (reqd_to_print == 0)
+            {
+                char output_file_phase[256];
+                char *pos_phase = output_file_phase;
+                pos_phase += sprintf(pos_phase, "XY_Angle_");
+                for (j_L = 0 ; j_L != dim_L ; j_L++) 
+                {
+                    if (j_L) 
+                    {
+                        pos_phase += sprintf(pos_phase, "x");
+                    }
+                    pos_phase += sprintf(pos_phase, "%d", lattice_size[j_L]);
+                }
+                pos_phase += sprintf(pos_phase, "_T%.3f", T);
+                #ifdef RANDOM_FIELD
+                pos_phase += sprintf(pos_phase, "_Rh");
+                for (j_S = 0 ; j_S != dim_S ; j_S++) 
+                {
+                    if (j_S) 
+                    {
+                        pos_phase += sprintf(pos_phase, ",");
+                    }
+                    pos_phase += sprintf(pos_phase, "%.3f", sigma_h[j_S]);
+                }
+                #endif
+                pos_phase += sprintf(pos_phase, "_h");
+                for (j_S = 0 ; j_S != dim_S ; j_S++) 
+                {
+                    if (j_S) 
+                    {
+                        pos_phase += sprintf(pos_phase, ",");
+                    }
+                    pos_phase += sprintf(pos_phase, "%lf", h[j_S]);
+                }
+                
+                strcat(output_file_phase, append_string);
+                strcat(output_file_phase, ".dat");
+                    
+                pFile_phase = fopen(output_file_phase, write_mode); // opens new file for writing
+
+                int ix, iy;
+                double angle;
+                for (ix = 0; ix < lattice_size[0]; ix++)
+                {
+                    for (iy = 0; iy < lattice_size[1]; iy++)
+                    {
+                        angle = ( (1.0-custom_double_sign(spin[dim_S*(lattice_size[0]*iy + ix) + 1])) + custom_double_sign(spin[dim_S*(lattice_size[0]*iy + ix) + 1]) * acos(spin[dim_S*(lattice_size[0]*iy + ix) + 0]) / pie ) / 2.0; 
+                        fprintf(pFile_phase, "%.8e\t", angle );
+                    }
+                    fprintf(pFile_phase, "\n");
+                }
+                fclose(pFile_phase);
+            }
+            else
+            {
+                if (reqd_to_print == 2)
+                {
+                    char output_file_ising_spin[256];
+                    char *pos_ising_spin = output_file_ising_spin;
+                    pos_ising_spin += sprintf(pos_ising_spin, "Ising_Spin_");
+                    for (j_L = 0 ; j_L != dim_L ; j_L++) 
+                    {
+                        if (j_L) 
+                        {
+                            pos_ising_spin += sprintf(pos_ising_spin, "x");
+                        }
+                        pos_ising_spin += sprintf(pos_ising_spin, "%d", lattice_size[j_L]);
+                    }
+                    pos_ising_spin += sprintf(pos_ising_spin, "_T%.3f", T);
+                    #ifdef RANDOM_FIELD
+                    pos_ising_spin += sprintf(pos_ising_spin, "_Rh");
+                    for (j_S = 0 ; j_S != dim_S ; j_S++) 
+                    {
+                        if (j_S) 
+                        {
+                            pos_ising_spin += sprintf(pos_ising_spin, ",");
+                        }
+                        pos_ising_spin += sprintf(pos_ising_spin, "%.3f", sigma_h[j_S]);
+                    }
+                    #endif
+                    pos_ising_spin += sprintf(pos_ising_spin, "_h");
+                    for (j_S = 0 ; j_S != dim_S ; j_S++) 
+                    {
+                        if (j_S) 
+                        {
+                            pos_ising_spin += sprintf(pos_ising_spin, ",");
+                        }
+                        pos_ising_spin += sprintf(pos_ising_spin, "%lf", h[j_S]);
+                    }
+
+                    strcat(output_file_ising_spin, append_string);
+                    strcat(output_file_ising_spin, ".dat");
+                        
+                    pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
+
+                    int ix, iy;
+                    int ising_spin;
+                    for (ix = 0; ix < lattice_size[0]; ix++)
+                    {
+                        for (iy = 0; iy < lattice_size[1]; iy++)
+                        {
+                            ising_spin = (int)( spin[dim_S*(lattice_size[0]*iy + ix)] + 1) / 2; 
+                            fprintf(pFile_ising_spin, "%d\t", ising_spin );
+                        }
+                        fprintf(pFile_ising_spin, "\n");
+                    }
+                    fclose(pFile_ising_spin);
+                }
+            }
+            
         }
         
         /* for (i = 0; i < no_of_sites; i++)
@@ -1144,7 +1223,7 @@
         long int i;
         int j_S, j_L;
         
-
+        #ifdef RANDOM_FIELD
         char output_file_1[256];
         char *pos = output_file_1;
         pos += sprintf(pos, "h_config_");
@@ -1152,7 +1231,7 @@
         {
             if (j_S) 
             {
-                pos += sprintf(pos, "-");
+                pos += sprintf(pos, ",");
             }
             pos += sprintf(pos, "%lf", sigma_h[j_S]);
         }
@@ -1165,6 +1244,14 @@
             }
             pos += sprintf(pos, "%d", lattice_size[j_L]);
         }
+
+        #ifdef BIMODAL_FIELD
+        pos += sprintf(pos, "_bimodal");
+        #endif
+        #ifdef GAUSSIAN_FIELD
+        pos += sprintf(pos, "_gaussian");
+        #endif
+        
         strcat(output_file_1, append_string);
         strcat(output_file_1, ".dat");
             
@@ -1199,6 +1286,51 @@
         }
         fclose(pFile_1);
 
+        #ifdef RFIM
+            char output_file_ising_h[256];
+            char *pos_ising_h = output_file_ising_h;
+            pos_ising_h += sprintf(pos_ising_h, "Ising_h_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S) 
+                {
+                    pos_ising_h += sprintf(pos_ising_h, ",");
+                }
+                pos_ising_h += sprintf(pos_ising_h, "%.3f", sigma_h[j_S]);
+            }
+            pos_ising_h += sprintf(pos_ising_h, "_");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L) 
+                {
+                    pos_ising_h += sprintf(pos_ising_h, "x");
+                }
+                pos_ising_h += sprintf(pos_ising_h, "%d", lattice_size[j_L]);
+            }
+
+            #ifdef BIMODAL_FIELD
+            pos += sprintf(pos, "_bimodal");
+            #endif
+            #ifdef GAUSSIAN_FIELD
+            pos += sprintf(pos, "_gaussian");
+            #endif
+            
+            strcat(output_file_ising_h, append_string);
+            strcat(output_file_ising_h, ".dat");
+                
+            pFile_ising_h = fopen(output_file_ising_h, "w"); // opens new file for writing
+
+            int ix, iy;
+            for (ix = 0; ix < lattice_size[0]; ix++)
+            {
+                for (iy = 0; iy < lattice_size[1]; iy++)
+                {
+                    fprintf(pFile_ising_h, "%.12e\t", h_random[dim_S*(lattice_size[0]*iy + ix)] );
+                }
+                fprintf(pFile_ising_h, "\n");
+            }
+            fclose(pFile_ising_h);
+        #endif
         /* for (i = 0; i < no_of_sites; i++)
         {
             for (j_S = 0; j_S<dim_S; j_S++)
@@ -1208,7 +1340,8 @@
             printf("\n");
         }
         printf("\n"); */
-        
+        #endif
+
         return 0;
     }
 
@@ -1217,7 +1350,7 @@
         long int i;
         int j_L, k_L;
         
-        
+        #ifdef RANDOM_BOND
         char output_file_1[256];
         char *pos = output_file_1;
         pos += sprintf(pos, "J_config_");
@@ -1225,7 +1358,7 @@
         {
             if (j_L) 
             {
-                pos += sprintf(pos, "-");
+                pos += sprintf(pos, ",");
             }
             pos += sprintf(pos, "%lf", sigma_J[j_L]);
         }
@@ -1238,6 +1371,14 @@
             }
             pos += sprintf(pos, "%d", lattice_size[j_L]);
         }
+
+        #ifdef BIMODAL_BOND
+        pos += sprintf(pos, "_bimodal");
+        #endif
+        #ifdef GAUSSIAN_BOND
+        pos += sprintf(pos, "_gaussian");
+        #endif
+        
         strcat(output_file_1, append_string);
         strcat(output_file_1, ".dat");
         
@@ -1282,39 +1423,21 @@
             printf("\n");
         }
         printf("\n"); */
-        
+        #endif
+
         return 0;
     }
 
-//====================      Load J, h, Spin                  ====================//
+//====================  Load J, h, Spin               ====================//
 
     int load_spin_config(char append_string[])
     {
-        
         long int i;
         int j_S, j_L;
 
         char input_file_1[256];
         char *pos = input_file_1;
-        pos += sprintf(pos, "Spin_%.3f_", T);
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
-        {
-            if (j_S) 
-            {
-                pos += sprintf(pos, "-");
-            }
-            pos += sprintf(pos, "%.3f", sigma_h[j_S]);
-        }
-        pos += sprintf(pos, "_");
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
-        {
-            if (j_S) 
-            {
-                pos += sprintf(pos, "-");
-            }
-            pos += sprintf(pos, "%lf", h[j_S]);
-        }
-        pos += sprintf(pos, "_");
+        pos += sprintf(pos, "Spin(%d)_", dim_S);
         for (j_L = 0 ; j_L != dim_L ; j_L++) 
         {
             if (j_L) 
@@ -1322,6 +1445,27 @@
                 pos += sprintf(pos, "x");
             }
             pos += sprintf(pos, "%d", lattice_size[j_L]);
+        }
+        pos += sprintf(pos, "_%.3f", T);
+        #ifdef RANDOM_FIELD
+        pos += sprintf(pos, "_");
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, ",");
+            }
+            pos += sprintf(pos, "%.3f", sigma_h[j_S]);
+        }
+        #endif
+        pos += sprintf(pos, "_");
+        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        {
+            if (j_S) 
+            {
+                pos += sprintf(pos, ",");
+            }
+            pos += sprintf(pos, "%lf", h[j_S]);
         }
         strcat(input_file_1, append_string);
         strcat(input_file_1, ".dat");
@@ -1382,14 +1526,16 @@
         // h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
         long int i;
         int j_S, j_L;
+        #ifdef RANDOM_FIELD
         char input_file_1[256];
         char *pos = input_file_1;
         pos += sprintf(pos, "h_config_");
+        
         for (j_S = 0 ; j_S != dim_S ; j_S++) 
         {
             if (j_S) 
             {
-                pos += sprintf(pos, "-");
+                pos += sprintf(pos, ",");
             }
             pos += sprintf(pos, "%lf", sigma_h[j_S]);
         }
@@ -1402,6 +1548,14 @@
             }
             pos += sprintf(pos, "%d", lattice_size[j_L]);
         }
+
+        #ifdef BIMODAL_FIELD
+        pos += sprintf(pos, "_bimodal");
+        #endif
+        #ifdef GAUSSIAN_FIELD
+        pos += sprintf(pos, "_gaussian");
+        #endif
+        
         strcat(input_file_1, append_string);
         strcat(input_file_1, ".dat");
         
@@ -1453,7 +1607,7 @@
         }
         printf("\n");
         */
-
+        #endif
         return 0;
     }
 
@@ -1464,14 +1618,16 @@
         // J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
         long int i;
         int j_L, k_L;
+        #ifdef RANDOM_BOND
         char input_file_1[256];
         char *pos = input_file_1;
         pos += sprintf(pos, "J_config_");
+
         for (j_L = 0 ; j_L != dim_L ; j_L++) 
         {
             if (j_L) 
             {
-                pos += sprintf(pos, "-");
+                pos += sprintf(pos, ",");
             }
             pos += sprintf(pos, "%lf", sigma_J[j_L]);
         }
@@ -1484,6 +1640,14 @@
             }
             pos += sprintf(pos, "%d", lattice_size[j_L]);
         }
+
+        #ifdef BIMODAL_BOND
+        pos += sprintf(pos, "_bimodal");
+        #endif
+        #ifdef GAUSSIAN_BOND
+        pos += sprintf(pos, "_gaussian");
+        #endif
+
         strcat(input_file_1, append_string);
         strcat(input_file_1, ".dat");
         
@@ -1551,11 +1715,12 @@
         }
         printf("\n");
         */
+        #endif
 
         return 0;
     }
 
-//====================      Checkpoint                       ====================//
+//====================  Checkpoint                    ====================//
 
     int restore_checkpoint(int startif, int array_type, int array_length, void *voidarray, int stopif)
     {
@@ -1574,65 +1739,7 @@
         {
             char chkpt_file_1[256];
             char *pos = chkpt_file_1;
-            pos += sprintf(pos, "Data_%.3f_", T);
-            if (array_type == TYPE_INT)
-            {
-                int *array = (int*)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%d", array[j_arr]);
-                }
-            }
-            if (array_type == TYPE_LONGINT)
-            {
-                long int *array = (long int*)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%ld", array[j_arr]);
-                }
-            }
-            if (array_type == TYPE_FLOAT)
-            {
-                float *array = (float*)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%f", array[j_arr]);
-                }
-            }
-            if (array_type == TYPE_DOUBLE)
-            {
-                double *array = (double*)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%lf", array[j_arr]);
-                }
-            }
-            pos += sprintf(pos, "_");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S) 
-                {
-                    pos += sprintf(pos, "-");
-                }
-                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
-            }
-            pos += sprintf(pos, "_");
+            pos += sprintf(pos, "Data_");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -1640,6 +1747,71 @@
                     pos += sprintf(pos, "x");
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+            pos += sprintf(pos, "_%.3f", T);
+            #ifdef RANDOM_FIELD
+            pos += sprintf(pos, "_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
+            }
+            #endif
+            
+            if (array_type == TYPE_INT)
+            {
+                pos += sprintf(pos, "_");
+                int *array = (int *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%d", array[j_arr]);
+                }
+            }
+            if (array_type == TYPE_LONGINT)
+            {
+                pos += sprintf(pos, "_");
+                long int *array = (long int *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%ld", array[j_arr]);
+                }
+            }
+            if (array_type == TYPE_FLOAT)
+            {
+                pos += sprintf(pos, "_");
+                float *array = (float *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%f", array[j_arr]);
+                }
+            }
+            if (array_type == TYPE_DOUBLE)
+            {
+                pos += sprintf(pos, "_");
+                double *array = (double *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%lf", array[j_arr]);
+                }
             }
             // strcat(chkpt_file_1, append_string);
             strcat(chkpt_file_1, "_chkpt.dat");
@@ -1701,7 +1873,6 @@
         {
             fclose(pFile_chkpt);
             printf("\n---- Resuming from Checkpoint ----\n");
-            
         }
 
         return 1;
@@ -1714,65 +1885,7 @@
         {
             char chkpt_file_1[256];
             char *pos = chkpt_file_1;
-            pos += sprintf(pos, "Data_%.3f_", T);
-            if (array_type == TYPE_INT)
-            {
-                int *array = (int *)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%d", array[j_arr]);
-                }
-            }
-            if (array_type == TYPE_LONGINT)
-            {
-                long int *array = (long int *)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%ld", array[j_arr]);
-                }
-            }
-            if (array_type == TYPE_FLOAT)
-            {
-                float *array = (float *)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%f", array[j_arr]);
-                }
-            }
-            if (array_type == TYPE_DOUBLE)
-            {
-                double *array = (double *)voidarray;
-                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
-                {
-                    if (j_arr) 
-                    {
-                        pos += sprintf(pos, "-");
-                    }
-                    pos += sprintf(pos, "%lf", array[j_arr]);
-                }
-            }
-            pos += sprintf(pos, "_");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S) 
-                {
-                    pos += sprintf(pos, "-");
-                }
-                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
-            }
-            pos += sprintf(pos, "_");
+            pos += sprintf(pos, "Data_");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -1780,6 +1893,71 @@
                     pos += sprintf(pos, "x");
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+            pos += sprintf(pos, "_%.3f", T);
+            #ifdef RANDOM_FIELD
+            pos += sprintf(pos, "_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
+            }
+            #endif
+
+            if (array_type == TYPE_INT)
+            {
+                pos += sprintf(pos, "_");
+                int *array = (int *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%d", array[j_arr]);
+                }
+            }
+            if (array_type == TYPE_LONGINT)
+            {
+                pos += sprintf(pos, "_");
+                long int *array = (long int *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%ld", array[j_arr]);
+                }
+            }
+            if (array_type == TYPE_FLOAT)
+            {
+                pos += sprintf(pos, "_");
+                float *array = (float *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%f", array[j_arr]);
+                }
+            }
+            if (array_type == TYPE_DOUBLE)
+            {
+                pos += sprintf(pos, "_");
+                double *array = (double *)voidarray;
+                for (j_arr = 0 ; j_arr != array_length ; j_arr++) 
+                {
+                    if (j_arr) 
+                    {
+                        pos += sprintf(pos, ",");
+                    }
+                    pos += sprintf(pos, "%lf", array[j_arr]);
+                }
             }
             // strcat(chkpt_file_1, append_string);
             strcat(chkpt_file_1, "_chkpt.dat");
@@ -1839,7 +2017,7 @@
         return 0;
     }
 
-//====================      Print Output                     ====================//
+//====================  Print Output                  ====================//
 
     int output_param_file(char output_file_name[])
     {
@@ -1864,6 +2042,8 @@
         fprintf(pFile_output, ") ,\n");
 
         fprintf(pFile_output, "T = %.12e ,\n", T);
+        fprintf(pFile_output, "T_min = %.12e ,\n", Temp_min);
+        fprintf(pFile_output, "T_max = %.12e ,\n", Temp_max);
         
         fprintf(pFile_output, "delta_T = %.12e ,\n", delta_T);
 
@@ -1878,6 +2058,7 @@
         }
         fprintf(pFile_output, ") ,\n");
 
+        #ifdef RANDOM_BOND
         fprintf(pFile_output, "sigma_J = (");
         for (j_L=0; j_L<dim_L; j_L++)
         {
@@ -1887,8 +2068,7 @@
             }
             fprintf(pFile_output, " %.12e ", sigma_J[j_L]);
         }
-        fprintf(pFile_output, ") ,\n");
-
+        fprintf(pFile_output, ") , ");
         fprintf(pFile_output, "<J_{ij}> = (");
         for (j_L=0; j_L<dim_L; j_L++)
         {
@@ -1898,7 +2078,14 @@
             }
             fprintf(pFile_output, " %.12e ", J_dev_avg[j_L]);
         }
-        fprintf(pFile_output, ") ,\n");
+        fprintf(pFile_output, ") , ");
+        #ifdef BIMODAL_BOND
+        fprintf(pFile_output, " [Bimodal distribution] ,\n");
+        #endif
+        #ifdef GAUSSIAN_BOND
+        fprintf(pFile_output, " [Gaussian distribution] ,\n");
+        #endif
+        #endif
 
         fprintf(pFile_output, "h = (");
         for (j_S=0; j_S<dim_S; j_S++)
@@ -1907,10 +2094,11 @@
             {
                 fprintf(pFile_output, ",");
             }
-                fprintf(pFile_output, " %.12e ", h[j_S]);
+            fprintf(pFile_output, " %.12e ", h[j_S]);
         }
         fprintf(pFile_output, ") ,\n");
-
+        
+        #ifdef RANDOM_FIELD
         fprintf(pFile_output, "sigma_h = (");
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -1920,8 +2108,7 @@
             }
             fprintf(pFile_output, " %.12e ", sigma_h[j_S]);
         }
-        fprintf(pFile_output, ") ,\n");
-
+        fprintf(pFile_output, ") , ");
         fprintf(pFile_output, "<h_i> = (");
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -1931,7 +2118,14 @@
             }
             fprintf(pFile_output, " %.12e ", h_dev_avg[j_S]);
         }
-        fprintf(pFile_output, ") ,\n");
+        fprintf(pFile_output, ") , ");
+        #ifdef BIMODAL_FIELD
+        fprintf(pFile_output, " [Bimodal distribution] ,\n");
+        #endif
+        #ifdef GAUSSIAN_FIELD
+        fprintf(pFile_output, " [Gaussian distribution] ,\n");
+        #endif
+        #endif
 
         fprintf(pFile_output, "order = (");
         for (j_S=0; j_S<dim_S; j_S++)
@@ -1952,9 +2146,46 @@
 
         fprintf(pFile_output, "Averaging-MCS = %ld ,\n", average_j);
 
+        
+        if (MC_algo_type == 2)
+        {
+            fprintf(pFile_output, "Wolff cluster update ,\n");
+        }
+        else
+        {
+            if (MC_algo_type == 0)
+            {
+                fprintf(pFile_output, "Glauber - ");
+            }
+            else
+            {
+                if (MC_algo_type == 1)
+                {
+                    fprintf(pFile_output, "Metropolis - ");
+                }
+            }
+            
+            if (MC_update_type == 0)
+            {
+                fprintf(pFile_output, "Checkerboard site update ,\n");
+            }
+            else 
+            {
+                if (MC_update_type == 1)
+                {
+                    fprintf(pFile_output, "Random site update ,\n");
+                }
+                if (MC_update_type == 2)
+                {
+                    fprintf(pFile_output, "Linear site update ,\n");
+                }
+            }
+        }
+
         fprintf(pFile_output, "hysteresis-MCS/step = %ld, \n", hysteresis_MCS);
         
-        fprintf(pFile_output, "del_h = range_h x %.12e ,\n", del_h);
+        // fprintf(pFile_output, "del_h = range_h x %.12e ,\n", del_h);
+        fprintf(pFile_output, "del_h = %.12e ,\n", del_h);
         fprintf(pFile_output, "delta_{phi} = %.12e ,\n", del_phi);
 
         fprintf(pFile_output, "##################################################################################\n");
@@ -2199,7 +2430,7 @@
         {
             fprintf(pFile_output, "%s", append_column);
         }
-        fprintf(pFile_1, "\n==================================================================================\n");
+        fprintf(pFile_output, "\n==================================================================================\n");
 
         fclose(pFile_output);
         pFile_output = NULL;
@@ -2437,7 +2668,7 @@
         {
             fprintf(pFile_output, "%s", append_column);
         }
-        fprintf(pFile_1, "\n");
+        fprintf(pFile_output, "\n");
 
         if (close_file == 1)
         {
@@ -2489,7 +2720,7 @@
         return 0;
     }
 
-//====================      Avalanche delta(S)               ====================//
+//====================  Avalanche delta(S)            ====================//
 
     #ifdef enable_CUDA_CODE
         __global__ void copy_delta_spin_squared_max(long int sites)
@@ -2806,7 +3037,7 @@
         }
     #endif
 
-//====================      Magnetization                    ====================//
+//====================  Magnetization                 ====================//
 
     int ensemble_abs_m()
     {
@@ -3302,7 +3533,7 @@
     } */
 
 
-//====================      Binder Parameter                 ====================//
+//====================  Binder Parameter              ====================//
 
     int calculate_B() // (double MCS_counter)
     {
@@ -3322,7 +3553,7 @@
         return 0;
     }
 
-//====================      Susceptibity                     ====================//
+//====================  Susceptibity                  ====================//
 
     int calculate_X() // (double MCS_counter)
     {
@@ -3331,7 +3562,7 @@
         return 0;
     }
 
-//====================      Susceptibility tensor            ====================//
+//====================  Susceptibility tensor         ====================//
 
     int calculate_X_ab() // (double MCS_counter)
     {
@@ -3347,7 +3578,7 @@
         return 0;
     }
 
-//====================      Energy                           ====================//
+//====================  Energy                        ====================//
 
     /* int set_sum_of_moment_E_0()
     {
@@ -3435,7 +3666,7 @@
         return 0;
     } */
 
-//====================      Specific Heat                    ====================//
+//====================  Specific Heat                 ====================//
 
     int calculate_Cv() // (double MCS_counter)
     {
@@ -3445,7 +3676,7 @@
         return 0;
     }
 
-//====================      Helicity                         ====================//
+//====================  Helicity                      ====================//
 
     /* int set_sum_of_moment_Y_0()
     {
@@ -3471,6 +3702,8 @@
 
     int ensemble_Y()
     {
+        // http://www.pas.rochester.edu/~stte/papers/FFXY4.pdf
+        // http://samos.martech.fsu.edu/papers/pdf/PRB49-1.pdf
         long int i;
         int j_L, j_S, j_SS, j_L_j_S_j_SS;
 
@@ -3636,7 +3869,7 @@
         return 0;
     } */
 
-//====================      Helicity Modulus                 ====================//
+//====================  Helicity Modulus              ====================//
 
     int calculate_Y_x_mu() // (double MCS_counter)
     {
@@ -3656,7 +3889,7 @@
         return 0;
     }
 
-//====================      All moments                      ====================//
+//====================  All moments                   ====================//
 
     int set_sum_of_moment_all_0()
     {
@@ -3971,7 +4204,7 @@
         return 0;
     }
 
-//====================      MonteCarlo-tools                 ====================//
+//====================  MonteCarlo-tools              ====================//
 
     #ifdef enable_CUDA_CODE
         // __global__ void update_spin_all(long int sites, double* spin_local, double* cutoff_bool)
@@ -4223,371 +4456,7 @@
         return Energy_nu;
     }
 
-//====================      Metropolis                       ====================//
-
-    double update_probability_Metropolis(long int xyzi)
-    {
-        double update_prob;
-
-        double spin_local[dim_S];
-        double field_local[dim_S];
-        double E_old = Energy_old(xyzi, spin_local, field_local);
-        double E_new = Energy_new(xyzi, spin_local, field_local);
-        if (E_new - E_old <= 0)
-        {
-            update_prob = 1.0;
-        }
-        else 
-        {
-            if (T == 0)
-            {
-                update_prob = 0.0;
-            }
-            else 
-            {
-                update_prob = exp(-(E_new-E_old)/T);
-            }
-        }
-        #ifdef _OPENMP
-        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-        #else
-        double r = (double) rand()/ (double) RAND_MAX;
-        #endif
-        if(r < update_prob)
-        {
-            update_spin_single(xyzi, spin_local);
-            return 1.0;
-        }
-        
-        return 0.0;
-    }
-
-    int linear_Metropolis_sweep(long int iter)
-    {
-        long int site_i;
-        do
-        {
-            for(site_i=0; site_i<no_of_sites; site_i++)
-            {
-
-                double update_prob = update_probability_Metropolis(site_i);
-
-                // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-                // if(r < update_prob)
-                // {
-                //     update_spin_single(site_i, 1);
-                // }
-                // else
-                // {
-                //     update_spin_single(site_i, 0);
-                // }
-            }
-            iter--;
-        }
-        while (iter > 0);
-        return 0;
-    }
-
-    int random_Metropolis_sweep(long int iter)
-    {
-        #ifdef PARALLEL_RANDOM_MC_SWEEP
-        long int *xyzi = (long int *)malloc(iter*sizeof(long int));
-        long int no_of_batch = 0 ;
-        long int *batch_size = (long int *)calloc(no_of_black_white_sites[0],sizeof(long int));
-        long int *blocked_sites = (long int *)calloc(dim_L*2*no_of_black_white_sites[0],sizeof(long int));
-        long int temp = 0;
-        long int i_b = 0;
-        long int batch_no = 0;
-        int j_L;
-        
-        #pragma omp parallel for
-        for (i_b=0; i_b<iter; i_b++)
-        {
-            xyzi[i_b] = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-        }
-        while (temp < iter)
-        {
-            for (i_b=0; i_b<=2*dim_L*batch_size[no_of_batch]; i_b++)
-            {
-                if (blocked_sites[i_b] == xyzi[temp] )
-                {
-                    no_of_batch++;
-                    i_b = 0;
-                    break;
-                }
-                if (i_b == 2*dim_L*batch_size[no_of_batch]-1)
-                {
-                    batch_size[no_of_batch]++;
-                    break;
-                }                
-            }
-            for (j_L=0; j_L<2*dim_L; j_L++)
-            {
-                blocked_sites[(batch_size[no_of_batch]-1)*2*dim_L+j_L] = N_N_I[xyzi[temp]];
-            }
-            blocked_sites[(batch_size[no_of_batch]-1)*2*dim_L+j_L] = xyzi[temp];
-            temp++;
-        }
-
-        temp = 0;
-        
-        while (batch_no <= no_of_batch)
-        {
-            #pragma omp parallel for 
-            for (i_b=temp; i_b < temp+batch_size[no_of_batch]; i_b++)
-            {
-                long int site_index = xyzi[i_b];
-
-                double update_prob = update_probability_Metropolis(site_index);
-            }
-            temp += batch_size[no_of_batch];
-            batch_no++;
-            // printf("Iteration=%ld\n", iter);
-        } 
-        
-        free(blocked_sites);
-        free(batch_size);
-        free(xyzi);
-        
-        #else
-
-        long int xyzi;
-        do
-        {
-            #ifdef _OPENMP
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-            #else
-            xyzi = rand()%no_of_sites;    
-            #endif
-
-            double update_prob = update_probability_Metropolis(xyzi);
-
-            // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-            // if(r < update_prob)
-            // {
-            //     // spin[i] = -spin[i];
-            //     update_spin_single(xyzi, 1);
-            // }
-            // else
-            // {
-            //     update_spin_single(xyzi, 0);
-            // }
-            iter--;
-        }
-        while (iter > 0);
-        
-        #endif
-
-        return 0;
-    }
-
-    int checkerboard_Metropolis_sweep(long int iter)
-    {
-        // THIS PART IS PARALLELIZABLE. *modifications may be needed
-        static int black_or_white = BLACK_WHITE;
-        long int i;
-        while(iter > 0)
-        {
-            #pragma omp parallel for 
-            for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
-            {
-                long int site_index = black_white_checkerboard[no_of_black_white_sites[black_or_white]*black_or_white + i];
-
-                double update_prob = update_probability_Metropolis(site_index);
-            }
-            
-            black_or_white = !black_or_white;
-            iter--;
-            // printf("Iteration=%ld\n", iter);
-        } 
-        
-        
-        return 0;
-    }
-
-//====================      Glauber                          ====================//
-
-    double update_probability_Glauber(long int xyzi)
-    {
-        double update_prob;
-        double spin_local[dim_S];
-        double field_local[dim_S];
-        double E_old = Energy_old(xyzi, spin_local, field_local);
-        double E_new = Energy_new(xyzi, spin_local, field_local);
-        if (T == 0)
-        {
-            if (E_new - E_old > 0)
-            {
-                update_prob = 0.0;
-            }
-            else if (E_new - E_old < 0)
-            {
-                update_prob = 1.0;
-            }
-            else
-            {
-                update_prob = 0.5;
-            }
-        }
-        else 
-        {
-            update_prob = 1/(1+exp((E_new-E_old)/T));
-        }
-        #ifdef _OPENMP
-        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-        #else
-        double r = (double) rand()/ (double) RAND_MAX;
-        #endif
-        if(r < update_prob)
-        {
-            update_spin_single(xyzi, spin_local);
-            return 1.0;
-        }
-        return 0.0;
-    }
-
-    int linear_Glauber_sweep(long int iter)
-    {
-        long int site_i;
-        do
-        {
-            for(site_i=0; site_i<no_of_sites; site_i++)
-            {
-
-                double update_prob = update_probability_Glauber(site_i);
-
-                // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-                // if(r < update_prob)
-                // {
-                //     update_spin_single(site_i, 1);
-                // }
-                // else
-                // {
-                //     update_spin_single(site_i, 0);
-                // }
-            }
-            iter--;
-        }
-        while (iter > 0);
-        return 0;
-    }
-
-    int random_Glauber_sweep(long int iter)
-    {
-        #ifdef PARALLEL_RANDOM_MC_SWEEP
-        long int *xyzi = (long int *)malloc(iter*sizeof(long int));
-        long int no_of_batch = 0 ;
-        long int *batch_size = (long int *)calloc(no_of_black_white_sites[0],sizeof(long int));
-        long int *blocked_sites = (long int *)calloc(dim_L*2*no_of_black_white_sites[0],sizeof(long int));
-        long int temp = 0;
-        long int i_b = 0;
-        long int batch_no = 0;
-        int j_L;
-        
-        #pragma omp parallel for
-        for (i_b=0; i_b<iter; i_b++)
-        {
-            xyzi[i_b] = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-        }
-        while (temp < iter)
-        {
-            for (i_b=0; i_b<=2*dim_L*batch_size[no_of_batch]; i_b++)
-            {
-                if (blocked_sites[i_b] == xyzi[temp] )
-                {
-                    no_of_batch++;
-                    i_b = 0;
-                    break;
-                }
-                if (i_b == 2*dim_L*batch_size[no_of_batch]-1)
-                {
-                    batch_size[no_of_batch]++;
-                    break;
-                }                
-            }
-            for (j_L=0; j_L<2*dim_L; j_L++)
-            {
-                blocked_sites[(batch_size[no_of_batch]-1)*2*dim_L+j_L] = N_N_I[xyzi[temp]];
-            }
-            blocked_sites[(batch_size[no_of_batch]-1)*2*dim_L+j_L] = xyzi[temp];
-            temp++;
-        }
-
-        temp = 0;
-        
-        while (batch_no <= no_of_batch)
-        {
-            #pragma omp parallel for 
-            for (i_b=temp; i_b < temp+batch_size[no_of_batch]; i_b++)
-            {
-                long int site_index = xyzi[i_b];
-
-                double update_prob = update_probability_Glauber(site_index);
-            }
-            temp += batch_size[no_of_batch];
-            batch_no++;
-            // printf("Iteration=%ld\n", iter);
-        } 
-        
-        free(blocked_sites);
-        free(batch_size);
-        free(xyzi);
-        
-        #else
-
-        long int xyzi;
-        do
-        {
-            #ifdef _OPENMP
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-            #else
-            xyzi = rand()%no_of_sites;    
-            #endif
-
-            double update_prob = update_probability_Glauber(xyzi);
-
-            // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-            // if(r < update_prob)
-            // {
-            //     // spin[i] = -spin[i];
-            //     update_spin_single(xyzi, 1);
-            // }
-            // else
-            // {
-            //     update_spin_single(xyzi, 0);
-            // }
-            iter--;
-        }
-        while (iter > 0);
-        
-        #endif
-
-        return 0;
-    }
-
-    int checkerboard_Glauber_sweep(long int iter)
-    {
-        // THIS PART IS PARALLELIZABLE. *modifications may be needed
-        static int black_or_white = BLACK_WHITE;
-        long int i;
-        while(iter > 0)
-        {
-            #pragma omp parallel for 
-            for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
-            {
-                long int site_index = black_white_checkerboard[no_of_black_white_sites[black_or_white]*black_or_white + i];
-
-                double update_prob = update_probability_Glauber(site_index);
-            }
-
-            black_or_white = !black_or_white;
-            iter--;
-        } 
-        
-        return 0;
-    }
-
-//====================      MonteCarlo-Wolff/Cluster         ====================//
+//====================  MonteCarlo-Wolff/Cluster      ====================//
 
     int generate_random_axis(double *reflection_planes)
     {
@@ -5021,19 +4890,349 @@
     }
     #endif
 
-//====================      MonteCarlo-Sweep                 ====================//
+//====================  Metropolis                    ====================//
 
-    int Monte_Carlo_Sweep(long int sweeps, int Gl_Me_Wo_local, int Ch_Ra_Li_local)
+    double update_probability_Metropolis(long int xyzi)
     {
-        if (Gl_Me_Wo_local == 0)
+        double update_prob;
+
+        double spin_local[dim_S];
+        double field_local[dim_S];
+        double E_old = Energy_old(xyzi, spin_local, field_local);
+        double E_new = Energy_new(xyzi, spin_local, field_local);
+        if (E_new - E_old <= 0)
         {
-            if (Ch_Ra_Li_local == 0)
+            update_prob = 1.0;
+        }
+        else 
+        {
+            if (T == 0)
+            {
+                update_prob = 0.0;
+            }
+            else 
+            {
+                update_prob = exp(-(E_new-E_old)/T);
+            }
+        }
+        #ifdef _OPENMP
+        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+        #else
+        double r = (double) rand()/ (double) RAND_MAX;
+        #endif
+        if(r < update_prob)
+        {
+            update_spin_single(xyzi, spin_local);
+            return 1.0;
+        }
+        
+        return 0.0;
+    }
+
+    int linear_Metropolis_sweep(long int iter)
+    {
+        long int site_i;
+        do
+        {
+            for(site_i=0; site_i<no_of_sites; site_i++)
+            {
+
+                double update_prob = update_probability_Metropolis(site_i);
+
+                // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+                // if(r < update_prob)
+                // {
+                //     update_spin_single(site_i, 1);
+                // }
+                // else
+                // {
+                //     update_spin_single(site_i, 0);
+                // }
+            }
+            iter--;
+        }
+        while (iter > 0);
+        return 0;
+    }
+
+    int random_Metropolis_sweep(long int iter)
+    {
+        // edit this
+        #ifdef PARALLEL_RANDOM_MC_SWEEP
+        // long int *random_sites = (long int *)malloc(no_of_black_white_sites[0],sizeof(long int));
+        /* int *cluster */// long int *blocked_sites = (long int *)calloc((dim_L*2)*no_of_black_white_sites[0],sizeof(long int));
+
+        int j_L;
+        #ifdef _FOPENMP
+        long int temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+        #else
+        long int temp_i = rand()%no_of_sites;
+        #endif
+        while (iter)
+        {
+            long int batch size = 0;
+            set_cluster_s(0);
+            while (iter>0 && cluster[temp_i] == 0)
+            {
+                random_sites[batch_size] = temp_i;
+                cluster[temp_i] = 1;
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    for (k_L=0; k_L<2; k_L++)
+                    {
+                        cluster[N_N_I[2*dim_L*temp_i + 2*j_L + k_L];] = 1;
+                    }
+                }
+                iter--;
+                batch_size++;
+                #ifdef _FOPENMP
+                temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+                #else
+                temp_i = rand()%no_of_sites;
+                #endif
+            }
+            #pragma omp parallel for
+            for(i_b=0; i_b<batch_size; i_b++)
+            {
+                update_probability_Metropolis(random_sites[i_b]);
+            }
+        }
+        // free(random_sites);
+        
+        #else
+
+        long int xyzi;
+        do
+        {
+            #ifdef _OPENMP
+            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+            #else
+            xyzi = rand()%no_of_sites;    
+            #endif
+
+            double update_prob = update_probability_Metropolis(xyzi);
+
+            // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+            // if(r < update_prob)
+            // {
+            //     // spin[i] = -spin[i];
+            //     update_spin_single(xyzi, 1);
+            // }
+            // else
+            // {
+            //     update_spin_single(xyzi, 0);
+            // }
+            iter--;
+        }
+        while (iter > 0);
+        
+        #endif
+
+        return 0;
+    }
+
+    int checkerboard_Metropolis_sweep(long int iter)
+    {
+        // THIS PART IS PARALLELIZABLE. *modifications may be needed
+        static int black_or_white = BLACK_WHITE;
+        long int i;
+        while(iter > 0)
+        {
+            #pragma omp parallel for 
+            for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
+            {
+                long int site_index = black_white_checkerboard[no_of_black_white_sites[black_or_white]*black_or_white + i];
+
+                double update_prob = update_probability_Metropolis(site_index);
+            }
+            
+            black_or_white = !black_or_white;
+            iter--;
+            // printf("Iteration=%ld\n", iter);
+        } 
+        
+        
+        return 0;
+    }
+
+//====================  Glauber                       ====================//
+
+    double update_probability_Glauber(long int xyzi)
+    {
+        double update_prob;
+        double spin_local[dim_S];
+        double field_local[dim_S];
+        double E_old = Energy_old(xyzi, spin_local, field_local);
+        double E_new = Energy_new(xyzi, spin_local, field_local);
+        if (T == 0)
+        {
+            if (E_new - E_old > 0)
+            {
+                update_prob = 0.0;
+            }
+            else if (E_new - E_old < 0)
+            {
+                update_prob = 1.0;
+            }
+            else
+            {
+                update_prob = 0.5;
+            }
+        }
+        else 
+        {
+            update_prob = 1/(1+exp((E_new-E_old)/T));
+        }
+        #ifdef _OPENMP
+        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+        #else
+        double r = (double) rand()/ (double) RAND_MAX;
+        #endif
+        if(r < update_prob)
+        {
+            update_spin_single(xyzi, spin_local);
+            return 1.0;
+        }
+        return 0.0;
+    }
+
+    int linear_Glauber_sweep(long int iter)
+    {
+        long int site_i;
+        do
+        {
+            for(site_i=0; site_i<no_of_sites; site_i++)
+            {
+
+                double update_prob = update_probability_Glauber(site_i);
+
+                // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+                // if(r < update_prob)
+                // {
+                //     update_spin_single(site_i, 1);
+                // }
+                // else
+                // {
+                //     update_spin_single(site_i, 0);
+                // }
+            }
+            iter--;
+        }
+        while (iter > 0);
+        return 0;
+    }
+
+    int random_Glauber_sweep(long int iter)
+    {
+        // edit this
+        #ifdef PARALLEL_RANDOM_MC_SWEEP
+        // long int *random_sites = (long int *)malloc(no_of_black_white_sites[0],sizeof(long int));
+        /* int *cluster */// long int *blocked_sites = (long int *)calloc((dim_L*2)*no_of_black_white_sites[0],sizeof(long int));
+
+        int j_L;
+        #ifdef _FOPENMP
+        long int temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+        #else
+        long int temp_i = rand()%no_of_sites;
+        #endif
+        while (iter)
+        {
+            long int batch size = 0;
+            set_cluster_s(0);
+            while (iter>0 && cluster[temp_i] == 0)
+            {
+                random_sites[batch_size] = temp_i;
+                cluster[temp_i] = 1;
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    for (k_L=0; k_L<2; k_L++)
+                    {
+                        cluster[N_N_I[2*dim_L*temp_i + 2*j_L + k_L];] = 1;
+                    }
+                }
+                iter--;
+                batch_size++;
+                #ifdef _FOPENMP
+                temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+                #else
+                temp_i = rand()%no_of_sites;
+                #endif
+            }
+            #pragma omp parallel for
+            for(i_b=0; i_b<batch_size; i_b++)
+            {
+                update_probability_Glauber(random_sites[i_b]);
+            }
+        }
+        // free(random_sites);
+        
+        #else
+
+        long int xyzi;
+        do
+        {
+            #ifdef _OPENMP
+            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+            #else
+            xyzi = rand()%no_of_sites;    
+            #endif
+
+            double update_prob = update_probability_Glauber(xyzi);
+
+            // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+            // if(r < update_prob)
+            // {
+            //     // spin[i] = -spin[i];
+            //     update_spin_single(xyzi, 1);
+            // }
+            // else
+            // {
+            //     update_spin_single(xyzi, 0);
+            // }
+            iter--;
+        }
+        while (iter > 0);
+        
+        #endif
+
+        return 0;
+    }
+
+    int checkerboard_Glauber_sweep(long int iter)
+    {
+        // THIS PART IS PARALLELIZABLE. *modifications may be needed
+        static int black_or_white = BLACK_WHITE;
+        long int i;
+        while(iter > 0)
+        {
+            #pragma omp parallel for 
+            for (i=0; i < no_of_black_white_sites[black_or_white]; i++)
+            {
+                long int site_index = black_white_checkerboard[no_of_black_white_sites[black_or_white]*black_or_white + i];
+
+                double update_prob = update_probability_Glauber(site_index);
+            }
+
+            black_or_white = !black_or_white;
+            iter--;
+        } 
+        
+        return 0;
+    }
+
+//====================  MonteCarlo-Sweep              ====================//
+
+    int Monte_Carlo_Sweep(long int sweeps, int MC_algo_type_local, int MC_update_type_local)
+    {
+        if (MC_algo_type_local == 0)
+        {
+            if (MC_update_type_local == 0)
             {
                 checkerboard_Glauber_sweep(2*sweeps);
             }
             else
             {
-                if (Ch_Ra_Li_local == 1)
+                if (MC_update_type_local == 1)
                 {
                     random_Glauber_sweep(no_of_sites*sweeps);
                 }
@@ -5045,15 +5244,15 @@
         }
         else
         {
-            if (Gl_Me_Wo_local == 1)
+            if (MC_algo_type_local == 1)
             {
-                if (Ch_Ra_Li_local == 0)
+                if (MC_update_type_local == 0)
                 {
                     checkerboard_Metropolis_sweep(2*sweeps);
                 }
                 else
                 {
-                    if (Ch_Ra_Li_local == 1)
+                    if (MC_update_type_local == 1)
                     {
                         random_Metropolis_sweep(no_of_sites*sweeps);
                     }
@@ -5071,7 +5270,7 @@
         return 0;
     }
 
-//====================      T!=0                             ====================//
+//====================  T!=0                          ====================//
 
     int print_abs_m()
     {
@@ -5089,30 +5288,37 @@
         return 0;
     }
 
-    int thermalizing_iteration(long int thermal_iter)
+    int thermalizing_iteration(long int thermal_iter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
         int j_S;
-        printf("Thermalizing.. ");
-        fflush(stdout);
-        Monte_Carlo_Sweep(thermal_iter, Gl_Me_Wo, Ch_Ra_Li);
-        ensemble_E();
-        ensemble_m();
-
-        printf(" m=(%.3f", m[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
+        if (reqd_to_print == 1)
         {
-            printf(",%.3f", m[j_S]);
+            printf("Thermalizing.. ");
+            fflush(stdout);
         }
-        printf("), E=%.3f. ", E);
 
-        printf("Done. ");
-        fflush(stdout);
-        // ensemble_all();
+        Monte_Carlo_Sweep(thermal_iter, MC_algo_type_local, MC_update_type_local);
+        
+        if (reqd_to_print == 1)
+        {
+            // ensemble_all();
+            ensemble_E();
+            ensemble_m();
+            printf(" m=(%.3f", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%.3f", m[j_S]);
+            }
+            printf("), E=%.3f. ", E);
+
+            printf("Done. ");
+            fflush(stdout);
+        }
 
         return 0;
     }
 
-    int averaging_iteration(long int average_iter)
+    int averaging_iteration(long int average_iter, long int sampl_inter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
         double MCS_counter = 0;
         int j_S, j_SS, j_L;
@@ -5127,17 +5333,20 @@
         // set_sum_of_moment_Y_ab_mu_0();
 
         // printf("Averaging iterations... h=%lf", h[0]);
-        printf("Averaging.. ");
-        fflush(stdout);
-        // for (j_S=0; j_S<dim_S; j_S++)
-        // {
-        //     printf("%lf,", h[j_S]);
-        // }
-        // printf("\n");
+        if (reqd_to_print == 1)
+        {
+            printf("Averaging.. ");
+            fflush(stdout);
+            // for (j_S=0; j_S<dim_S; j_S++)
+            // {
+            //     printf("%lf,", h[j_S]);
+            // }
+            // printf("\n");
+        }
 
         while(average_iter)
         {
-            Monte_Carlo_Sweep(sampling_inter-genrand64_int64()%sampling_inter, Gl_Me_Wo, Ch_Ra_Li);
+            Monte_Carlo_Sweep(sampl_inter-genrand64_int64()%sampl_inter, MC_algo_type_local, MC_update_type_local);
             // random_Wolff_sweep(1);
             
             ensemble_all();
@@ -5168,30 +5377,31 @@
         // average_of_moment_m_abs(MCS_counter);
         // average_of_moment_E(MCS_counter);
         // average_of_moment_Y_ab_mu(MCS_counter);
-
-        printf(" <m>=(%.3f", m_avg[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
+        if (reqd_to_print == 1)
         {
-            printf(",%.3f", m_avg[j_S]);
-        }
-        printf("), <E>=%.3f. ", E_avg);
-        // printf(", Binder = %.3f \n", B);
-        /* 
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
+            printf(" <m>=(%.3f", m_avg[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
             {
-                for (j_L=0; j_L<dim_L; j_L++)
-                {
-                    printf("Y[%d,%d][%d]=%.3f \n", j_S, j_SS, j_L, Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
-                }
+                printf(",%.3f", m_avg[j_S]);
             }
-        } */
+            printf("), <E>=%.3f. ", E_avg);
+            // printf(", Binder = %.3f \n", B);
+            /* 
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                for (j_SS=0; j_SS<dim_S; j_SS++)
+                {
+                    for (j_L=0; j_L<dim_L; j_L++)
+                    {
+                        printf("Y[%d,%d][%d]=%.3f \n", j_S, j_SS, j_L, Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
+                    }
+                }
+            } */
 
-        // printf("<M>=%.3f, <|M|>=%.3f, <E>=%.3f, Cv=%.3f, X=%.3f, X_abs=%.3f, B=%.3f. ", m_avg, m_abs_avg, E_avg, Cv, X, X_abs, B);
-        printf("Done.\n");
-        fflush(stdout);
-
+            // printf("<M>=%.3f, <|M|>=%.3f, <E>=%.3f, Cv=%.3f, X=%.3f, X_abs=%.3f, B=%.3f. ", m_avg, m_abs_avg, E_avg, Cv, X, X_abs, B);
+            printf("Done.\n");
+            fflush(stdout);
+        }
         return 0;
     }
 
@@ -5200,6 +5410,24 @@
         printf("\n__________________________________________________________\n");
         // repeat with different initial configurations
         int j_S, j_SS, j_L;
+        //
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h_temp[j_S] = h[j_S];
+            }
+
+        thermal_i = 0;
+        average_j = 1;
+        sampling_inter = 1;
+        // MC_algo_type = 1; // Metropolis
+        // MC_update_type = 0; // Checkerboard
 
         printf("\norder = ({%lf", order[0]);
         for(j_S=1; j_S<dim_S; j_S++)
@@ -5212,7 +5440,7 @@
         ensemble_E();
         ensemble_m();
 
-        printf("Initial Magnetisation = (%lf", m[0]);
+        printf("Initial Magnetization = (%lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
             printf(",%lf", m[j_S]);
@@ -5230,7 +5458,7 @@
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_evo(t)_at_T=(%lf)_%c_%c_", dim_S, dim_L, T, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
+            pos += sprintf(pos, "O(%d)_%dD_evo(t)_at_T=(%lf)_%c_%c_", dim_S, dim_L, T, G_M_W[MC_algo_type], C_R_L[MC_update_type]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -5239,28 +5467,29 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            // pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
+            // pos += sprintf(pos, "_(%lf,%lf)", Temp_min, Temp_max);
+            pos += sprintf(pos, "_{");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", J[j_L]);
+            }
+            pos += sprintf(pos, "}");    
+            #ifdef RANDOM_BOND
+            pos += sprintf(pos, "_{");    
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L)
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+            }
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");
-            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            // {
-            //     if (j_L)
-            //     {
-            //         pos += sprintf(pos, ",");
-            //     }
-            //     pos += sprintf(pos, "%lf", J[j_L]);
-            // }
-            // pos += sprintf(pos, "}");    
-            // pos += sprintf(pos, "_{");    
-            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            // {
-            //     if (j_L)
-            //     {
-            //         pos += sprintf(pos, ",");
-            //     }
-            //     pos += sprintf(pos, "%lf", sigma_J[j_L]);
-            // }
-            // pos += sprintf(pos, "}");    
-            // pos += sprintf(pos, "_{");    
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
             //     if (j_L)
@@ -5270,6 +5499,7 @@
             //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -5279,7 +5509,8 @@
                 }
                 pos += sprintf(pos, "%.3f", h[j_S]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_FIELD
             pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -5300,6 +5531,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -5315,230 +5547,38 @@
         // column labels and parameters
         output_param_file(output_file_0);
         output_label(output_file_0, "step\t", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "step\t");
-        //     fprintf(pFile_1, "<|m|>\t");
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     fprintf(pFile_1, "<E>\t");
-            
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
 
         int i;
         for (i=0; i<repeat_for_same_T; i++)
         {
-            thermalizing_iteration(/* thermal_i */ 0);
-            averaging_iteration(/* average_j */ 1);
+            thermalizing_iteration(thermal_i, MC_algo_type, MC_update_type, 0);
+            averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
             char str_prep[128];
             char *pos_prep = str_prep;
             pos_prep += sprintf(pos_prep, "%d\t", i);
             output_data(output_file_0, str_prep, "");
-            // pFile_1 = fopen(output_file_0, "a");
-            // fprintf(pFile_1, "%d\t", i);
-            // fprintf(pFile_1, "%.12e\t", m_abs_avg);
-            // for(j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-            // }
-            // fprintf(pFile_1, "%.12e\t", E_avg);
-            // fprintf(pFile_1, "\n");
-            // fclose(pFile_1);
         }
         
         reset_output_variable_name_0();
 
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = h_temp[j_S];
+            }
+        
         printf("\n__________________________________________________________\n");
-
-        return 0;
-    }
-
-    int evolution_at_T_h()
-    {
-        // repeat with different initial configurations
-        int j_S, j_SS, j_L;
-        
-        // print statements:
-        {
-            printf("\norder = ({%lf", order[0]);
-            for(j_S=1; j_S<dim_S; j_S++)
-            {
-                printf(",%lf", order[j_S]);
-            }
-            printf("}, %d, %d)\n", h_order, r_order);
-        }
-        ensemble_all();
-        // ensemble_E();
-        // ensemble_m();
-
-        printf("Initial Magnetisation = (%lf", m[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
-        {
-            printf(",%lf", m[j_S]);
-        }
-        printf("), Energy = %lf \n", E);
-        // set output_variable_name=1 here
-        {
-            output_T = 1;
-            output_m_avg = 1;
-            output_m_abs_avg = 1;
-            output_m_2_avg = 1;
-            output_m_4_avg = 1;
-            output_m_2_vec_avg = 1;
-            output_m_4_vec_avg = 1;
-            output_m_ab_avg = 1;
-            output_X = 1;
-            output_X_ab = 1;
-            output_B = 1;
-            output_B_a = 1;
-            output_E_avg = 1;
-            output_E_2_avg = 1;
-            output_Cv = 1;
-            output_Y_1_avg = 1;
-            output_Y_2_avg = 1;
-            output_Y_x_mu = 1;
-        }
-
-        // create file name and pointer. 
-        {
-            // char output_file_0[256];
-            char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_evo(t)_at_T=%lf_%c_%c_", dim_S, dim_L, T, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L) 
-                {
-                    pos += sprintf(pos, "x");
-                }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
-            }
-            pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
-            pos += sprintf(pos, "_{");
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", J[j_L]);
-            }
-            pos += sprintf(pos, "}");    
-            pos += sprintf(pos, "_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
-            }
-            // pos += sprintf(pos, "}");    
-            // pos += sprintf(pos, "_{");    
-            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            // {
-            //     if (j_L)
-            //     {
-            //         pos += sprintf(pos, ",");
-            //     }
-            //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
-            // }
-            // pos += sprintf(pos, "}");
-            pos += sprintf(pos, "_{");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h[j_S]);
-            }
-            pos += sprintf(pos, "}");    
-            pos += sprintf(pos, "_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
-            }
-            // pos += sprintf(pos, "}");    
-            // pos += sprintf(pos, "_{");    
-            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            // {
-            //     if (j_S)
-            //     {
-            //         pos += sprintf(pos, ",");
-            //     }
-            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            // }
-            pos += sprintf(pos, "}");
-            pos += sprintf(pos, "_{");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", order[j_S]);
-            }
-            pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
-        }
-        // column labels and parameters
-        output_param_file(output_file_0);
-        output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "<|m|>\t");
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "T\t");
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "h[%d]\t", j_S);
-        //     }
-
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
-
-        thermalizing_iteration(thermal_i);
-        averaging_iteration(average_j);
-        pFile_1 = fopen(output_file_0, "a");
-        fprintf(pFile_1, "%.12e\t", m_abs_avg);
-        
-        for(j_S=0; j_S<dim_S; j_S++)
-        {
-            fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-        }
-        
-        fprintf(pFile_1, "%.12e\t", E_avg);
-        fprintf(pFile_1, "%.12e\t", T);
-
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            fprintf(pFile_1, "%.12e\t", h[j_S]);
-        }
-        fprintf(pFile_1, "\n");
-        fclose(pFile_1);
-        
-        reset_output_variable_name_0();
-        
-        printf("------------------------\n");
 
         return 0;
     }
 
     int initialize_spin_and_evolve_at_T()
     {
-
         // repeat with different initial configurations
         int j_S, j_SS, j_L;
 
@@ -5551,29 +5591,80 @@
         }
         printf("}, %d, %d)\n", h_order, r_order);
 
-        ensemble_all();
-        // ensemble_E();
-        // ensemble_m();
+        // ensemble_all();
+        ensemble_E();
+        ensemble_m();
 
-        printf("Initial Magnetisation = (%lf", m[0]);
+        printf("Initial Magnetization = (%lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
             printf(",%lf", m[j_S]);
         }
         printf("), Energy = %lf \n", E);
 
-        thermalizing_iteration(thermal_i);
-        averaging_iteration(average_j);
+        thermalizing_iteration(thermal_i, MC_algo_type, MC_update_type, 1);
+        char append_string1[128];
+        char *pos_append_string1 = append_string1;
+        pos_append_string1 += sprintf(pos_append_string1, "_r%d%da", h_order, r_order);
+        save_spin_config(append_string1, "a", 2);
+
+        averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 1);
+        char append_string2[128];
+        char *pos_append_string2 = append_string2;
+        pos_append_string2 += sprintf(pos_append_string2, "_r%d%db", h_order, r_order);
+        save_spin_config(append_string2, "a", 2);
 
         printf("------------------------\n");
 
         return 0;
     }
 
-    int evo_diff_ini_config_temp()
+    int evo_diff_ini_config_temp(int ini_order)
     {
         int j_S, j_L, j_SS;
+        //
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h_temp[j_S] = h[j_S];
+            }
+            int r_order_temp = r_order;
+            int h_order_temp = h_order;
+        
+        thermal_i = thermal_i*8;
+        average_j = average_j*8;
+        // sampling_inter = sampling_inter;
+        // MC_algo_type = MC_algo_type;
+        // MC_update_type = MC_update_type;
+    
+        if (ini_order==0)
+        {
+            h_order = 0;
+            r_order = 0;
+        }
+        else
+        {
+            if (ini_order==1)
+            {
+                h_order = 1;
+                r_order = 0;
+            }
+            else
+            {
+                h_order = 0;
+                r_order = 1;
+            }
+            
+        }
+        
 
+        #ifdef RANDOM_FIELD
         printf("%lf", sigma_h[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
@@ -5584,35 +5675,38 @@
         {
             printf(",%lf", h_dev_avg[j_S]);
         }
-        
+
         printf("\n");
+        #endif
+
         // set output_variable_name=1 here
         {
+            // output_h = 1;
             output_T = 1;
             output_m_avg = 1;
             output_m_abs_avg = 1;
             output_m_2_avg = 1;
             output_m_4_avg = 1;
-            output_m_2_vec_avg = 1;
-            output_m_4_vec_avg = 1;
-            output_m_ab_avg = 1;
+            // output_m_2_vec_avg = 1;
+            // output_m_4_vec_avg = 1;
+            // output_m_ab_avg = 1;
             output_X = 1;
-            output_X_ab = 1;
+            // output_X_ab = 1;
             output_B = 1;
-            output_B_a = 1;
-            output_E_avg = 1;
-            output_E_2_avg = 1;
-            output_Cv = 1;
-            output_Y_1_avg = 1;
-            output_Y_2_avg = 1;
-            output_Y_x_mu = 1;
+            // output_B_a = 1;
+            // output_E_avg = 1;
+            // output_E_2_avg = 1;
+            // output_Cv = 1;
+            // output_Y_1_avg = 1;
+            // output_Y_2_avg = 1;
+            // output_Y_x_mu = 1;
         }
 
         // create file name and pointer. 
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_Temp_evo_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
+            pos += sprintf(pos, "O(%d)_%dD_eq_%c_%c_", dim_S, dim_L, G_M_W[MC_algo_type], C_R_L[MC_update_type]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -5621,7 +5715,7 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_(%lf,%lf)_{", Temp_min, Temp_max);
+            pos += sprintf(pos, "_(%.3f,%.3f)", Temp_min, Temp_max);
             pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -5629,9 +5723,10 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", J[j_L]);
+                pos += sprintf(pos, "%.3f", J[j_L]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_BOND
             pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -5639,9 +5734,9 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
             }
-            // pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");    
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
@@ -5652,436 +5747,7 @@
             //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
             // }
             // pos += sprintf(pos, "}");
-            pos += sprintf(pos, "_{");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", h[j_S]);
-            }
-            pos += sprintf(pos, "}");    
-            pos += sprintf(pos, "_{");    
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
-            }
-            // pos += sprintf(pos, "}");    
-            // pos += sprintf(pos, "_{");    
-            // for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            // {
-            //     if (j_S)
-            //     {
-            //         pos += sprintf(pos, ",");
-            //     }
-            //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
-            // }
-            pos += sprintf(pos, "}");
-            pos += sprintf(pos, "_{");
-            for (j_S = 0 ; j_S != dim_S ; j_S++) 
-            {
-                if (j_S)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%lf", order[j_S]);
-            }
-            pos += sprintf(pos, "}_%d_%d_%ld_%ld.dat", h_order, r_order, thermal_i, average_j);
-        }
-        // column labels and parameters
-        output_param_file(output_file_0);
-        output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "T\t");
-        //     fprintf(pFile_1, "<|m|>\t");
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     /* for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         for (j_SS=0; j_SS<dim_S; j_SS++)
-        //         {
-        //             for (j_L=0; j_L<dim_L; j_L++)
-        //             {
-        //                 fprintf(pFile_1, "<Y[%d,%d][%d]>\t", j_S, j_SS, j_L);
-        //             }
-        //         }
-        //     } */
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
-        
-        for (T=Temp_min; T<=Temp_max; T=T+delta_T)
-        {
-            printf("\nT=%lf\t ", T);
-            initialize_spin_and_evolve_at_T(); 
-
-            pFile_1 = fopen(output_file_0, "a");
-            fprintf(pFile_1, "%.12e\t", T);
-            fprintf(pFile_1, "%.12e\t", m_abs_avg);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-            }
-            /* for (j_S=0; j_S<dim_S; j_S++)
-            {
-                for (j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    for (j_L=0; j_L<dim_L; j_L++)
-                    {
-                        fprintf(pFile_1, "%.12e\t", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
-                    }
-                }
-            } */
-            fprintf(pFile_1, "%.12e\t", E_avg);
-
-            fprintf(pFile_1, "\n");
-            fclose(pFile_1);
-        }
-        
-        reset_output_variable_name_0();
-
-        return 0;
-    }
-
-    int cooling_protocol(char output_file_name[])
-    {
-        #ifdef _OPENMP
-        #ifdef BUNDLE
-            omp_set_num_threads(BUNDLE);
-        #else
-            omp_set_num_threads(num_of_threads);
-        #endif
-        #endif
-        
-        // #ifdef _OPENMP
-        // if (num_of_threads<=16)
-        // {
-        //     omp_set_num_threads(num_of_threads);
-        // }
-        // else 
-        // {
-        //     if (num_of_threads<=24)
-        //     {
-        //         omp_set_num_threads(16);
-        //     }
-        //     else
-        //     {
-        //         omp_set_num_threads(num_of_threads-8);
-        //     }
-        // }
-        // #endif
-        
-        int j_S, j_SS, j_L;
-
-        // ensemble_all();
-        ensemble_E();
-        ensemble_m();
-
-        printf("Initial Magnetisation = (%lf", m[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
-        {
-            printf(",%lf", m[j_S]);
-        }
-        printf("), Energy = %lf \n", E);
-        printf("Cooling... ");
-
-        pFile_1 = fopen(output_file_name, "a");
-        fprintf(pFile_1, "Cooling... \n");
-        fclose(pFile_1);
-
-        for (T=Temp_max; T>Temp_min; T=T-delta_T)
-        {
-            printf("\nT=%lf\t ", T);
-            
-            thermalizing_iteration(thermal_i);
-            averaging_iteration(average_j);
-
-            pFile_1 = fopen(output_file_name, "a");
-
-            fprintf(pFile_1, "%.12e\t", T);
-            fprintf(pFile_1, "%.12e\t", m_abs_avg);
-
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-            } 
-
-            // for(j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     fprintf(pFile_1, "%.12e\t", m_2_vec_avg[j_S]);
-            //     fprintf(pFile_1, "%.12e\t", m_4_vec_avg[j_S]);
-            // } 
-            
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                for(j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m_ab_avg[j_S*dim_S+j_SS]);
-                }
-            }
-            fprintf(pFile_1, "%.12e\t", m_2_avg);
-            fprintf(pFile_1, "%.12e\t", m_4_avg);
-
-            /* for (j_S=0; j_S<dim_S; j_S++)
-            {
-                for (j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    for (j_L=0; j_L<dim_L; j_L++)
-                    {
-                        fprintf(pFile_1, "%.12e\t", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
-                    }
-                }
-            } */
-
-            // fprintf(pFile_1, "%.12e\t", E_avg);    
-            fprintf(pFile_1, "\n");
-            fclose(pFile_1);
-        }
-
-        // ensemble_all();
-        ensemble_E();
-        ensemble_m();
-
-        printf("Final Magnetisation = (%lf", m[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
-        {
-            printf(",%lf", m[j_S]);
-        }
-        printf("), Energy = %lf \n", E);
-        printf("------------------------\n");
-        
-        
-        return 0;
-    }
-
-    int heating_protocol(char output_file_name[])
-    {
-        #ifdef _OPENMP
-        #ifdef BUNDLE
-            omp_set_num_threads(BUNDLE);
-        #else
-            omp_set_num_threads(num_of_threads);
-        #endif
-        #endif
-        // #ifdef _OPENMP
-        // if (num_of_threads<=16)
-        // {
-        //     omp_set_num_threads(num_of_threads);
-        // }
-        // else 
-        // {
-        //     if (num_of_threads<=24)
-        //     {
-        //         omp_set_num_threads(16);
-        //     }
-        //     else
-        //     {
-        //         omp_set_num_threads(num_of_threads-8);
-        //     }
-        // }
-        // #endif
-
-        int j_S, j_SS, j_L;
-
-        // ensemble_all();
-        ensemble_E();
-        ensemble_m();
-
-        printf("Initial Magnetisation = (%lf", m[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
-        {
-            printf(",%lf", m[j_S]);
-        }
-        printf("), Energy = %lf \n", E);
-        printf("Heating... ");
-
-        pFile_1 = fopen(output_file_name, "a");
-        fprintf(pFile_1, "Heating... \n");
-        fclose(pFile_1);
-        
-        for (T=Temp_min; T<=Temp_max; T=T+delta_T)
-        {
-            printf("\nT=%lf\t ", T);
-            
-            thermalizing_iteration(thermal_i);
-            averaging_iteration(average_j);
-
-            pFile_1 = fopen(output_file_name, "a");
-
-            fprintf(pFile_1, "%.12e\t", T);
-            fprintf(pFile_1, "%.12e\t", m_abs_avg);
-
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-            }
-            
-            // for(j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     fprintf(pFile_1, "%.12e\t", m_2_vec_avg[j_S]);
-            //     fprintf(pFile_1, "%.12e\t", m_4_vec_avg[j_S]);
-            // } 
-            
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                for(j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m_ab_avg[j_S*dim_S+j_SS]);
-                }
-            }
-            fprintf(pFile_1, "%.12e\t", m_2_avg);
-            fprintf(pFile_1, "%.12e\t", m_4_avg);
-
-            /* for (j_S=0; j_S<dim_S; j_S++)
-            {
-                for (j_SS=0; j_SS<dim_S; j_SS++)
-                {
-                    for (j_L=0; j_L<dim_L; j_L++)
-                    {
-                        fprintf(pFile_1, "%.12e\t", Y_ab_mu[dim_S*dim_S*j_L + dim_S*j_S + j_SS]);
-                    }
-                }
-            } */
-
-            fprintf(pFile_1, "%.12e\t", E_avg);
-            fprintf(pFile_1, "\n");
-            fclose(pFile_1);
-        }
-
-        // ensemble_all();
-        ensemble_E();
-        ensemble_m();
-
-        printf("Final Magnetisation = (%lf", m[0]);
-        for(j_S=1; j_S<dim_S; j_S++)
-        {
-            printf(",%lf", m[j_S]);
-        }
-        printf("), Energy = %lf \n", E);
-        printf("------------------------\n");
-        
-        return 0;
-    }
-
-    int zfc_zfh_or_both(int c_h_ch_hc)
-    {
-        int j_S, j_SS, j_L;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            h[j_S] = 0;
-        }
-        
-        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
-        {
-            T = Temp_max;
-        }
-        if (c_h_ch_hc == 1 || c_h_ch_hc == 3)
-        {
-            T = Temp_min;
-        }
-        load_spin_config("");
-        // print statements:
-        {
-            printf("order = ({%lf", order[0]);
-            for(j_S=1; j_S<dim_S; j_S++)
-            {
-                printf(",%lf", order[j_S]);
-            }
-            printf("}, %d, %d)\n", h_order, r_order);
-
-            printf("h = {%lf", h[0]);
-            for(j_S=1; j_S<dim_S; j_S++)
-            {
-                printf(",%lf", h[j_S]);
-            }
-            printf("}\n");
-
-            printf("J = {%lf", J[0]);
-            for(j_L=1; j_L<dim_L; j_L++)
-            {
-                printf(",%lf", J[j_L]);
-            }
-            printf("}\n");
-        }
-        // set output_variable_name=1 here
-        {
-            output_T = 1;
-            output_m_avg = 1;
-            output_m_abs_avg = 1;
-            output_m_2_avg = 1;
-            output_m_4_avg = 1;
-            output_m_2_vec_avg = 1;
-            output_m_4_vec_avg = 1;
-            output_m_ab_avg = 1;
-            output_X = 1;
-            output_X_ab = 1;
-            output_B = 1;
-            output_B_a = 1;
-            output_E_avg = 1;
-            output_E_2_avg = 1;
-            output_Cv = 1;
-            output_Y_1_avg = 1;
-            output_Y_2_avg = 1;
-            output_Y_x_mu = 1;
-        }
-
-        // create file name and pointer. 
-        {
-            // char output_file_0[256];
-            char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_ZFC-ZFH_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L) 
-                {
-                    pos += sprintf(pos, "x");
-                }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
-            }
-            pos += sprintf(pos, "_(%.3f,%.3f)-[%.3f]", Temp_min, Temp_max, delta_T);
-            
-            pos += sprintf(pos, "_{");
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%.3f", J[j_L]);
-            }
-            pos += sprintf(pos, "}");
-            
-            #ifdef RANDOM_BOND
-            pos += sprintf(pos, "_{");    
-            for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            {
-                if (j_L)
-                {
-                    pos += sprintf(pos, ",");
-                }
-                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
-            } 
-            pos += sprintf(pos, "}");    
             #endif
-            // pos += sprintf(pos, "_{");    
-            // for (j_L = 0 ; j_L != dim_L ; j_L++) 
-            // {
-            //     if (j_L)
-            //     {
-            //         pos += sprintf(pos, ",");
-            //     }
-            //     pos += sprintf(pos, "%f", J_dev_avg[j_L]);
-            // }
-            // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6091,7 +5757,7 @@
                 }
                 pos += sprintf(pos, "%.3f", h[j_S]);
             }
-            pos += sprintf(pos, "}"); 
+            pos += sprintf(pos, "}");
             #ifdef RANDOM_FIELD
             pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
@@ -6102,8 +5768,7 @@
                 }
                 pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}");    
-            #endif
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");    
             // for (j_S = 0 ; j_S != dim_S ; j_S++) 
             // {
@@ -6114,6 +5779,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6128,94 +5794,242 @@
         // column labels and parameters
         output_param_file(output_file_0);
         output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "T\t|m|\t");
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     } 
-        //     /* for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         for (j_SS=0; j_SS<dim_S; j_SS++)
-        //         {
-        //             for (j_L=0; j_L<dim_L; j_L++)
-        //             {
-        //                 fprintf(pFile_1, "<Y[%d,%d][%d]>\t", j_S, j_SS, j_L);
-        //             }
-        //         }
-        //     } */
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
+        
+        for (T=Temp_max; T>=Temp_min; T=T-delta_T)
+        {
+            printf("\nT=%lf\t ", T);
+            initialize_spin_and_evolve_at_T(); 
 
-        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
-        {
-            cooling_protocol(output_file_0);
-        }
-        if (c_h_ch_hc == 1 || c_h_ch_hc == 2 || c_h_ch_hc == 3)
-        {
-            heating_protocol(output_file_0);
-        }
-        if (c_h_ch_hc == 3)
-        {
-            cooling_protocol(output_file_0);
+            output_data(output_file_0, "", "");
         }
         
         reset_output_variable_name_0();
 
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = h_temp[j_S];
+            }
+            r_order = r_order_temp;
+            h_order = h_order_temp;
+
         return 0;
     }
- 
-    int fc_fh_or_both(int c_h_ch_hc)
+
+    int cooling_heating(char output_file_name[], int cool_heat)
     {
-        printf("\n__________________________________________________________\n");
+        #ifdef _OPENMP
+        #ifdef BUNDLE
+            omp_set_num_threads(BUNDLE);
+        #else
+            omp_set_num_threads(num_of_threads);
+        #endif
+        #endif
+        /* #ifdef _OPENMP
+            if (num_of_threads<=16)
+            {
+                omp_set_num_threads(num_of_threads);
+            }
+            else 
+            {
+                if (num_of_threads<=24)
+                {
+                    omp_set_num_threads(16);
+                }
+                else
+                {
+                    omp_set_num_threads(num_of_threads-8);
+                }
+            }
+        #endif */
+
         int j_S, j_SS, j_L;
+
+        // ensemble_all();
+        ensemble_E();
+        ensemble_m();
+
+        printf("Initial Magnetization = (%lf", m[0]);
+        for(j_S=1; j_S<dim_S; j_S++)
+        {
+            printf(",%lf", m[j_S]);
+        }
+        printf("), Energy = %lf \n", E);
+        if (cool_heat%2==1)
+        {
+            printf("Heating... ");
+        }
+        else
+        {
+            printf("Cooling... ");
+        }
+        
+        pFile_1 = fopen(output_file_name, "a");
+        if (cool_heat%2==1)
+        {
+            fprintf(pFile_1, "Heating... \n");
+        }
+        else
+        {
+            fprintf(pFile_1, "Cooling... \n");
+        }
+        fclose(pFile_1);
+
+        double Temp_start;
+        double Temp_end;
+        double del_T;
+        if (cool_heat%2==1)
+        {
+            Temp_start = Temp_min;
+            Temp_end = Temp_max;
+            del_T = delta_T;
+        }
+        else
+        {
+            Temp_start = Temp_max;
+            Temp_end = Temp_min;
+            del_T = -delta_T;
+        }
+
+        for (T=Temp_start; T*del_T<=Temp_end*del_T; T=T+del_T)
+        {
+            if (T==Temp_start) {printf("\nT = %lf ", T);}
+            else {printf("--> %lf ", T);}
+            fflush(stdout);
+            
+            thermalizing_iteration(thermal_i, MC_algo_type, MC_update_type, 0);
+            
+            char append_string1[128];
+            char *pos_append_string1 = append_string1;
+            if (cool_heat%2==1)
+            {
+                pos_append_string1 += sprintf(pos_append_string1, "_heat_cycle_%da", (int)(cool_heat/2));
+            }
+            else
+            {
+                pos_append_string1 += sprintf(pos_append_string1, "_cool_cycle_%da", (int)(cool_heat/2));
+            }
+            save_spin_config(append_string1, "a", 2);
+
+            averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
+
+            output_data(output_file_name, "", "");
+
+            char append_string2[128];
+            char *pos_append_string2 = append_string2;
+            if (cool_heat%2==1)
+            {
+                pos_append_string2 += sprintf(pos_append_string2, "_heat_cycle_%db", (int)(cool_heat/2));
+            }
+            else
+            {
+                pos_append_string2 += sprintf(pos_append_string2, "_cool_cycle_%db", (int)(cool_heat/2));
+            }
+            save_spin_config(append_string2, "a", 2);
+        }
+
+        // ensemble_all();
+        ensemble_E();
+        ensemble_m();
+
+        printf("\n");
+        printf("Final Magnetization = (%lf", m[0]);
+        for(j_S=1; j_S<dim_S; j_S++)
+        {
+            printf(",%lf", m[j_S]);
+        }
+        printf("), Energy = %lf \n", E);
+        printf("------------------------\n");
+
+        return 0;
+    }
+
+    int fc_fh_or_both(int c_h_ch_hc, int zero_or_finite)
+    {
+        int j_S, j_SS, j_L;
+        //
+            long int hysteresis_repeat_temp = hysteresis_repeat;
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            if (zero_or_finite == 0)
+            {
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    h_temp[j_S] = h[j_S];
+                }
+            }
+        hysteresis_repeat = 2;
+        thermal_i = 10000;
+        average_j = 1000;
+        sampling_inter = 16;
+        MC_algo_type = 1; // Metropolis
+        MC_update_type = 0; // 0 - Checkerboard, 1 - Random, 2 - Linear
+
+        if (zero_or_finite == 0)
+        {
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = 0;
+            }
+        }
+
+        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
+        {
+            T = Temp_max;
+        }
+        if (c_h_ch_hc == 1 || c_h_ch_hc == 3)
+        {
+            T = Temp_min;
+        }
+
+        printf("\nRepeat = %d\n", hysteresis_repeat); 
+        printf("\n__________________________________________________________\n");
+
         printf("\nField Cooling/Heating with (thermalizing steps+averaging steps)/delta_T=(%ld+%ld)/%lf at h={%lf", thermal_i, average_j, delta_T, h[0]);
         for (j_S=1; j_S<dim_S; j_S++)
         {
             printf(",%lf", h[j_S]);
         }
         printf("}..\n");
-
-
-        if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
-        {
-            T = Temp_max;
-        }
-        if (c_h_ch_hc == 1 || c_h_ch_hc == 3)
-        {
-            T = Temp_min;
-        }
         
         // set output_variable_name=1 here
         {
+            // output_h = 1;
             output_T = 1;
             output_m_avg = 1;
             output_m_abs_avg = 1;
             output_m_2_avg = 1;
             output_m_4_avg = 1;
-            output_m_2_vec_avg = 1;
-            output_m_4_vec_avg = 1;
-            output_m_ab_avg = 1;
+            // output_m_2_vec_avg = 1;
+            // output_m_4_vec_avg = 1;
+            // output_m_ab_avg = 1;
             output_X = 1;
-            output_X_ab = 1;
+            // output_X_ab = 1;
             output_B = 1;
-            output_B_a = 1;
-            output_E_avg = 1;
-            output_E_2_avg = 1;
-            output_Cv = 1;
-            output_Y_1_avg = 1;
-            output_Y_2_avg = 1;
-            output_Y_x_mu = 1;
+            // output_B_a = 1;
+            // output_E_avg = 1;
+            // output_E_2_avg = 1;
+            // output_Cv = 1;
+            // output_Y_1_avg = 1;
+            // output_Y_2_avg = 1;
+            // output_Y_x_mu = 1;
         }
         
         // create file name and pointer. 
         {
-
+            // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_FC-FH_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
+            pos += sprintf(pos, "O(%d)_%dD_FC-FH_%c_%c_", dim_S, dim_L, G_M_W[MC_algo_type], C_R_L[MC_update_type]);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -6224,7 +6038,7 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_(%.3f<->%.3f)-[%.3f]", Temp_min, Temp_max, delta_T);
+            pos += sprintf(pos, "_(%.3f-%.3f)-[%.3f]", Temp_min, Temp_max, delta_T);
 
             pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
@@ -6248,7 +6062,6 @@
                 pos += sprintf(pos, "%.3f", sigma_J[j_L]);
             } 
             pos += sprintf(pos, "}");    
-            #endif
             // pos += sprintf(pos, "_{");    
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
@@ -6259,6 +6072,7 @@
             //     pos += sprintf(pos, "%f", J_dev_avg[j_L]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6280,7 +6094,6 @@
                 pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
             pos += sprintf(pos, "}");    
-            #endif
             // pos += sprintf(pos, "_{");    
             // for (j_S = 0 ; j_S != dim_S ; j_S++) 
             // {
@@ -6291,6 +6104,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6305,18 +6119,6 @@
         // column labels and parameters
         output_param_file(output_file_0);
         output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "T\t|m|\t");
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     } 
-
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
         
         printf("\n");
         initialize_spin_config();
@@ -6326,65 +6128,62 @@
         {
             if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
             {
-                cooling_protocol(output_file_0);
+                cooling_heating(output_file_0, 0+2*i);
             }
             if (c_h_ch_hc == 1 || c_h_ch_hc == 2 || c_h_ch_hc == 3)
             {
-                heating_protocol(output_file_0);
+                cooling_heating(output_file_0, 1+2*i);
             }
             if (c_h_ch_hc == 3)
             {
-                cooling_protocol(output_file_0);
+                cooling_heating(output_file_0, 0+2*i);
             }
         }
         
         reset_output_variable_name_0();
-        
+            hysteresis_repeat = hysteresis_repeat_temp;
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            if (zero_or_finite == 0)
+            {
+                for (j_S=0; j_S<dim_S; j_S++)
+                {
+                    h[j_S] = h_temp[j_S];
+                }
+            }
+
         printf("\n__________________________________________________________\n");
-        return 0;
-    }
-
-    int hysteresis_average(long int hysteresis_iter)
-    {
-        int j_S;
-        double MCS_counter = 0;
-        
-        set_sum_of_moment_all_0();
-        // set_sum_of_moment_m_0();
-        // set_sum_of_moment_E_0();
-        
-        // printf("Averaging iterations... h=%lf\n", h);
-
-        while(hysteresis_iter)
-        {  
-
-            Monte_Carlo_Sweep(1, /* Gl_Me_Wo */0, Ch_Ra_Li);
-
-            ensemble_all();
-            // ensemble_m();
-            // ensemble_E();
-            
-            sum_of_moment_all();
-            // sum_of_moment_m();
-            // sum_of_moment_E();
-            MCS_counter = MCS_counter + 1;
-            
-            hysteresis_iter = hysteresis_iter - 1;
-        }
-        // printf("Done.\n");
-        average_of_moment_all(MCS_counter);
-        // average_of_moment_m(MCS_counter);
-        // average_of_moment_E(MCS_counter);
-        
-        // printf("Final: Magnetisation = %lf, Energy = %lf \n", m, E);
-        // printf("<M> = %lf, <E> = %lf \n", m_avg, E_avg);
-        
         return 0;
     }
 
     int hysteresis_protocol(int jj_S, double order_start)
     {
+        printf("\nhysteresis_MCS = %ld, Repeat = %d \n", hysteresis_MCS, hysteresis_repeat); 
+        printf("\n__________________________________________________________\n");
         int j_S, j_L;
+        //
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h_temp[j_S] = h[j_S];
+            }
+
+        thermal_i = 0;
+        average_j = hysteresis_MCS;
+        sampling_inter = 1;
+        MC_algo_type = 0; // Glauber
+        MC_update_type = 0; // Checkerboard
+
         for (j_S=0; j_S<dim_S; j_S++)
         {
             if (j_S == jj_S)
@@ -6419,7 +6218,7 @@
         initialize_spin_config();
         ensemble_m();
         ensemble_E();
-        printf("\n%lf", m[0]);
+        printf("\nm = %lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
             printf(",%lf", m[j_S]);
@@ -6435,31 +6234,17 @@
         
         // set output_variable_name=1 here
         {
-            output_T = 1;
+            output_h = 1;
             output_m_avg = 1;
-            output_m_abs_avg = 1;
-            output_m_2_avg = 1;
-            output_m_4_avg = 1;
-            output_m_2_vec_avg = 1;
-            output_m_4_vec_avg = 1;
-            output_m_ab_avg = 1;
-            output_X = 1;
-            output_X_ab = 1;
-            output_B = 1;
-            output_B_a = 1;
+            // output_m_abs_avg = 1;
             output_E_avg = 1;
-            output_E_2_avg = 1;
-            output_Cv = 1;
-            output_Y_1_avg = 1;
-            output_Y_2_avg = 1;
-            output_Y_x_mu = 1;
         }
         
         // create file name and pointer. 
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_hysteresis_%c_%c_", dim_S, dim_L, G_M_W[Gl_Me_Wo], C_R_L[Ch_Ra_Li]);
+            pos += sprintf(pos, "O(%d)_%dD_hysteresis_%c_%c_", dim_S, dim_L, G_M_W[0], C_R_L[MC_update_type]);
 
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -6469,25 +6254,26 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf", T);
-            /* pos += sprintf(pos, "_{");
+            pos += sprintf(pos, "_%.3f", T);
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", J[j_L]);
+                pos += sprintf(pos, "%.3f", J[j_L]);
             }
             pos += sprintf(pos, "}");    
-            pos += sprintf(pos, "_{");    
+            #ifdef RANDOM_BOND
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
             }
             // pos += sprintf(pos, "}");    
             // pos += sprintf(pos, "_{");    
@@ -6499,7 +6285,8 @@
             //     }
             //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
             // }
-            // pos += sprintf(pos, "}"); */
+            // pos += sprintf(pos, "}"); 
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6509,14 +6296,15 @@
                 }
                 if (j_S==jj_S)
                 {
-                    pos += sprintf(pos, "(%lf,%lf)-[%lf]", h_start, h_end, delta_h);
+                    pos += sprintf(pos, "(%.2f,%.2f)-[%.4f]", h_start, h_end, delta_h);
                 }
                 else
                 {
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                    pos += sprintf(pos, "%.3f", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_FIELD
             pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6524,7 +6312,7 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
             pos += sprintf(pos, "}");    
             // pos += sprintf(pos, "_{");    
@@ -6537,6 +6325,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6544,61 +6333,38 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", order[j_S]);
+                pos += sprintf(pos, "%.3f", order[j_S]);
             }
             pos += sprintf(pos, "}_%d_%d_%ld.dat", h_order, r_order, hysteresis_MCS);
         }
         // column labels and parameters
         output_param_file(output_file_0);
         output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "h[%d]\t", jj_S);
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
         
         int i;
+        printf("\nh = %lf(0)", h_start);
         for (i=0; i<hysteresis_repeat; i=i+1)
         {
-            printf("h = %lf --> %lf\t ", h_start, h_end);
+            printf(" --> %lf", h_end);
+            // printf("h = %lf --> %lf\t ", h_start, h_end);
+            fflush(stdout);
             for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
             {
-                hysteresis_average(hysteresis_MCS);
+                averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
 
-                pFile_1 = fopen(output_file_0, "a");
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E_avg);
-
-                fprintf(pFile_1, "\n");
-                fclose(pFile_1);
+                output_data(output_file_0, "", "");
             }
-            printf("..(%d) \nh = %lf <-- %lf\t ", i+1, h_start, h_end);
+            printf("(%d) --> %lf", i+1, h_start);
+            // printf("..(%d) h = %lf <-- %lf\t ", i+1, h_start, h_end);
+            fflush(stdout);
             for (h[jj_S] = h_end; order[jj_S] * h[jj_S] <= order[jj_S] * h_start; h[jj_S] = h[jj_S] + order[jj_S] * delta_h)
             {
-                hysteresis_average(hysteresis_MCS);
+                averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
 
-                pFile_1 = fopen(output_file_0, "a");
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m_avg[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E_avg);
-
-                fprintf(pFile_1, "\n");
-                fclose(pFile_1);
+                output_data(output_file_0, "", "");
             }
-            printf("..(%d) \n", i+1);
+            printf("(%d) ", i+1);
+            fflush(stdout);
             h[jj_S] = 0;
         }
         
@@ -6606,11 +6372,69 @@
         
         reset_output_variable_name_0();
 
-        printf("Finished. \n");
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = h_temp[j_S];
+            }
+        
+        printf("\nFinished. \n");
+        printf("\n__________________________________________________________\n");
         return 0;
     }
 
-//====================      RFIM ZTNE                        ====================//
+//====================  RFIM ZTNE                     ====================//
+
+    long int find_extremes(double s, long int remaining_sites, long int *nucleation_sites)
+    {
+        // if (remaining_sites<=0) { return 0; } // remove
+        h[0] = 0;
+        long int i_1 = 0;
+        while (spin[dim_S*i_1 + 0] == -s)
+        {
+            i_1++;
+        }
+        nucleation_sites[0] = i_1;
+        double field_local[dim_S];
+        double spin_local[dim_S];
+        double E_1 = Energy_old(i_1, spin_local, field_local);
+        double E_2;
+        remaining_sites--;
+        long int i_2 = i_1;
+        long int no_of_nuclei = 1;
+        while (remaining_sites > 0)
+        {
+            i_2++;
+            while (spin[dim_S*i_2 + 0] == -s)
+            {
+                i_2++;
+            }
+            E_2 = Energy_old(i_2, spin_local, field_local);
+            remaining_sites--;
+            if (E_1 < E_2)
+            {
+                nucleation_sites[0] = i_2;
+                E_1 = E_2;
+                no_of_nuclei = 1;
+            }
+            else
+            {
+                if (E_1 == E_2)
+                {
+                    nucleation_sites[no_of_nuclei] = i_2;
+                    no_of_nuclei++;
+                }
+            }
+        }
+        h[0] = s*E_1;
+
+        return no_of_nuclei;
+    }
 
     long int find_extreme(double s, long int remaining_sites)
     {
@@ -6645,13 +6469,16 @@
         return i_1;
     }
 
-    long int flip_unstable(long int nucleation_site, long int remaining_sites)
+    long int flip_unstables(long int* nucleation_sites, long int remaining_sites, long int no_of_nuclei)
     {
         int j_SS = 0, j_L, k_L;
-        long int next_site = nucleation_site;
-        spin[dim_S*nucleation_site + j_SS] = -spin[dim_S*nucleation_site + j_SS];
-        long int i_1=0, i_2=1;
-        next_in_queue[i_1] = nucleation_site;
+        long int next_site = nucleation_sites[0];
+        long int i_1=0, i_2=0;
+        for (i_2=0; i_2<no_of_nuclei; i_2++)
+        {
+            spin[dim_S*nucleation_sites[i_2] + j_SS] = -spin[dim_S*nucleation_sites[i_2] + j_SS];
+        }
+        i_2 = no_of_nuclei;
         double field_local[dim_S];
         double spin_local[dim_S];
         do
@@ -6660,16 +6487,58 @@
             {
                 for (k_L=0; k_L<2; k_L++)
                 {
-                    next_site = N_N_I[2*dim_L*next_in_queue[i_1] + 2*j_L + k_L];
-                    if (spin[dim_S*next_site + j_SS] != -order[0])
+                    next_site = N_N_I[2*dim_L*nucleation_sites[i_1] + 2*j_L + k_L];
+                    if ( next_site < no_of_sites )
                     {
-                        if (Energy_old(next_site, spin_local, field_local)>=0)
+                        if (spin[dim_S*next_site + j_SS] != -order[0])
                         {
-                            next_in_queue[i_2] = next_site;
-                            i_2++;
-                            spin[dim_S*next_site + j_SS] = -spin[dim_S*next_site + j_SS];
-                            
-                            // remaining_sites = flip_unstable(next_site, remaining_sites);
+                            if (Energy_old(next_site, spin_local, field_local)>=0)
+                            {
+                                nucleation_sites[i_2] = next_site;
+                                i_2++;
+                                spin[dim_S*next_site + j_SS] = -spin[dim_S*next_site + j_SS];
+                                
+                                // remaining_sites = flip_unstable(next_site, remaining_sites);
+                            }
+                        }
+                    }
+                }
+            }
+            i_1++;
+        }
+        while(i_1 != i_2);
+
+        return remaining_sites - i_2;
+    }
+
+    long int flip_unstable(long int nucleation_site, long int remaining_sites)
+    {
+        int j_SS = 0, j_L, k_L;
+        long int next_site = nucleation_site;
+        spin[dim_S*nucleation_site + j_SS] = -spin[dim_S*nucleation_site + j_SS];
+        long int i_1=0, i_2=1;
+        nucleation_sites[i_1] = nucleation_site;
+        double field_local[dim_S];
+        double spin_local[dim_S];
+        do
+        {
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                for (k_L=0; k_L<2; k_L++)
+                {
+                    next_site = N_N_I[2*dim_L*nucleation_sites[i_1] + 2*j_L + k_L];
+                    if ( next_site < no_of_sites )
+                    {
+                        if (spin[dim_S*next_site + j_SS] != -order[0])
+                        {
+                            if (Energy_old(next_site, spin_local, field_local)>=0)
+                            {
+                                nucleation_sites[i_2] = next_site;
+                                i_2++;
+                                spin[dim_S*next_site + j_SS] = -spin[dim_S*next_site + j_SS];
+                                
+                                // remaining_sites = flip_unstable(next_site, remaining_sites);
+                            }
                         }
                     }
                 }
@@ -6683,8 +6552,27 @@
 
     int zero_temp_RFIM_hysteresis()
     {
+        int jj_S=0, j_S, j_L;
+        //
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h_temp[j_S] = h[j_S];
+            }
+
+        thermal_i = 0;
+        average_j = 0;
+        sampling_inter = 0;
+        MC_algo_type = -1; // Glauber
+        MC_update_type = -1; // Checkerboard
         T = 0;
-        
+
         // h[0] = h_i_max;
         if (fabs(h_i_max) < fabs(h_i_min))
         {
@@ -6700,16 +6588,17 @@
         h_order = 0;
         r_order = 0;
         initialize_spin_config();
-        int jj_S=0, j_S, j_L;
+        h_counter = 0;
+        m_counter = 1.0;
 
         printf("\nztne RFIM looping  at T=%lf.. \n",  T);
 
         ensemble_m();
         ensemble_E();
-        
+
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -6726,6 +6615,7 @@
             output_m = 1;
             output_E = 1;
             output_h = 1;
+            output_append = 1;
         }
 
         // create file name and pointer. 
@@ -6742,17 +6632,18 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf", T);
-            /* pos += sprintf(pos, "_{");
+            pos += sprintf(pos, "_%.3f", T);
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", J[j_L]);
+                pos += sprintf(pos, "%.3f", J[j_L]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_BOND
             pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -6760,9 +6651,9 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
             }
-            // pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");    
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
@@ -6772,7 +6663,8 @@
             //     }
             //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
             // }
-            // pos += sprintf(pos, "}"); */
+            // pos += sprintf(pos, "}"); 
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6782,14 +6674,15 @@
                 }
                 if (j_S==jj_S)
                 {
-                    pos += sprintf(pos, "(%lf,%lf)", h_i_max, h_i_min);
+                    pos += sprintf(pos, "(%.2f,%.2f)", h_i_max, h_i_min);
                 }
                 else
                 {
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                    pos += sprintf(pos, "%.3f", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_FIELD
             pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6797,9 +6690,9 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");    
             // for (j_S = 0 ; j_S != dim_S ; j_S++) 
             // {
@@ -6810,6 +6703,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -6817,82 +6711,30 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", order[j_S]);
+                pos += sprintf(pos, "%.3f", order[j_S]);
             }
             pos += sprintf(pos, "}.dat");
         }
         // column labels and parameters
         output_param_file(output_file_0);
-        output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "h[%d]\t", jj_S);
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
+        output_label(output_file_0, "", "Saved_Spin\t");
 
         pFile_1 = fopen(output_file_0, "a");
+        #ifdef RFIM_MULTIPLE
+        long int no_of_nuclei;
+        // nucleation_sites = (long int*)malloc(no_of_sites*sizeof(double));
+        #else
         long int nucleation_site;
+        #endif
 
         long int remaining_sites = no_of_sites;
-        ensemble_m();
-        ensemble_E();
-        fprintf(pFile_1, "%.12e\t", h[jj_S]);
-        for(j_S=0; j_S<dim_S; j_S++)
-        {
-            fprintf(pFile_1, "%.12e\t", m[j_S]);
-        }
-        fprintf(pFile_1, "%.12e\t", E);
+        ensemble_all();
+        pFile_output = pFile_1;
+        output_data("output_file.dat", "", "No\t");
+        pFile_output = NULL;
 
-        fprintf(pFile_1, "\n");
-        
-        while (remaining_sites)
-        {
-            nucleation_site = find_extreme(order[0], remaining_sites);
-
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-
-            fprintf(pFile_1, "\n");
-            
-            remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-            printf("h=%lf, ", h[0]);
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-
-            fprintf(pFile_1, "\n");
-        }
-
-        // h[0] = h_i_min;
-        if (fabs(h_i_max) < fabs(h_i_min))
-        {
-            h[0] = -fabs(h_i_min);
-        }
-        else
-        {
-            h[0] = -fabs(h_i_max);
-        }
-
-        order[0] = -1;
-        remaining_sites = no_of_sites;
-        printf("\n%lf", m[0]);
+        printf("----\n");
+        printf("\nm = %lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
             printf(",%lf", m[j_S]);
@@ -6904,59 +6746,204 @@
         }
         printf("}, %d, %d)\n", h_order, r_order);
 
-        ensemble_m();
-        ensemble_E();
-        fprintf(pFile_1, "%.12e\t", h[jj_S]);
-        for(j_S=0; j_S<dim_S; j_S++)
-        {
-            fprintf(pFile_1, "%.12e\t", m[j_S]);
-        }
-        fprintf(pFile_1, "%.12e\t", E);
-
-        fprintf(pFile_1, "\n");
-
+        printf("Start : h=%lf ...\n", h[0]);
         while (remaining_sites)
         {
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
             nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
 
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-
-            fprintf(pFile_1, "\n");
+            // ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
             
+            #ifdef RFIM_MULTIPLE
+            remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+            #else
             remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-            printf("h=%lf, ", h[0]);
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
+            #endif
 
-            fprintf(pFile_1, "\n");
+            printf("\rNow at: h=%lf ", h[0]);
+            fflush(stdout);
+            ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
+
+            #ifdef SAVE_SPIN_AFTER
+                if (SAVE_SPIN_AFTER > 0)
+                {
+                    h_counter++;
+                    if (h_counter%SAVE_SPIN_AFTER == 0)
+                    {
+                        char append_string[128];
+                        char *pos_append_string = append_string;
+                        pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter/SAVE_SPIN_AFTER);
+                        save_spin_config(append_string, "w", 2);
+                        // ensemble_all();
+                        pFile_output = pFile_1;
+                        output_data("output_file.dat", "", "Yes\t");
+                        pFile_output = NULL;
+                    }
+                }
+                else
+                {
+                    if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                    {
+                        h_counter++;
+                        m_counter -= order[0]*del_m_counter;
+                        char append_string[128];
+                        char *pos_append_string = append_string;
+                        pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
+                        save_spin_config(append_string, "w", 2);
+                        // ensemble_all();
+                        pFile_output = pFile_1;
+                        output_data("output_file.dat", "", "Yes\t");
+                        pFile_output = NULL;
+                    }
+                }
+            #endif
         }
+        printf("\rEnd : h=%lf .       \n", h[0]);
+        
+        // h[0] = h_i_min;
+        if (fabs(h_i_max) < fabs(h_i_min))
+        {
+            h[0] = -fabs(h_i_min);
+        }
+        else
+        {
+            h[0] = -fabs(h_i_max);
+        }
+
+        order[0] = -1;
+        m_counter = -1.0;
+        remaining_sites = no_of_sites;
+        printf("----\n");
+        printf("\nm = %lf", m[0]);
+        for(j_S=1; j_S<dim_S; j_S++)
+        {
+            printf(",%lf", m[j_S]);
+        }
+        printf("\norder = ({%lf-->%lf", order[0], -order[0]);
+        for(j_S=1; j_S<dim_S; j_S++)
+        {
+            printf(",%lf", order[j_S]);
+        }
+        printf("}, %d, %d)\n", h_order, r_order);
+
+        fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
+        ensemble_all();
+        pFile_output = pFile_1;
+        output_data("output_file.dat", "", "No\t");
+        pFile_output = NULL;
+        
+        printf("Start : h=%lf ...\n", h[0]);
+        while (remaining_sites)
+        {
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
+            nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
+
+            // ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
+            
+            #ifdef RFIM_MULTIPLE
+            remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+            #else
+            remaining_sites = flip_unstable(nucleation_site, remaining_sites);
+            #endif
+
+            printf("\rNow at: h=%lf ", h[0]);
+            fflush(stdout);
+            ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
+            #ifdef SAVE_SPIN_AFTER
+                if (SAVE_SPIN_AFTER > 0)
+                {
+                    h_counter++;
+                    if (h_counter%SAVE_SPIN_AFTER == 0)
+                    {
+                        char append_string[128];
+                        char *pos_append_string = append_string;
+                        pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter/SAVE_SPIN_AFTER);
+                        save_spin_config(append_string, "w", 2);
+                        // ensemble_all();
+                        pFile_output = pFile_1;
+                        output_data("output_file.dat", "", "Yes\t");
+                        pFile_output = NULL;
+                    }
+                }
+                else
+                {
+                    if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                    {
+                        h_counter++;
+                        m_counter -= order[0]*del_m_counter;
+                        char append_string[128];
+                        char *pos_append_string = append_string;
+                        pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
+                        save_spin_config(append_string, "w", 2);
+                        // ensemble_all();
+                        pFile_output = pFile_1;
+                        output_data("output_file.dat", "", "Yes\t");
+                        pFile_output = NULL;
+                    }
+                }
+            #endif
+        }
+        printf("\rEnd : h=%lf .       \n", h[0]);
         fclose(pFile_1);
         reset_output_variable_name_0();
+            
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = h_temp[j_S];
+            }
 
         printf("\n----------\nDone.\n");
+
         return 0;
     }
 
-    int zero_temp_RFIM_ringdown()
+    int zero_temp_RFIM_ringdown(double delta_m)
     {
-        // call ztne RFIM here.
-        
-        double delta_m = 0.1;
-        
+        int jj_S=0, j_S, j_L;
+        //
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h_temp[j_S] = h[j_S];
+            }
+
+        thermal_i = 0;
+        average_j = 0;
+        sampling_inter = 0;
+        MC_algo_type = -1; // Glauber
+        MC_update_type = -1; // Checkerboard
         T = 0;
+
         // h[0] = h_i_max;
         if (fabs(h_i_max) < fabs(h_i_min))
         {
@@ -6972,7 +6959,8 @@
         h_order = 0;
         r_order = 0;
         initialize_spin_config();
-        int jj_S=0, j_S, j_L;
+        h_counter = 0;
+        m_counter = 1.0;
 
         printf("\nztne RFIM looping  at T=%lf.. \n",  T);
         
@@ -6981,7 +6969,7 @@
 
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -6998,9 +6986,9 @@
             output_m = 1;
             output_E = 1;
             output_h = 1;
+            output_append = 1;
         }
         
-
         // create file name and pointer. 
         {
             // char output_file_0[256];
@@ -7015,17 +7003,18 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf", T);
-            /* pos += sprintf(pos, "_{");
+            pos += sprintf(pos, "_%.3f", T);
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", J[j_L]);
+                pos += sprintf(pos, "%.3f", J[j_L]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_BOND
             pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -7033,9 +7022,9 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
             }
-            // pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");    
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
@@ -7045,7 +7034,8 @@
             //     }
             //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
             // }
-            // pos += sprintf(pos, "}"); */
+            // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -7055,14 +7045,15 @@
                 }
                 if (j_S==jj_S)
                 {
-                    pos += sprintf(pos, "(%lf,%lf)", h_i_max, h_i_min);
+                    pos += sprintf(pos, "(%.2f,%.2f)", h_i_max, h_i_min);
                 }
                 else
                 {
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                    pos += sprintf(pos, "%.3f", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_FIELD
             pos += sprintf(pos, "_{");    
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -7070,9 +7061,9 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
             // pos += sprintf(pos, "_{");    
             // for (j_S = 0 ; j_S != dim_S ; j_S++) 
             // {
@@ -7083,6 +7074,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -7090,28 +7082,22 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", order[j_S]);
+                pos += sprintf(pos, "%.3f", order[j_S]);
             }
             pos += sprintf(pos, "}.dat");
         }
         // column labels and parameters
         output_param_file(output_file_0);
-        output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "h[%d]\t", jj_S);
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
+        output_label(output_file_0, "", "Saved_Spin\t");
 
         pFile_1 = fopen(output_file_0, "a");
         long int remaining_sites = 0;
+        #ifdef RFIM_MULTIPLE
+        long int no_of_nuclei;
+        // nucleation_sites = (long int*)malloc(no_of_sites*sizeof(double));
+        #else
         long int nucleation_site;
+        #endif
         float M_compare;
         for (M_compare=1.0; M_compare>0.0; M_compare -= delta_m)
         {
@@ -7119,66 +7105,14 @@
             
             order[0] = 1;
             remaining_sites = no_of_sites - remaining_sites;
-            ensemble_m();
-            ensemble_E();
+            ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
             
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-            
-            fprintf(pFile_1, "\n");
-
             double old_h=0.0, new_h=0.0;
-            
-
-            while (old_h == new_h || M_compare > -m[0])
-            {
-                nucleation_site = find_extreme(order[0], remaining_sites);
-
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-
-                fprintf(pFile_1, "\n");
-                
-                remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-                printf("h=%lf, ", h[0]);
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-                old_h = h[0];
-                find_extreme(order[0], remaining_sites);
-                new_h = h[0];
-
-                fprintf(pFile_1, "\n");
-            }
-
-            // h[0] = h_i_min;
-            if (fabs(h_i_max) < fabs(h_i_min))
-            {
-                h[0] = -fabs(h_i_min);
-            }
-            else
-            {
-                h[0] = -fabs(h_i_max);
-            }
-            
-            order[0] = -1;
-            remaining_sites = no_of_sites - remaining_sites;
-            printf("\n%lf", m[0]);
+            printf("----\n");
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -7190,70 +7124,221 @@
             }
             printf("}, %d, %d)\n", h_order, r_order);
 
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
+            printf("Start : h=%lf ...\n", h[0]);
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
+            nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
+            while ( old_h == new_h || M_compare > -m[0] )
             {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
+                // ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
+                
+                #ifdef RFIM_MULTIPLE
+                remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+                #else
+                remaining_sites = flip_unstable(nucleation_site, remaining_sites);
+                #endif
 
-            fprintf(pFile_1, "\n");
+                printf("\rNow at: h=%lf ", h[0]);
+                fflush(stdout);
+
+                ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
+
+                #ifdef SAVE_SPIN_AFTER
+                    if (SAVE_SPIN_AFTER > 0)
+                    {
+                        h_counter++;
+                        if (h_counter%SAVE_SPIN_AFTER == 0)
+                        {
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter/SAVE_SPIN_AFTER);
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            pFile_output = pFile_1;
+                            output_data("output_file.dat", "", "Yes\t");
+                            pFile_output = NULL;
+                        }
+                    }
+                    else
+                    {
+                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                        {
+                            h_counter++;
+                            m_counter -= order[0]*del_m_counter;
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            pFile_output = pFile_1;
+                            output_data("output_file.dat", "", "Yes\t");
+                            pFile_output = NULL;
+                        }
+                    }
+                #endif
+
+                old_h = h[0];
+                #ifdef RFIM_MULTIPLE
+                no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+                #else
+                nucleation_site = find_extreme(order[0], remaining_sites);
+                #endif
+                new_h = h[0];
+            }
+            h[0] = old_h;
+            printf("\rEnd : h=%lf .       \n", h[0]);
+            fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
+
+            order[0] = -1;
+            remaining_sites = no_of_sites - remaining_sites;
+            printf("----\n");
+            printf("\nm = %lf", m[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", m[j_S]);
+            }
+            printf("\norder = ({%lf-->%lf", order[0], -order[0]);
+            for(j_S=1; j_S<dim_S; j_S++)
+            {
+                printf(",%lf", order[j_S]);
+            }
+            printf("}, %d, %d)\n", h_order, r_order);
+
+            ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
 
             old_h = 0.0, new_h = 0.0;
-
+            
+            printf("Start : h=%lf ...\n", h[0]);
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
+            nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
             while (old_h == new_h || M_compare > m[0])
             {
-                nucleation_site = find_extreme(order[0], remaining_sites);
-
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-
-                fprintf(pFile_1, "\n");
+                // ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
                 
+                #ifdef RFIM_MULTIPLE
+                remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+                #else
                 remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-                printf("h=%lf, ", h[0]);
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-                old_h = h[0];
-                find_extreme(order[0], remaining_sites);
-                new_h = h[0];
+                #endif
+                
+                printf("\rNow at: h=%lf ", h[0]);
+                fflush(stdout);
 
-                fprintf(pFile_1, "\n");
+                ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
+                #ifdef SAVE_SPIN_AFTER
+                    if (SAVE_SPIN_AFTER > 0)
+                    {
+                        h_counter++;
+                        if (h_counter%SAVE_SPIN_AFTER == 0)
+                        {
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter/SAVE_SPIN_AFTER);
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            pFile_output = pFile_1;
+                            output_data("output_file.dat", "", "Yes\t");
+                            pFile_output = NULL;
+                        }
+                    }
+                    else
+                    {
+                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                        {
+                            h_counter++;
+                            m_counter -= order[0]*del_m_counter;
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            pFile_output = pFile_1;
+                            output_data("output_file.dat", "", "Yes\t");
+                            pFile_output = NULL;
+                        }
+                    }
+                #endif
+
+                old_h = h[0];
+                #ifdef RFIM_MULTIPLE
+                no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+                #else
+                nucleation_site = find_extreme(order[0], remaining_sites);
+                #endif
+                new_h = h[0];
             }
-            printf("\n----------\nDone.\n");
+            h[0] = old_h;
+            printf("\rEnd : h=%lf .       \n", h[0]);
+            fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
         }
+        printf("\n----------\nDone.\n");
         fclose(pFile_1);
         reset_output_variable_name_0();
         
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = h_temp[j_S];
+            }
+
         return 0;
     }
 
     int zero_temp_RFIM_return_point_memory()
     {
-        // zero_temp_RFIM_hysteresis();
+        int jj_S=0, j_S, j_L;
+        //
+            long int thermal_i_temp = thermal_i;
+            long int average_j_temp = average_j;
+            long int sampling_inter_temp = sampling_inter;
+            int MC_algo_type_temp = MC_algo_type;
+            int MC_update_type_temp = MC_update_type;
+            double T_temp = T;
+            double h_temp[dim_S];
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h_temp[j_S] = h[j_S];
+            }
 
-        double delta_m[] = { 0.2, 0.1 , 0.05, 0.025 };
+        thermal_i = 0;
+        average_j = 0;
+        sampling_inter = 0;
+        MC_algo_type = -1; // Metropolis
+        MC_update_type = -1; // Checkerboard
+        T = 0;
+
+        double delta_m[] = { 0.2, 0.1 , 0.05, 0.025 }; // change this to appropriate values 
         double m_start = 0.0;
         int depth_of_subloop = sizeof(delta_m) / sizeof(delta_m[0]);
         double *h_ext = (double *)malloc((depth_of_subloop+1)*sizeof(double));
         double *mag_rpm = (double *)malloc((depth_of_subloop+1)*sizeof(double));
         
-        T = 0;
-        h[0] = h_i_max;
+        // h[0] = h_i_max;
         if (fabs(h_i_max) < fabs(h_i_min))
         {
             h[0] = fabs(h_i_min);
@@ -7268,7 +7353,8 @@
         h_order = 0;
         r_order = 0;
         initialize_spin_config();
-        int jj_S=0, j_S, j_L;
+        h_counter = 0;
+        m_counter = 1.0;
 
         printf("\nztne RFIM looping  at T=%lf.. \n",  T);
         
@@ -7277,7 +7363,7 @@
         
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -7294,6 +7380,7 @@
             output_m = 1;
             output_E = 1;
             output_h = 1;
+            output_append = 1;
         }
 
         // create file name and pointer. 
@@ -7310,17 +7397,18 @@
                 }
                 pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "_%lf", T);
-            /* pos += sprintf(pos, "_{");    
+            pos += sprintf(pos, "_%.3f", T);
+            pos += sprintf(pos, "_{");
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", J[j_L]);
+                pos += sprintf(pos, "%.3f", J[j_L]);
             }
-            pos += sprintf(pos, "}");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_BOND
             pos += sprintf(pos, "_{");    
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
@@ -7328,10 +7416,10 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_J[j_L]);
+                pos += sprintf(pos, "%.3f", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "}");   
-            // pos += sprintf(pos, "_{");    
+            pos += sprintf(pos, "}");
+            // pos += sprintf(pos, "_{");
             // for (j_L = 0 ; j_L != dim_L ; j_L++) 
             // {
             //     if (j_L)
@@ -7340,7 +7428,8 @@
             //     }
             //     pos += sprintf(pos, "%lf", J_dev_avg[j_L]);
             // }
-            // pos += sprintf(pos, "}"); */
+            // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -7350,25 +7439,26 @@
                 }
                 if (j_S==jj_S)
                 {
-                    pos += sprintf(pos, "(%lf,%lf)", h_i_max, h_i_min);
+                    pos += sprintf(pos, "(%.2f,%.2f)", h_i_max, h_i_min);
                 }
                 else
                 {
-                    pos += sprintf(pos, "%lf", h[j_S]);
+                    pos += sprintf(pos, "%.3f", h[j_S]);
                 }
             }
-            pos += sprintf(pos, "}");    
-            pos += sprintf(pos, "_{");    
+            pos += sprintf(pos, "}");
+            #ifdef RANDOM_FIELD
+            pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
                 if (j_S)
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", sigma_h[j_S]);
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "}");    
-            // pos += sprintf(pos, "_{");    
+            pos += sprintf(pos, "}");
+            // pos += sprintf(pos, "_{");
             // for (j_S = 0 ; j_S != dim_S ; j_S++) 
             // {
             //     if (j_S)
@@ -7378,6 +7468,7 @@
             //     pos += sprintf(pos, "%lf", h_dev_avg[j_S]);
             // }
             // pos += sprintf(pos, "}");
+            #endif
             pos += sprintf(pos, "_{");
             for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
@@ -7385,206 +7476,212 @@
                 {
                     pos += sprintf(pos, ",");
                 }
-                pos += sprintf(pos, "%lf", order[j_S]);
+                pos += sprintf(pos, "%.3f", order[j_S]);
             }
             pos += sprintf(pos, "}.dat");
         }
         // column labels and parameters
         output_param_file(output_file_0);
-        output_label(output_file_0, "", "");
-        // pFile_1 = fopen(output_file_0, "a");
-        // {
-        //     fprintf(pFile_1, "h[%d]\t", jj_S);
-        //     for (j_S=0; j_S<dim_S; j_S++)
-        //     {
-        //         fprintf(pFile_1, "<m[%d]>\t", j_S);
-        //     }
-        //     fprintf(pFile_1, "<E>\t");
-        //     fprintf(pFile_1, "\tRPM_error");
-        //     fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
-        // }
-        // fclose(pFile_1);
+        output_label(output_file_0, "", "Saved_Spin\tRPM_error(rpm-m)\t");
 
         pFile_1 = fopen(output_file_0, "a");
         long int remaining_sites = 0;
+        #ifdef RFIM_MULTIPLE
+        long int no_of_nuclei;
+        // nucleation_sites = (long int*)malloc(no_of_sites*sizeof(double));
+        #else
         long int nucleation_site;
+        #endif
         float M_compare;
-        int i, one = 1;
+        int i;
         double old_h = 0.0, new_h = 0.0;
 
         order[0] = 1;
         remaining_sites = no_of_sites - remaining_sites;
-        ensemble_m();
-        ensemble_E();
-        
-        fprintf(pFile_1, "%.12e\t", h[jj_S]);
-        for(j_S=0; j_S<dim_S; j_S++)
-        {
-            fprintf(pFile_1, "%.12e\t", m[j_S]);
-        }
-        fprintf(pFile_1, "%.12e\t", E);
-        
-        fprintf(pFile_1, "\n");
 
+        ensemble_all();
+        pFile_output = pFile_1;
+        output_data("output_file.dat", "", "No\t");
+        pFile_output = NULL;
+        #ifdef RFIM_MULTIPLE
+        no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+        #else
+        nucleation_site = find_extreme(order[0], remaining_sites);
+        #endif
         while (old_h == new_h || m_start < m[jj_S])
         {
-            nucleation_site = find_extreme(order[0], remaining_sites);
-
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-
-            fprintf(pFile_1, "\n");
+            // ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
             
+            #ifdef RFIM_MULTIPLE
+            remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+            #else
             remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-            // printf("h=%lf, ", h[0]);
-            ensemble_m();
-            ensemble_E();
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-            old_h = h[0];
-            find_extreme(order[0], remaining_sites);
-            new_h = h[0];
+            #endif
 
-            fprintf(pFile_1, "\n");
+            // printf("\rNow at: h=%lf ", h[0]);
+            // fflush(stdout);
+
+            ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
+
+            old_h = h[0];
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
+            nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
+            new_h = h[0];
         }
         mag_rpm[0] = m[jj_S];
+
         h_ext[0] = old_h;
+
         printf("mag_rpm[0]=%lf, h_ext[0]=%lf \n", mag_rpm[0], h_ext[0]);
 
         for (i=0; i<depth_of_subloop; i++)
         {
             order[0] = - order[0];
             remaining_sites = no_of_sites - remaining_sites;
-            ensemble_m();
-            ensemble_E();
-            
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-            
-            fprintf(pFile_1, "\n");
+            fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
+
+            char append_string[128];
+            char *pos_append_string = append_string;
+            h[0] = old_h;
+            pos_append_string += sprintf(pos_append_string, "_frwd_loop_%d", i+1);
+            save_spin_config(append_string, "w", 2);
+            // ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "Yes\t");
+            pFile_output = NULL;
+
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
+            nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
             while ( old_h == new_h || delta_m[i] > fabs( mag_rpm[i] - m[jj_S] ) )
             {
-                nucleation_site = find_extreme(order[0], remaining_sites);
-
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-
-                fprintf(pFile_1, "\n");
+                // ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
                 
+                #ifdef RFIM_MULTIPLE
+                remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+                #else
                 remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-                // printf("h=%lf, ", h[0]);
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-                old_h = h[0];
-                find_extreme(order[0], remaining_sites);
-                new_h = h[0];
+                #endif
+                // printf("\rNow at: h=%lf ", h[0]);
+                // fflush(stdout);
 
-                fprintf(pFile_1, "\n");
+                ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
+
+                old_h = h[0];
+                #ifdef RFIM_MULTIPLE
+                no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+                #else
+                nucleation_site = find_extreme(order[0], remaining_sites);
+                #endif
+                new_h = h[0];
             }
             mag_rpm[i+1] = m[jj_S];
+
             h_ext[i+1] = old_h;
+
             printf("mag_rpm[%d]=%lf, h_ext[%d]=%lf \n", i+1, mag_rpm[i+1], i+1, h_ext[i+1]);
         }
-
+        fprintf(pFile_1,"===== Return Point Memory of subloops =====\n");
         for (i=depth_of_subloop-1; i>=0; i--)
         {
             order[0] = - order[0];
             remaining_sites = no_of_sites - remaining_sites;
-            ensemble_m();
-            ensemble_E();
-            
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-            
-            fprintf(pFile_1, "\n");
-
+            fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
+            h[0] = old_h;
+            ensemble_all();
+            pFile_output = pFile_1;
+            output_data("output_file.dat", "", "No\t");
+            pFile_output = NULL;
+            #ifdef RFIM_MULTIPLE
+            no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+            #else
+            nucleation_site = find_extreme(order[0], remaining_sites);
+            #endif
             while ( old_h == new_h || !( ( h_ext[i] >= old_h && h_ext[i] < new_h ) || ( h_ext[i] <= old_h && h_ext[i] > new_h ) ) )
             {
-                nucleation_site = find_extreme(order[0], remaining_sites);
-
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-
-                fprintf(pFile_1, "\n");
+                // ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
                 
+                #ifdef RFIM_MULTIPLE
+                remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+                #else
                 remaining_sites = flip_unstable(nucleation_site, remaining_sites);
-                // printf("h=%lf, ", h[0]);
-                ensemble_m();
-                ensemble_E();
-                fprintf(pFile_1, "%.12e\t", h[jj_S]);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-                old_h = h[0];
-                find_extreme(order[0], remaining_sites);
-                new_h = h[0];
+                #endif
 
-                fprintf(pFile_1, "\n");
+                // printf("\rNow at: h=%lf ", h[0]);
+                // fflush(stdout);
+
+                ensemble_all();
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", "No\t");
+                pFile_output = NULL;
+
+                old_h = h[0];
+                #ifdef RFIM_MULTIPLE
+                no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
+                #else
+                nucleation_site = find_extreme(order[0], remaining_sites);
+                #endif
+                new_h = h[0];
             }
 
-            
+
             {
-                fprintf(pFile_1, "%.12e\t", old_h);
-                for(j_S=0; j_S<dim_S; j_S++)
-                {
-                    fprintf(pFile_1, "%.12e\t", m[j_S]);
-                }
-                fprintf(pFile_1, "%.12e\t", E);
-
-                fprintf(pFile_1, "%.12e\t", (mag_rpm[i] - m[jj_S]) );
-
-                fprintf(pFile_1, "\n");
+                char append_string[128];
+                char *pos_append_string = append_string;
+                // h[0] = old_h;
+                pos_append_string += sprintf(pos_append_string, "_rtrn_loop_%d", i+1);
+                save_spin_config(append_string, "w", 2);
+                ensemble_all();
+                char str_app[128];
+                char *pos_app = str_app;
+                pos_app += sprintf(pos_app, "Yes\t%.17e\t", mag_rpm[i]-m[jj_S]);
+                pFile_output = pFile_1;
+                output_data("output_file.dat", "", str_app);
+                pFile_output = NULL;
 
                 printf("m[0]=%lf, h_ext[%d]=%lf \n", m[jj_S], i, h_ext[i]);
             }
         }
         fclose(pFile_1);
         reset_output_variable_name_0();
-
+            
+            thermal_i = thermal_i_temp;
+            average_j = average_j_temp;
+            sampling_inter = sampling_inter_temp;
+            MC_algo_type = MC_algo_type_temp;
+            MC_update_type = MC_update_type_temp;
+            T = T_temp;
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                h[j_S] = h_temp[j_S];
+            }
+        
         free(h_ext);
         free(mag_rpm);
         return 0;
     }
 
-//====================      RFXY helper functions            ====================//
+//====================  RFXY helper functions         ====================//
 
     #ifdef enable_CUDA_CODE
         // __global__ void Energy_minimum_old_XY(long int sites, double* spin_local)
@@ -11217,7 +11314,7 @@
         return Spin_Order;
     }
 
-//====================      RFXY ZTNE                        ====================//
+//====================  RFXY ZTNE                     ====================//
 
     int zero_temp_RFXY_hysteresis_axis_checkerboard_old(int jj_S, double order_start, double* h_sweep_abs)
     {
@@ -11287,6 +11384,7 @@
             #endif
         #endif
 
+        double T_temp = T;
         T = 0;
         ax_ro = 0;
         or_ho_ra = 0;
@@ -11365,6 +11463,25 @@
         ensemble_m();
         ensemble_E();
         
+        // set output_variable_name=1 here
+        {
+            output_prepend = 1;
+            output_h = 1;
+            output_m = 1;
+            #ifdef CHECK_AVALANCHE
+            output_delta_S_abs = 1;
+            output_delta_S_squared = 1;
+            #else
+            output_delta_M = 1;
+            #endif
+
+            #ifdef EXPLORE_ENERGY_LANDSCAPE
+            output_E = 1;
+            output_delta_E = 1;
+            #endif
+            output_append = 1;
+        }
+
         // create file name and pointer. 
         {
             // char output_file_0[256];
@@ -11454,7 +11571,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_h%d_r%d", h_order, r_order);
@@ -11468,70 +11585,75 @@
         // column labels and parameters
         output_param_file(output_file_0);
         pFile_1 = fopen(output_file_0, "a");
+        #ifdef UPDATE_ALL_NON_EQ
         {
-            fprintf(pFile_1, "h[%d]\t", jj_S);
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "h[%d]\t", j_S);
-            }
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "<m[%d]>\t", j_S);
-            }
-            // fprintf(pFile_1, "<E>\t");
-            fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
+            printf("\nUpdating all sites simultaneously.. \n");
+            
+            fprintf(pFile_1, "==================================================================================\n");
+            fprintf(pFile_1, "Updating all sites simultaneously.. \n");
+            fprintf(pFile_1, "==================================================================================\n");
         }
+        #endif
+        // else
+        #ifdef UPDATE_CHKR_NON_EQ
+        {
+            printf("\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
+
+            fprintf(pFile_1, "==================================================================================\n");
+            fprintf(pFile_1, "Updating all (first)black/(then)white checkerboard sites simultaneously..\n");
+            fprintf(pFile_1, "==================================================================================\n");
+        }
+        #endif
         fclose(pFile_1);
-        
-        #ifdef UPDATE_ALL_NON_EQ // if (update_all_or_checker == 0)
-        {
-            // spin_temp = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-        }
+        #ifdef CHECK_AVALANCHE
+        output_label(output_file_0, "h[%d]\t", "max(|delta{S}|)\t");
+        #else
+        output_label(output_file_0, "h[%d]\t", "|delta{m[%d]}|\t");
         #endif
 
         long int site_i;
         int black_or_white = BLACK_WHITE;
         double h_jj_S;
 
-        pFile_1 = fopen(output_file_0, "a");
+
         // print statements:
         {
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
-            printf("\n%lf", m[0]);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
             }
             printf("\norder = ({");
-            fprintf(pFile_1, "\norder = ({");
+            // fprintf(pFile_1, "\norder = ({");
             for(j_S=0; j_S<dim_S; j_S++)
             {
                 if (j_S != 0)
                 {
                     printf(",");
-                    fprintf(pFile_1, ",");
+                    // fprintf(pFile_1, ",");
                 }
                 if (j_S == jj_S)
                 {
                     printf("%lf-->%lf", order[j_S], -order[j_S]);
-                    fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
+                    // fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
                 }
                 else
                 {
                     printf("%lf", order[j_S]);
-                    fprintf(pFile_1, "%lf", order[j_S]);
+                    // fprintf(pFile_1, "%.3f", order[j_S]);
                 }
             }
             printf("}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            // fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
         }
         h_jj_S = h_start;
 
         // #if defined (DYNAMIC_BINARY_DIVISION) || defined (DYNAMIC_BINARY_DIVISION_BY_SLOPE)
         //     delta_h = del_h_cutoff*fabs(h_start);
         // #endif
-
+        pFile_1 = fopen(output_file_0, "a");
         // print rate
         {
             #ifdef CONST_RATE
@@ -11601,6 +11723,7 @@
 
 
         }
+
         // for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
         while (order[jj_S] * h_jj_S < order[jj_S] * h_end)
         {
@@ -11736,70 +11859,38 @@
         ensemble_m();
         ensemble_E();
 
-        /* pFile_1 = fopen(output_file_0, "a");
-        for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
-        {
-            cutoff_local = 0;
-            
-            do 
-            {
-                
-                cutoff_local = find_change();
-
-                // printf("\nblac = %g\n", cutoff_local);
-
-            }
-            while (cutoff_local > 0); // 10^-14
-
-            ensemble_m();
-            ensemble_E();
-
-            // printf("\nblah = %lf", h[jj_S]);
-            // printf("\nblam = %lf", m[jj_S]);
-            // printf("\n");
-            
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-
-            fprintf(pFile_1, "\n");
-        }
-        fclose(pFile_1); */
         pFile_1 = fopen(output_file_0, "a");
         // print statements:
         {
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
-            printf("\n%lf", m[0]);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
             }
             printf("\norder = ({");
-            fprintf(pFile_1, "\norder = ({");
+            // fprintf(pFile_1, "\norder = ({");
             for(j_S=0; j_S<dim_S; j_S++)
             {
                 if (j_S != 0)
                 {
                     printf(",");
-                    fprintf(pFile_1, ",");
+                    // fprintf(pFile_1, ",");
                 }
                 if (j_S == jj_S)
                 {
                     printf("%lf-->%lf", order[j_S], -order[j_S]);
-                    fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
+                    // fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
                 }
                 else
                 {
                     printf("%lf", order[j_S]);
-                    fprintf(pFile_1, "%lf", order[j_S]);
+                    // fprintf(pFile_1, "%.3f", order[j_S]);
                 }
             }
             printf("}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            // fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
         }
         h_jj_S = h_start;
 
@@ -11851,6 +11942,7 @@
             #endif
 
         }
+
         // for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
         while (order[jj_S] * h_jj_S < order[jj_S] * h_end)
         {
@@ -11938,6 +12030,7 @@
         printf("\n  |h[%d]| >= |h_end| (%.15e)  ", jj_S, h_jj_S);
         printf("\n=========================\n");
 
+        T=T_temp;
         // if (update_all_or_checker == 0)
         // {
         //     free(spin_temp);
@@ -12014,6 +12107,7 @@
             #endif
         #endif
 
+        double T_temp = T;
         T = 0;
         double delta_h = del_h;
 
@@ -12117,6 +12211,7 @@
                         fclose(pFile_1);
                         free(m_sweep);
                         free(h_sweep);
+                        T = T_temp;
                         return 1;
                     }
                 }
@@ -12203,10 +12298,11 @@
                         checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
                         checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
 
-                        fprintf(pFile_1, "----- Checkpointed here. -----\n");
+                        fprintf(pFile_1, "===== Checkpointed here. =====\n");
                         fclose(pFile_1);
                         free(m_sweep);
                         free(h_sweep);
+                        T = T_temp;
                         return -1;
                     }
                 #endif
@@ -12253,7 +12349,7 @@
                 #endif
                 
                 #ifdef enable_CUDA_CODE
-                // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
+                    // cudaMemcpy(spin, dev_spin, dim_S*no_of_sites*sizeof(double), cudaMemcpyDeviceToHost);
                 #endif
 
                     
@@ -12394,6 +12490,7 @@
             checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
             checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
         #endif
+        T = T_temp;
         free(m_sweep);
         free(h_sweep);
         return 0;
@@ -12466,7 +12563,7 @@
             
             #endif
         #endif
-
+        double T_temp = T;
         T = 0;
         double delta_phi = del_phi;
 
@@ -12562,9 +12659,10 @@
                         checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
                         checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
 
-                        fprintf(pFile_1, "----- Checkpointed here. -----\n");
+                        fprintf(pFile_1, "===== Checkpointed here. =====\n");
                         fclose(pFile_1);
                         free(m_loop);
+                        T = T_temp;
                         return -1;
                     }
 
@@ -12599,6 +12697,7 @@
 
                             fclose(pFile_1);
                             free(m_loop);
+                            T = T_temp;
                             return 1;
                         }
                     }
@@ -12783,6 +12882,7 @@
             checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
             checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
         #endif
+        T = T_temp;
         free(m_loop);
         return 0;
     }
@@ -12856,6 +12956,7 @@
             #endif
         #endif
 
+        double T_temp = T;
         T = 0;
         double delta_phi = del_phi;
 
@@ -12962,6 +13063,7 @@
 
                         fclose(pFile_1);
                         free(m_loop);
+                        T = T_temp;
                         return 1;
                     }
                 }
@@ -13060,9 +13162,10 @@
                         checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
                         checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
 
-                        fprintf(pFile_1, "----- Checkpointed here. -----\n");
+                        fprintf(pFile_1, "===== Checkpointed here. =====\n");
                         fclose(pFile_1);
                         free(m_loop);
+                        T = T_temp;
                         return -1;
                     }
                 #endif
@@ -13247,11 +13350,12 @@
             checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
             checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
         #endif
+        T = T_temp;
         free(m_loop);
         return 0;
     }
 
-//====================      RFXY FTNE                        ====================//
+//====================  RFXY FTNE                     ====================//
 
     int finite_temp_RFXY_hysteresis_axis_checkerboard_old(int jj_S, double order_start, double* h_sweep_abs)
     {
@@ -13398,7 +13502,25 @@
 
         ensemble_m();
         ensemble_E();
-        
+
+        // set output_variable_name=1 here
+        {
+            output_prepend = 1;
+            output_h = 1;
+            output_m = 1;
+            #ifdef CHECK_AVALANCHE
+            output_delta_S_abs = 1;
+            output_delta_S_squared = 1;
+            #else
+            output_delta_M = 1;
+            #endif
+
+            #ifdef EXPLORE_ENERGY_LANDSCAPE
+            output_E = 1;
+            output_delta_E = 1;
+            #endif
+            output_append = 1;
+        }
         // create file name and pointer. 
         {
             // char output_file_0[256];
@@ -13488,7 +13610,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_h%d_r%d", h_order, r_order);
@@ -13502,20 +13624,32 @@
         // column labels and parameters
         output_param_file(output_file_0);
         pFile_1 = fopen(output_file_0, "a");
+        #ifdef UPDATE_ALL_NON_EQ
         {
-            fprintf(pFile_1, "h[%d]\t", jj_S);
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "h[%d]\t", j_S);
-            }
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "<m[%d]>\t", j_S);
-            }
-            // fprintf(pFile_1, "<E>\t");
-            fprintf(pFile_1, "\n----------------------------------------------------------------------------------\n");
+            printf("\nUpdating all sites simultaneously.. \n");
+            
+            fprintf(pFile_1, "==================================================================================\n");
+            fprintf(pFile_1, "Updating all sites simultaneously.. \n");
+            fprintf(pFile_1, "==================================================================================\n");
         }
+        #endif
+        // else
+        #ifdef UPDATE_CHKR_NON_EQ
+        {
+            printf("\nUpdating all (first)black/(then)white checkerboard sites simultaneously.. \n");
+
+            fprintf(pFile_1, "==================================================================================\n");
+            fprintf(pFile_1, "Updating all (first)black/(then)white checkerboard sites simultaneously..\n");
+            fprintf(pFile_1, "==================================================================================\n");
+        }
+        #endif
         fclose(pFile_1);
+        #ifdef CHECK_AVALANCHE
+        output_label(output_file_0, "h[%d]\t", "max(|delta{S}|)\t");
+        #else
+        output_label(output_file_0, "h[%d]\t", "|delta{m[%d]}|\t");
+        #endif
+
 
         #ifdef UPDATE_ALL_NON_EQ // if (update_all_or_checker == 0)
         {
@@ -13531,35 +13665,35 @@
         pFile_1 = fopen(output_file_0, "a");
         // print statements:
         {
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
-            printf("\n%lf", m[0]);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
             }
             printf("\norder = ({");
-            fprintf(pFile_1, "\norder = ({");
+            // fprintf(pFile_1, "\norder = ({");
             for(j_S=0; j_S<dim_S; j_S++)
             {
                 if (j_S != 0)
                 {
                     printf(",");
-                    fprintf(pFile_1, ",");
+                    // fprintf(pFile_1, ",");
                 }
                 if (j_S == jj_S)
                 {
                     printf("%lf-->%lf", order[j_S], -order[j_S]);
-                    fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
+                    // fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
                 }
                 else
                 {
-                    printf("%lf", order[j_S]);
-                    fprintf(pFile_1, "%lf", order[j_S]);
+                    printf("%.3f", order[j_S]);
+                    // fprintf(pFile_1, "%.3f", order[j_S]);
                 }
             }
             printf("}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            // fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
         }
         h_jj_S = h_start;
 
@@ -13624,14 +13758,14 @@
             
             
             #ifdef CHECK_AVALANCHE
-            ensemble_delta_S_squared_max();
-            ensemble_m();
-            backing_up_spin();
-            save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_j", &h_sweep_abs[jj_S], 2);
+                ensemble_delta_S_squared_max();
+                ensemble_m();
+                backing_up_spin();
+                save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_j", &h_sweep_abs[jj_S], 2);
             #else
-            double delta_m = calculate_magnetization_change();
-            backing_up_spin();
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_j", &h_sweep_abs[jj_S], 2);
+                double delta_m = calculate_magnetization_change();
+                backing_up_spin();
+                save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_j", &h_sweep_abs[jj_S], 2);
             #endif
 
 
@@ -13672,6 +13806,8 @@
             
             #ifdef CHECK_AVALANCHE
                 #ifdef CONST_RATE
+                continue_avalanche();
+                Monte_Carlo_Sweep(1, /* MC_algo_type */0, MC_update_type);
                 continue_avalanche();
                 #else
                 if (delta_h <= del_h_cutoff)
@@ -13771,70 +13907,38 @@
         ensemble_m();
         ensemble_E();
 
-        /* pFile_1 = fopen(output_file_0, "a");
-        for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
-        {
-            cutoff_local = 0;
-            
-            do 
-            {
-                
-                cutoff_local = find_change();
-
-                // printf("\nblac = %g\n", cutoff_local);
-
-            }
-            while (cutoff_local > 0); // 10^-14
-
-            ensemble_m();
-            ensemble_E();
-
-            // printf("\nblah = %lf", h[jj_S]);
-            // printf("\nblam = %lf", m[jj_S]);
-            // printf("\n");
-            
-            fprintf(pFile_1, "%.12e\t", h[jj_S]);
-            for(j_S=0; j_S<dim_S; j_S++)
-            {
-                fprintf(pFile_1, "%.12e\t", m[j_S]);
-            }
-            fprintf(pFile_1, "%.12e\t", E);
-
-            fprintf(pFile_1, "\n");
-        }
-        fclose(pFile_1); */
         pFile_1 = fopen(output_file_0, "a");
         // print statements:
         {
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
-            printf("\n%lf", m[0]);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
             }
             printf("\norder = ({");
-            fprintf(pFile_1, "\norder = ({");
+            // fprintf(pFile_1, "\norder = ({");
             for(j_S=0; j_S<dim_S; j_S++)
             {
                 if (j_S != 0)
                 {
                     printf(",");
-                    fprintf(pFile_1, ",");
+                    // fprintf(pFile_1, ",");
                 }
                 if (j_S == jj_S)
                 {
                     printf("%lf-->%lf", order[j_S], -order[j_S]);
-                    fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
+                    // fprintf(pFile_1, "%lf-->%lf", order[j_S], -order[j_S]);
                 }
                 else
                 {
                     printf("%lf", order[j_S]);
-                    fprintf(pFile_1, "%lf", order[j_S]);
+                    // fprintf(pFile_1, "%.3f", order[j_S]);
                 }
             }
             printf("}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
-            fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
+            // fprintf(pFile_1, "}, %d, %d)\n", h_order, r_order);
+            // fprintf(pFile_1, "----------------------------------------------------------------------------------\n");
         }
         h_jj_S = h_start;
 
@@ -13875,14 +13979,14 @@
             
             
             #ifdef CHECK_AVALANCHE
-            ensemble_delta_S_squared_max();
-            ensemble_m();
-            backing_up_spin();
-            save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_j", &h_sweep_abs[jj_S], 2);
+                ensemble_delta_S_squared_max();
+                ensemble_m();
+                backing_up_spin();
+                save_to_file(h_jj_S, delta_h, jj_S, delta_S_max, "h_j", &h_sweep_abs[jj_S], 2);
             #else
-            double delta_m = calculate_magnetization_change();
-            backing_up_spin();
-            save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_j", &h_sweep_abs[jj_S], 2);
+                double delta_m = calculate_magnetization_change();
+                backing_up_spin();
+                save_to_file(h_jj_S, delta_h, jj_S, delta_m, "h_j", &h_sweep_abs[jj_S], 2);
             #endif
 
         }
@@ -14236,7 +14340,7 @@
                         checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
                         checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
 
-                        fprintf(pFile_1, "----- Checkpointed here. -----\n");
+                        fprintf(pFile_1, "===== Checkpointed here. =====\n");
                         fclose(pFile_1);
                         free(m_sweep);
                         free(h_sweep);
@@ -14264,7 +14368,7 @@
                 #ifdef CHECK_AVALANCHE
                     #ifdef CONST_RATE
                     continue_avalanche();
-                    Monte_Carlo_Sweep(1, /* Gl_Me_Wo */0, Ch_Ra_Li);
+                    Monte_Carlo_Sweep(1, /* MC_algo_type */0, MC_update_type);
                     continue_avalanche();
                     #else
                     if (delta_h <= del_h_cutoff)
@@ -14278,7 +14382,7 @@
                     #endif
                 #else
                     continue_avalanche();
-                    Monte_Carlo_Sweep(1, /* Gl_Me_Wo */0, Ch_Ra_Li);
+                    Monte_Carlo_Sweep(1, /* MC_algo_type */0, MC_update_type);
                     continue_avalanche();
                     // cutoff_local = 0;
                     // do
@@ -14599,7 +14703,7 @@
                         checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
                         checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
 
-                        fprintf(pFile_1, "----- Checkpointed here. -----\n");
+                        fprintf(pFile_1, "===== Checkpointed here. =====\n");
                         fclose(pFile_1);
                         free(m_loop);
                         return -1;
@@ -14670,6 +14774,8 @@
                     #ifndef CONST_RATE
                     if (h_phi == 0.0)
                     {
+                        continue_avalanche();
+                        Monte_Carlo_Sweep(1, /* MC_algo_type */0, MC_update_type);
                         continue_avalanche();
                     }
                     else
@@ -15095,7 +15201,7 @@
                         checkpoint_backup(0, TYPE_DOUBLE, dim_S, m, 0);
                         checkpoint_backup(0, TYPE_VOID, dim_S, h, 1);
 
-                        fprintf(pFile_1, "----- Checkpointed here. -----\n");
+                        fprintf(pFile_1, "===== Checkpointed here. =====\n");
                         fclose(pFile_1);
                         free(m_loop);
                         return -1;
@@ -15141,7 +15247,7 @@
                 #ifdef CHECK_AVALANCHE
                     #ifdef CONST_RATE
                     continue_avalanche();
-                    Monte_Carlo_Sweep(1, /* Gl_Me_Wo */0, Ch_Ra_Li);
+                    Monte_Carlo_Sweep(1, /* MC_algo_type */0, MC_update_type);
                     continue_avalanche();
                     #else
                     if (delta_phi <= del_phi_cutoff)
@@ -15155,7 +15261,7 @@
                     #endif
                 #else
                     continue_avalanche();
-                    Monte_Carlo_Sweep(1, /* Gl_Me_Wo */0, Ch_Ra_Li);
+                    Monte_Carlo_Sweep(1, /* MC_algo_type */0, MC_update_type);
                     continue_avalanche();                    
                     // cutoff_local = 0;
                     // do
@@ -15292,7 +15398,7 @@
         return 0;
     }
 
-//====================      RFXY protocols                    ====================//
+//====================  RFXY protocols                ====================//
 
     int ordered_initialize_and_axis_checkerboard(int jj_S, double order_start, double* h_sweep_abs, int finite_sweep, double zero_or_finite)
     {
@@ -15352,7 +15458,7 @@
 
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -15483,7 +15589,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_h);
@@ -15619,7 +15725,7 @@
 
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -15750,7 +15856,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_h);
@@ -15888,7 +15994,7 @@
 
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -16019,7 +16125,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_h);
@@ -16156,7 +16262,7 @@
         
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -16287,7 +16393,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_phi);
@@ -16428,7 +16534,7 @@
         
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -16455,22 +16561,22 @@
         {
             output_T = 1;
             output_m_avg = 1;
-            output_m_abs_avg = 1;
-            output_m_2_avg = 1;
-            output_m_4_avg = 1;
-            output_m_2_vec_avg = 1;
-            output_m_4_vec_avg = 1;
-            output_m_ab_avg = 1;
-            output_X = 1;
-            output_X_ab = 1;
-            output_B = 1;
-            output_B_a = 1;
-            output_E_avg = 1;
-            output_E_2_avg = 1;
-            output_Cv = 1;
-            output_Y_1_avg = 1;
-            output_Y_2_avg = 1;
-            output_Y_x_mu = 1;
+            // output_m_abs_avg = 1;
+            // output_m_2_avg = 1;
+            // output_m_4_avg = 1;
+            // output_m_2_vec_avg = 1;
+            // output_m_4_vec_avg = 1;
+            // output_m_ab_avg = 1;
+            // output_X = 1;
+            // output_X_ab = 1;
+            // output_B = 1;
+            // output_B_a = 1;
+            // output_E_avg = 1;
+            // output_E_2_avg = 1;
+            // output_Cv = 1;
+            // output_Y_1_avg = 1;
+            // output_Y_2_avg = 1;
+            // output_Y_x_mu = 1;
         }
         
         // create file name and pointer. 
@@ -16561,7 +16667,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_phi);
@@ -16575,7 +16681,7 @@
         output_param_file(output_file_1);
         output_label(output_file_1, "", "");
         
-        cooling_protocol(output_file_1);
+        cooling_heating(output_file_1, 0);
         save_spin_config("", "a", 1);
         
         reset_output_variable_name_0();
@@ -16757,7 +16863,7 @@
         
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -16888,7 +16994,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_phi);
@@ -17028,7 +17134,7 @@
         
         // print statements:
         {
-            printf("\n%lf", m[0]);
+            printf("\nm = %lf", m[0]);
             for(j_S=1; j_S<dim_S; j_S++)
             {
                 printf(",%lf", m[j_S]);
@@ -17160,7 +17266,7 @@
             //     {
             //         pos += sprintf(pos, ",");
             //     }
-            //     pos += sprintf(pos, "%lf", order[j_S]);
+            //     pos += sprintf(pos, "%.3f", order[j_S]);
             // }
             // pos += sprintf(pos, "}");
             pos += sprintf(pos, "_{%.4f}", order[jj_S]*delta_phi);
@@ -17269,7 +17375,7 @@
         return is_chkpt;
     }
 
-//====================      RFXYZ ZTNE                       ====================//
+//====================  RFXYZ ZTNE                    ====================//
     
     int checking_O3_spin_with_O2_RF()
     {
@@ -17300,13 +17406,6 @@
         output_label(output_file_1, "", "cutoff\t");
         ensemble_all();
         output_data(output_file_1, "", "-1\t");
-        // pFile_1 = fopen(output_file_1, "a"); // opens new file for writing
-        // for (j_S=0; j_S<dim_S; j_S++)
-        // {
-        //     fprintf(pFile_1, "%.12e\t", m[j_S]);
-        // }
-        // fprintf(pFile_1, "\n");
-        // fclose(pFile_1);
 
         do
         {
@@ -17324,13 +17423,7 @@
             char *pos_app = str_app;
             pos_app += sprintf(pos_app, "%d\t", cutoff_local);
             output_data(output_file_1, "", str_app);
-            // pFile_1 = fopen(output_file_1, "a"); // opens new file for writing
-            // for (j_S=0; j_S<dim_S; j_S++)
-            // {
-            //     fprintf(pFile_1, "%.12e\t", m[j_S]);
-            // }
-            // fprintf(pFile_1, "%d\n", cutoff_local);
-            // fclose(pFile_1);
+
             printf("\r%d", cutoff_local);
             fflush(stdout);
         }
@@ -17352,10 +17445,10 @@
         return 0;
     }
 
-//===============================================================================//
+//========================================================================//
 
-//===============================================================================//
-//====================      Main                             ====================//
+//========================================================================//
+//====================  Main                          ====================//
 
     int free_memory()
     {
@@ -17378,6 +17471,12 @@
             free(black_white_checkerboard);
             // free(black_white_checkerboard[0]);
             // free(black_white_checkerboard[1]);
+        }
+        // printf("..spin..");
+        // usleep(1000);
+        if (random_sites_reqd == 1)
+        {
+            free(random_sites);
         }
         // printf("..spin_bkp..");
         // usleep(1000);
@@ -17409,17 +17508,11 @@
         {
             free(cluster);
         }
-        // printf("..sorted_h_index..");
+        // printf("..nucleation_sites..");
         // usleep(1000);
-        if (sorted_h_index_reqd == 1)
+        if (nucleation_sites_reqd == 1)
         {
-            free(sorted_h_index);
-        }
-        // printf("..next_in_queue..");
-        // usleep(1000);
-        if (next_in_queue_reqd == 1)
-        {
-            free(next_in_queue);
+            free(nucleation_sites);
         }
         // printf("..spin_old..");
         // usleep(1000);
@@ -17599,7 +17692,33 @@
                 }
             }
         }
-        
+
+        static int random_sites_reqd_local = 0;
+        if (random_sites_reqd_local == 0 && random_sites_reqd == 1)
+        {
+            random_sites = (long int*)malloc(((no_of_sites + 1) / 2)*sizeof(long int));
+            random_sites_reqd_local = 1;
+        }
+        else 
+        {
+            if (random_sites_reqd_local == 1 && random_sites_reqd == 1)
+            {
+                if (free_and_allocate == 1)
+                {
+                    free(random_sites);
+                    random_sites = (long int*)malloc(((no_of_sites + 1) / 2)*sizeof(long int));
+                }
+            }
+            else 
+            {
+                if (random_sites_reqd_local == 1 && random_sites_reqd == 0)
+                {
+                    free(random_sites);
+                    random_sites_reqd_local = 0;
+                }
+            }
+        }
+
         static int spin_bkp_reqd_local = 0;
         if (spin_bkp_reqd_local == 0 && spin_bkp_reqd == 1)
         {
@@ -17730,58 +17849,31 @@
             }
         }
         
-        static int sorted_h_index_reqd_local = 0;
-        if (sorted_h_index_reqd_local == 0 && sorted_h_index_reqd == 1)
+        static int nucleation_sites_reqd_local = 0;
+        if (nucleation_sites_reqd_local == 0 && nucleation_sites_reqd == 1)
         {
-            sorted_h_index = (long int*)malloc(no_of_sites*sizeof(long int));
-            sorted_h_index_reqd_local = 1;
+            nucleation_sites = (long int*)malloc(no_of_sites*sizeof(long int));
+            nucleation_sites_reqd_local = 1;
         }
         else 
         {
-            if (sorted_h_index_reqd_local == 1 && sorted_h_index_reqd == 1)
+            if (nucleation_sites_reqd_local == 1 && nucleation_sites_reqd == 1)
             {
                 if (free_and_allocate == 1)
                 {
-                    free(sorted_h_index);
-                    sorted_h_index = (long int*)malloc(no_of_sites*sizeof(long int));
+                    free(nucleation_sites);
+                    nucleation_sites = (long int*)malloc(no_of_sites*sizeof(long int));
                 }
             }
             else 
             {
-                if (sorted_h_index_reqd_local == 1 && sorted_h_index_reqd == 0)
+                if (nucleation_sites_reqd_local == 1 && nucleation_sites_reqd == 0)
                 {
-                    free(sorted_h_index);
-                    sorted_h_index_reqd_local = 0;
+                    free(nucleation_sites);
+                    nucleation_sites_reqd_local = 0;
                 }
             }
         }
-
-        static int next_in_queue_reqd_local = 0;
-        if (next_in_queue_reqd_local == 0 && next_in_queue_reqd == 1)
-        {
-            next_in_queue = (long int*)malloc((1+no_of_sites)*sizeof(long int));
-            next_in_queue_reqd_local = 1;
-        }
-        else 
-        {
-            if (next_in_queue_reqd_local == 1 && next_in_queue_reqd == 1)
-            {
-                if (free_and_allocate == 1)
-                {
-                    free(next_in_queue);
-                    next_in_queue = (long int*)malloc((1+no_of_sites)*sizeof(long int));
-                }
-            }
-            else 
-            {
-                if (next_in_queue_reqd_local == 1 && next_in_queue_reqd == 0)
-                {
-                    free(next_in_queue);
-                    next_in_queue_reqd_local = 0;
-                }
-            }
-        }
-        
         
         static int spin_old_reqd_local = 0;
         if (spin_old_reqd_local == 0 && spin_old_reqd == 1)
@@ -18219,7 +18311,7 @@
         #ifdef RANDOM_FIELD
         load_h_config("");
         // printf("h loaded. \n");
-        #endif        
+        #endif
         
         long int i, j;
         
@@ -18228,7 +18320,6 @@
         
         printf("L = %d, dim_L = %d, dim_S = %d\n", lattice_size[0], dim_L, dim_S); 
         
-        printf("hysteresis_MCS_multiplier = %ld, hysteresis_MCS_max = %ld\n", hysteresis_MCS_multiplier, hysteresis_MCS_max); 
         
         // srand(time(NULL));
         
@@ -18243,11 +18334,20 @@
         #endif
 
         // checking_O3_spin_with_O2_RF();
+        zero_temp_RFIM_hysteresis();
+        // zero_temp_RFIM_ringdown(0.1);
+        // zero_temp_RFIM_return_point_memory();
+        // hysteresis_protocol(0, -1);
+        // fc_fh_or_both(2, 0);
+        // evo_diff_ini_config_temp(0);
+        // evo_diff_ini_config_temp(2);
         // return 0;
-        
+
         int is_chkpt = 0;
         
-        /* double h_sweep_vals[] = { 0.1000, 0.2000, 0.3000, 0.4000, 0.5000 };
+        /* int is_chkpt = 0;
+        // double h_sweep_vals[] = { 0.1000, 0.2000, 0.3000, 0.4000, 0.5000 };
+        double h_sweep_vals[] = { 0.5000 };
         int len_h_sweep_vals = sizeof(h_sweep_vals) / sizeof(h_sweep_vals[0]);
         for (i=0; i<len_h_sweep_vals; i++)
         {
@@ -18259,13 +18359,14 @@
             load_h_config("");
 
             double h_sweep[dim_S] = { 0.0, 0.0 };
-            h_sweep[0] = h_sweep_vals[i];
+            h_sweep[0] = 0.1*h_sweep_vals[i];
             h_sweep[1] = 5*h_sweep_vals[i];
 
             start_time_loop[0] = omp_get_wtime();
             
             is_chkpt = random_initialize_and_axis_checkerboard(1, 1, h_sweep, 2);
-            
+            // is_chkpt = zero_temp_RFXY_hysteresis_axis_checkerboard_old(1, 1, h_sweep);
+            // is_chkpt = finite_temp_RFXY_hysteresis_axis_checkerboard_old(1, 1, h_sweep);
             
             end_time_loop[0] = omp_get_wtime();
             
@@ -18277,9 +18378,9 @@
             }
             // printf("\nSweeping hysteresis along x ( |h|=%lf ) = %lf \n", h[0], end_time_loop[0] - start_time_loop[0] );
             // printf("\nSweeping hysteresis along y ( |h|=%lf ) = %lf \n", h[1], end_time_loop[0] - start_time_loop[0] );
-        } */
+        }  */
         
-        is_chkpt = 0;
+        /* is_chkpt = 0;
         // double h_field_vals[] = { 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15 };
         // double h_field_vals[] = { 0.010, 0.012, 0.014, 0.016, 0.018, 0.020, 0.022, 0.024, 0.026, 0.028, 0.030, 0.032, 0.034, 0.035, 0.036, 0.037, 0.038, 0.039, 0.040, 0.041, 0.042, 0.043, 0.044, 0.045, 0.046, 0.048, 0.050, 0.052, 0.054, 0.056, 0.058, 0.060, 0.064, 0.070, 0.080, 0.090, 0.100, 0.110, 0.120, 0.130, 0.140, 0.150 };
         // double h_field_vals[] = { 0.100, 0.500, 1.000, 0.800, 0.300, 2.000 };
@@ -18308,7 +18409,7 @@
                 // zero_temp_RFXY_hysteresis_axis_checkerboard_old(1, -1);
                 
                 start_time = omp_get_wtime();
-                is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i], /* zero_or_finite */0.000);
+                is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i], 0.000);
                 
                 
                 end_time_loop[0] = omp_get_wtime();
@@ -18338,81 +18439,89 @@
                 // printf("\nHysteresis along y ( Max(|h|)=%lf ) = %lf \n", h_max+h_i_max, end_time_loop[1] - start_time_loop[1] );
                 // printf("\nEvolution time (at T=%lf) = %lf \n", T, end_time_loop[1] - start_time_loop[1] );
                 #ifdef WALLTIME_LIMIT
-                if ( end_time_loop[1] - abs_start_time > WALLTIME_LIMIT/* 12600.0 */ )
+                if ( end_time_loop[1] - abs_start_time > WALLTIME_LIMIT )
                 {
                     printf("\n %lf s Elapsed: To be continued... \n", end_time_loop[1] - abs_start_time );
                     break;
                 }
                 #endif
             }
-        }
+        } */
         
         // zero_temp_RFIM_hysteresis();
-        // zero_temp_RFIM_ringdown();
+        // zero_temp_RFIM_ringdown(0.1);
         // zero_temp_RFIM_return_point_memory();
         
         /* 
-        Gl_Me_Wo = 1;
-        Ch_Ra_Li = 0;
+        MC_algo_type = 1;
+        MC_update_type = 0;
         h_order = 0;
         r_order = 0;
-        evo_diff_ini_config_temp();
+        evo_diff_ini_config_temp(0);
         */
         
         // h[0] = 0.1;
-        // Gl_Me_Wo = 2;
-        // Ch_Ra_Li = 0;
+        // MC_algo_type = 2;
+        // MC_update_type = 0;
         // h_order = 0;
         // r_order = 1;
-        // zfc_zfh_or_both(2);
+        // fc_fh_or_both(2,0);
         // evolution_at_T(1);
-        // evolution_at_T_h();
-        // evo_diff_ini_config_temp();
+        // evo_diff_ini_config_temp(2);
         
         
         /* 
-        Gl_Me_Wo = 1;
-        Ch_Ra_Li = 0;
+        MC_algo_type = 1;
+        MC_update_type = 0;
         h_order = 0;
         r_order = 1;
-        zfc_zfh_or_both(2);
+        fc_fh_or_both(2,1);
         */
         
         /* 
-        Gl_Me_Wo = 0;
-        Ch_Ra_Li = 1;
+        MC_algo_type = 0;
+        MC_update_type = 1;
         h_order = 0;
         r_order = 0;
-        for(T=Temp_min; T<=Temp_max; T=T+delta_T)
         {
-            for(hysteresis_MCS=hysteresis_MCS_min; hysteresis_MCS<=hysteresis_MCS_max; hysteresis_MCS=hysteresis_MCS*hysteresis_MCS_multiplier)
+            long int hysteresis_MCS_min = 1; 
+            long int hysteresis_MCS_max = 100;
+            int hysteresis_MCS_multiplier = 10;
+            for(T=Temp_min; T<=Temp_max; T=T+delta_T)
             {
-                for(j_S=0; j_S<dim_S; j_S++)
+                for(hysteresis_MCS=hysteresis_MCS_min; hysteresis_MCS<=hysteresis_MCS_max; hysteresis_MCS=hysteresis_MCS*hysteresis_MCS_multiplier)
                 {
-                    for(order[j_S]=-1; order[j_S]<2; order[j_S]=order[j_S]+2)
+                    for(j_S=0; j_S<dim_S; j_S++)
                     {
-                        hysteresis_protocol(j_S, order[j_S]);
+                        for(order[j_S]=-1; order[j_S]<2; order[j_S]=order[j_S]+2)
+                        {
+                            hysteresis_protocol(j_S, order[j_S]);
+                        }
+                        order[j_S] = 0;
                     }
-                    order[j_S] = 0;
                 }
             }
-        }
-        */
+        } */
         /* 
-        Gl_Me_Wo = 0;
-        Ch_Ra_Li = 0;
+        MC_algo_type = 0;
+        MC_update_type = 0;
         h_order = 0;
         r_order = 0;
-        for(T=Temp_min; T<=Temp_max; T=T+delta_T)
         {
-            for(hysteresis_MCS=hysteresis_MCS_min; hysteresis_MCS<=hysteresis_MCS_max; hysteresis_MCS=hysteresis_MCS*hysteresis_MCS_multiplier)
+            int hysteresis_MCS_multiplier = 10;
+            long int hysteresis_MCS_min = 1; 
+            long int hysteresis_MCS_max = 100;
+            for(T=Temp_min; T<=Temp_max; T=T+delta_T)
             {
-                for (j_S=0; j_S<dim_S; j_S++)
+                for(hysteresis_MCS=hysteresis_MCS_min; hysteresis_MCS<=hysteresis_MCS_max; hysteresis_MCS=hysteresis_MCS*hysteresis_MCS_multiplier)
                 {
-                    order[j_S] = 0;
+                    for (j_S=0; j_S<dim_S; j_S++)
+                    {
+                        order[j_S] = 0;
+                    }
+                    order[0] = 1;
+                    hysteresis_protocol(0, order[0]);
                 }
-                order[0] = 1;
-                hysteresis_protocol(0, order[0]);
             }
         } */
         
@@ -18426,14 +18535,14 @@
         return -is_chkpt;
     }
 
-//===============================================================================//
+//========================================================================//
 
 /*
     volatile bool flag=false;
 
     #pragma omp parallel for shared(flag)
     for(int i=0; i<=100000; ++i)
-    {    
+    {
         if(flag) continue;
         if(element[i] ...)
         {
