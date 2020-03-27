@@ -7195,7 +7195,7 @@
         {
             thermalizing_iteration(thermal_i, MC_algo_type, MC_update_type, 0);
             averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
-            printf("\r(%08d) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)omp_get_wtime()-start_time_local);
+            printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)omp_get_wtime()-start_time_local);
             fflush(stdout);
             char str_prep[128];
             char *pos_prep = str_prep;
