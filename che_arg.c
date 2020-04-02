@@ -21,6 +21,10 @@
 #include <cuda.h>
 #define CUDA_with_managed 1
 #endif
+// #define VARIABLE_SEPARATE
+#ifdef VARIABLE_SEPARATE
+#include "variable.h"
+#endif
 
 #define dim_L 3 // Lattice dimensions
 #define dim_S 1 // Spin dimensions
@@ -107,9 +111,12 @@
 
 //========================================================================//
 //====================  Variables                     ====================//
-
+    
+    #ifndef VARIABLE_SEPARATE
     FILE *pFile_1, *pFile_2, *pFile_phase, *pFile_output = NULL, *pFile_chkpt, *pFile_temp, *pFile_ising_spin, *pFile_ising_h;
     char output_file_0[256];
+    #endif
+    
     #ifdef TRAINING_DATA
     FILE *pFile_train_data[16];
     // char output_train_data[16][256];
@@ -133,11 +140,13 @@
 
 //========================================================================//
 //====================  Lattice size                  ====================//
-    int lattice_size[dim_L] = { 1000, 1000, 100 }; // lattice_size[dim_L]
+    #ifndef VARIABLE_SEPARATE
+    int lattice_size[dim_L] = { 10, 10, 10 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
     long int no_of_black_white_sites[2];
+    #endif
 
 //====================  Checkerboard variables        ====================//
     // long int *black_white_checkerboard[2]; 
@@ -8338,7 +8347,7 @@
                 }
             }
         }
-        #pragma omp parallel for 
+        #pragma omp parallel for reduction(+:no_of_nuclei)
         for (i_1=0; i_1<no_of_sites; i_1++)
         {
             if (spin[i_1]==s)
@@ -8354,6 +8363,7 @@
                         i_2 = remaining_sites; remaining_sites--;
                     }
                     nucleation_sites[no_of_sites-i_2] = i_1;
+                    spin[i_1] = -s;
                     no_of_nuclei += 1;
                 }
             }
@@ -8375,6 +8385,7 @@
             for (i=i_1; i<i_2; i++)
             {
                 int j_L,k_L;
+                
                 for (j_L=0; j_L<dim_L; j_L++)
                 {
                     for (k_L=0; k_L<2; k_L++)
@@ -9501,7 +9512,6 @@
         printf("Start : h=%lf ...\n", h[0]);
         while (remaining_sites)
         {
-
             // no_of_nuclei = find_extremes(order[0], remaining_sites, nucleation_sites);
             no_of_nuclei = mark_extremes(order[0], remaining_sites, nucleation_sites);
 
@@ -9513,7 +9523,7 @@
             // remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
             remaining_sites = flip_marked_parallel(order[0], remaining_sites, nucleation_sites, no_of_nuclei);
 
-            printf("\rNow at: h=%lf ", h[0]);
+            printf("\rNow at: h=%lf, [%ld,%ld] ", h[0], remaining_sites, no_of_nuclei);
             fflush(stdout);
             // ensemble_all();
             m[0] = order[0]*(double)(2*remaining_sites-no_of_sites)/(double)no_of_sites;
@@ -9570,6 +9580,14 @@
         order[0] = -1;
         m_counter = -1.0;
         remaining_sites = no_of_sites;
+        
+
+        fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
+        // ensemble_all();
+        m[0] = order[0]*(double)(2*remaining_sites-no_of_sites)/(double)no_of_sites;
+        pFile_output = pFile_1;
+        output_data("output_file.dat", "", "No\t");
+        pFile_output = NULL;
         printf("----\n");
         printf("\nm = %lf", m[0]);
         for(j_S=1; j_S<dim_S; j_S++)
@@ -9582,13 +9600,6 @@
             printf(",%lf", order[j_S]);
         }
         printf("}, %d, %d)\n", h_order, r_order);
-
-        fprintf(pFile_1, "===== Reversing direction of field sweep =====\n");
-        // ensemble_all();
-        m[0] = order[0]*(double)(2*remaining_sites-no_of_sites)/(double)no_of_sites;
-        pFile_output = pFile_1;
-        output_data("output_file.dat", "", "No\t");
-        pFile_output = NULL;
         
         printf("Start : h=%lf ...\n", h[0]);
         while (remaining_sites)
@@ -9601,10 +9612,10 @@
             output_data("output_file.dat", "", "No\t");
             pFile_output = NULL;
             
-            remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
+            // remaining_sites = flip_unstables(nucleation_sites, remaining_sites, no_of_nuclei);
             remaining_sites = flip_marked_parallel(order[0], remaining_sites, nucleation_sites, no_of_nuclei);
 
-            printf("\rNow at: h=%lf ", h[0]);
+            printf("\rNow at: h=%lf, [%ld,%ld] ", h[0], remaining_sites, no_of_nuclei);
             fflush(stdout);
             // ensemble_all();
             m[0] = order[0]*(double)(2*remaining_sites-no_of_sites)/(double)no_of_sites;
@@ -20444,14 +20455,14 @@
         #endif
         
         #ifdef RANDOM_FIELD
-        initialize_h_random_gaussian();
-        // load_h_config("");
+        // initialize_h_random_gaussian();
+        load_h_config("");
         // printf("h loaded. \n");
         #endif
         printf("[t=%lf s] \n", omp_get_wtime()-abs_start_time);
 
         // mergeSort(h_random, 0, no_of_sites-1);
-        long int * h_sorted = sort_h_index(h_random, no_of_sites);
+        // long int * h_sorted = sort_h_index(h_random, no_of_sites);
 
         printf("[t=%lf s] \n", omp_get_wtime()-abs_start_time);
         long int i, j;
