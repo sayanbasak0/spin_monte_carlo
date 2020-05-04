@@ -8,7 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <math.h>
-#include "mt19937-64.h"
+#include "mt19937-64_custom.h"
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -72,7 +72,7 @@
 #define ZTNE_IM_MULTIPLE 1
 #endif
 
-// #define SAVE_SPIN_AFTER 1
+#define SAVE_SPIN_AFTER -1
 // #define TRAINING_DATA 1
 
 #define TYPE_VOID 0
@@ -92,7 +92,12 @@
 #ifdef _OPENMP
 #define PARALLEL_RANDOM_MC_SWEEP 1 // parallelized random updates
 #endif
-#define UPDATE_WOLFF 1
+#define UPDATE_WOLFF_BFS 1
+#ifdef UPDATE_WOLFF_BFS
+// #define PARALLEL_WOLFF 1 // not optimized
+#else 
+#define UPDATE_WOLFF_DFS 1
+#endif
 // #define UPDATE_WOLFF_GHOST 1 // https://journals-aps-org.ezproxy.lib.purdue.edu/pre/pdf/10.1103/PhysRevE.98.063306
 
 // #define SWENDSEN_WANG 1
@@ -140,13 +145,11 @@
 
 //========================================================================//
 //====================  Lattice size                  ====================//
-    #ifndef VARIABLE_SEPARATE
-    int lattice_size[dim_L] = { 10, 10, 10 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 128, 128, 128 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
     long int no_of_black_white_sites[2];
-    #endif
 
 //====================  Checkerboard variables        ====================//
     // long int *black_white_checkerboard[2]; 
@@ -162,7 +165,7 @@
 
 //====================  Ising hysteresis              ====================//
     long int *nucleation_sites; 
-    #if defined(ZTNE_IM_MULTIPLE) || defined(UPDATE_WOLFF) || defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
+    #if defined(ZTNE_IM_MULTIPLE) || defined(UPDATE_WOLFF_BFS) || defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
         int nucleation_sites_reqd = 1; 
     #else
         int nucleation_sites_reqd = 0; 
@@ -182,7 +185,7 @@
     double reflection_plane[dim_S];
     double reflection_matrix[dim_S*dim_S];
     int *cluster; 
-    #if defined(UPDATE_WOLFF) || defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
+    #if defined(UPDATE_WOLFF_BFS) || defined(UPDATE_WOLFF_DFS) || defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
     int cluster_reqd = 1;
     #else
     int cluster_reqd = 0;
@@ -238,7 +241,7 @@
 //====================  MC-update iterations          ====================//
     long int thermal_i = 10*10; // 128*10*10*10; // thermalizing MCS 
     long int average_j = 10*10; // 128*10*10; // no. of measurements 
-    long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-rand()%sampling_inter
+    long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-genrand64_int64(0)%sampling_inter
 
 //====================  NN-interaction (J)            ====================//
     double J[dim_L] = { 1.0, 1.0, 1.0 }; 
@@ -279,8 +282,8 @@
 //====================  Temperature                   ====================//
     double T = 4.49;
     double Temp_min = 4.510;
-    double Temp_max = 4.55;
-    double delta_T = 0.01;
+    double Temp_max = 4.550;
+    double delta_T = 0.1;
     int output_T = 0;
 
 //====================  Avalanche delta(S)            ====================//
@@ -451,6 +454,26 @@
 //========================================================================//
 //====================  Functions                     ====================//
 //========================================================================//
+//====================  OPENMP Parallel used          ====================//
+
+    int thread_num_if_parallel()
+    {
+        #ifdef _OPENMP
+        return omp_get_thread_num();
+        #else
+        return 0;
+        #endif
+    }
+    
+    double get_time_if_parallel()
+    {
+        #ifdef _OPENMP
+        return omp_get_wtime();
+        #else
+        return (double) clock()/CLOCKS_PER_SEC;
+        #endif
+    }
+
 //====================  Allocate/Free Memory          ====================//
     
     int free_memory()
@@ -557,10 +580,13 @@
             free(field_site);
         }
         #ifdef _OPENMP
-            printf("random_seed[for_omp_parallelization()] ");
-            fflush(stdout);
             // usleep(1000);
-            free(random_seed);
+            // free(random_seed);
+            // printf("random_seed[for_omp_parallelization()] ");
+            // fflush(stdout);
+            printf("mt19937 variables ");
+            fflush(stdout);
+            uninit_mt19937_parallel();
         #endif
         
         #ifdef enable_CUDA_CODE
@@ -1114,7 +1140,8 @@
 
     double generate_bimodal()
     {
-        long long r = genrand64_int63();
+        long long r = genrand64_int64(thread_num_if_parallel());
+
         return (double) (2*(r%2)-1);
     }
 
@@ -1135,8 +1162,9 @@
 
             do
             {
-                X = (-10 + 20 * genrand64_real1());
-                r = genrand64_real1();
+                X = (-10 + 20 * genrand64_real1(thread_num_if_parallel()));
+                r = genrand64_real1(thread_num_if_parallel());
+                
                 P_x =  exp( - X*X / (2 * sigma*sigma ) );
             }
             while (r >= P_x/P_max);
@@ -1163,8 +1191,9 @@
             }
             do
             {
-                U1 = -1.0 + 2.0 * genrand64_real2() ; // ((double) rand () / RAND_MAX) * 2;
-                U2 = -1.0 + 2.0 * genrand64_real2() ; // ((double) rand () / RAND_MAX) * 2;
+                U1 = -1.0 + 2.0 * genrand64_real1(thread_num_if_parallel()) ; // ((double) rand () / RAND_MAX) * 2;
+                U2 = -1.0 + 2.0 * genrand64_real1(thread_num_if_parallel()) ; // ((double) rand () / RAND_MAX) * 2;
+                
                 W = U1*U1 + U2*U2;
             }
             while (W >= 1 || W == 0);
@@ -1178,8 +1207,9 @@
                 which_method = !which_method;
                 printf("\n Box-Muller transform used to generate Gaussian Distribution.\n");
             }
-            rho = genrand64_real2();
-            theta = genrand64_real2();
+            
+            rho = genrand64_real3(thread_num_if_parallel());
+            theta = genrand64_real2(thread_num_if_parallel());
             
             U1 = sin(2*pie*theta);
             U2 = cos(2*pie*theta);
@@ -1240,7 +1270,7 @@
             // do
             // {
             //     h_random_sum = 0.0;
-            //     r_i = rand()%no_of_sites;
+            //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
             //     for(j_S=0; j_S<dim_S; j_S=j_S+1)
             //     {
             //         h_random_sum += h_random[dim_S*r_i + j_S]*h_random[dim_S*r_i + j_S];
@@ -1288,7 +1318,7 @@
             {
                 // do
                 // {
-                //     r_i = rand()%no_of_sites;
+                //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
                 // } while(h_random[dim_S*r_i + j_S]!=0);
                 r_i = i;
                 h_random[dim_S*r_i + j_S] = sigma_h[j_S] * generate_gaussian();
@@ -1345,7 +1375,7 @@
             {
                 // do
                 // {
-                //     r_i = rand()%no_of_sites;
+                //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
                 // } while(J_random[2*dim_L*r_i + 2*j_L]!=0);
                 r_i = i;
                 J_random[2*dim_L*r_i + 2*j_L] = sigma_J[j_L] * generate_bimodal();
@@ -1382,7 +1412,7 @@
             {
                 // do
                 // {
-                //     r_i = rand()%no_of_sites;
+                //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
                 // } while(J_random[2*dim_L*r_i + 2*j_L]!=0);
                 r_i = i;
                 J_random[2*dim_L*r_i + 2*j_L] = sigma_J[j_L] * generate_gaussian();
@@ -1716,7 +1746,9 @@
                 s_mod = 0.0;
                 for(j_S=0; j_S<dim_S; j_S=j_S+1)
                 {
-                    spin[dim_S*i+j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                    // spin[dim_S*i+j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*thread_num_if_parallel()])/(double)(RAND_MAX));
+                    spin[dim_S*i+j_S] = (-1.0 + 2.0 * genrand64_real1(thread_num_if_parallel()));
+                    
                     s_mod = s_mod + spin[dim_S*i+j_S]*spin[dim_S*i+j_S];
                 }
             }
@@ -1925,21 +1957,7 @@
                         
                     int ix, iy;
                     int ising_spin;
-                    #ifndef TRAINING_DATA
-                        sprintf(pos_ising_spin, "%s.dat", append_string);
-
-                        pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
-                        for (ix = 0; ix < lattice_size[0]; ix++)
-                        {
-                            for (iy = 0; iy < lattice_size[1]; iy++)
-                            {
-                                ising_spin = (int)( spin[dim_S*(lattice_size[0]*iy + ix)] + 1) / 2; 
-                                fprintf(pFile_ising_spin, "%d\t", ising_spin );
-                            }
-                            fprintf(pFile_ising_spin, "\n");
-                        }
-                        fclose(pFile_ising_spin);
-                    #else
+                    #ifdef TRAINING_DATA
                         int it;
                         for (it=0; it<16; it++)
                         {
@@ -1999,6 +2017,20 @@
                             #endif
                             fclose(pFile_train_data[it]);
                         }
+                    #else
+                        sprintf(pos_ising_spin, "%s.dat", append_string);
+                        pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
+                        for (iy = 0; iy < lattice_size[1]; iy++)
+                        {
+                            for (ix = 0; ix < lattice_size[0]; ix++)
+                            {
+                                ising_spin = (int)( spin[dim_S*(lattice_size[0]*iy + ix)] + 1) / 2; 
+                                fprintf(pFile_ising_spin, "%d\t", ising_spin );
+                            }
+                            fprintf(pFile_ising_spin, "\n");
+                        }
+                        fclose(pFile_ising_spin);
+                    
                     #endif
                 }
                 if (reqd_to_print == 2 && dim_L==3)
@@ -2038,37 +2070,7 @@
 
                     int ix, iy, iz;
                     int ising_spin;
-                    #ifndef TRAINING_DATA
-                        sprintf(pos_ising_spin, "%s_blk.dat", append_string);
-                            
-                        pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
-                        iz = lattice_size[2]/2;
-                        for (iy = 0; iy < lattice_size[1]; iy++)
-                        {
-                            for (ix = 0; ix < lattice_size[0]; ix++)
-                            {
-                                ising_spin = (int)( spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)] + 1) / 2; 
-                                fprintf(pFile_ising_spin, "%d\t", ising_spin );
-                            }
-                            fprintf(pFile_ising_spin, "\n");
-                        }
-                        fclose(pFile_ising_spin);
-
-                        sprintf(pos_ising_spin, "%s_surf.dat", append_string);
-                            
-                        pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
-                        iz = 0;
-                        for (iy = 0; iy < lattice_size[1]; iy++)
-                        {
-                            for (ix = 0; ix < lattice_size[0]; ix++)
-                            {
-                                ising_spin = (int)( spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)] + 1) / 2; 
-                                fprintf(pFile_ising_spin, "%d\t", ising_spin );
-                            }
-                            fprintf(pFile_ising_spin, "\n");
-                        }
-                        fclose(pFile_ising_spin);
-                    #else
+                    #ifdef TRAINING_DATA
                         { // if (BC[0]==0)
                             int it;
                             for (it=0; it<16; it++)
@@ -2076,8 +2078,26 @@
                                 sprintf(pos_ising_spin, "%s_b0_%g%g%g_%d.csv", append_string, BC[0], BC[1], BC[2], it);
                                 pFile_train_data[it] = fopen(output_file_ising_spin,"a");
                             }
-                            
-                            for (ix=lattice_size[0]/2; ix<lattice_size[0]; ix += lattice_size[0]-1){
+
+                            int ix_min = 0;
+                            double m_min = 1;
+                            for (ix=(lattice_size[0]/4)*(1-BC[0]); ix<lattice_size[0]; ix += lattice_size[0]/4){
+                                double m_tmp = 0;
+                                #pragma omp parallel for reduction(+:m_tmp)
+                                for (iz = 0; iz < lattice_size[2]; iz++)
+                                {
+                                    for (iy = 0; iy < lattice_size[1]; iy++)
+                                    {
+                                        m_tmp += spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)]; 
+                                    }
+                                }
+                                m_tmp = fabs(m_tmp)/no_of_sites;
+                                if (m_tmp<m_min){
+                                    m_min = m_tmp;
+                                    ix_min = ix;
+                                }
+                            }
+                            for (ix=ix_min; ix<lattice_size[0]; ix += lattice_size[0]){
                                 for (iz = 0; iz < lattice_size[2]; iz++)
                                 {
                                     for (iy = 0; iy < lattice_size[1]; iy++)
@@ -2120,16 +2140,19 @@
                                         fprintf(pFile_train_data[8+7], "%d,", 1-ising_spin );
                                     }
                                 }
+                                for (it=0; it<16; it++)
+                                {
+                                    #ifdef C_IM
+                                        fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
+                                    #endif
+                                    #ifdef RFIM
+                                        fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
+                                    #endif
+                                }
                             }
 
                             for (it=0; it<16; it++)
                             {
-                                #ifdef C_IM
-                                    fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
-                                #endif
-                                #ifdef RFIM
-                                    fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
-                                #endif
                                 fclose(pFile_train_data[it]);
                             }
                         }
@@ -2140,8 +2163,26 @@
                                 sprintf(pos_ising_spin, "%s_b1_%g%g%g_%d.csv", append_string, BC[0], BC[1], BC[2], it);
                                 pFile_train_data[it] = fopen(output_file_ising_spin,"a");
                             }
-                            
-                            for (iy=lattice_size[1]/2; iy<lattice_size[1]; iy += lattice_size[1]-1){
+
+                            int iy_min = 0;
+                            double m_min = 1.0;
+                            for (iy=(lattice_size[1]/4)*(1-BC[1]); iy<lattice_size[1]; iy += lattice_size[1]/4){
+                                double m_tmp = 0;
+                                #pragma omp parallel for reduction(+:m_tmp)
+                                for (ix = 0; ix < lattice_size[0]; ix++)
+                                {
+                                    for (iz = 0; iz < lattice_size[2]; iz++)
+                                    {
+                                        m_tmp += spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)]; 
+                                    }
+                                }
+                                m_tmp = fabs(m_tmp)/no_of_sites;
+                                if (m_tmp<m_min){
+                                    m_min = m_tmp;
+                                    iy_min = iy;
+                                }
+                            }
+                            for (iy=iy_min; iy<lattice_size[1]; iy += lattice_size[1]){
                                 for (ix = 0; ix < lattice_size[0]; ix++)
                                 {
                                     for (iz = 0; iz < lattice_size[2]; iz++)
@@ -2184,16 +2225,19 @@
                                         fprintf(pFile_train_data[8+7], "%d,", 1-ising_spin );
                                     }
                                 }
+                                for (it=0; it<16; it++)
+                                {
+                                    #ifdef C_IM
+                                        fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
+                                    #endif
+                                    #ifdef RFIM
+                                        fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
+                                    #endif
+                                }
                             }
 
                             for (it=0; it<16; it++)
                             {
-                                #ifdef C_IM
-                                    fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
-                                #endif
-                                #ifdef RFIM
-                                    fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
-                                #endif
                                 fclose(pFile_train_data[it]);
                             }
                         }
@@ -2204,8 +2248,26 @@
                                 sprintf(pos_ising_spin, "%s_b2_%g%g%g_%d.csv", append_string, BC[0], BC[1], BC[2], it);
                                 pFile_train_data[it] = fopen(output_file_ising_spin,"a");
                             }
-                            
-                            for (iz=lattice_size[2]/2; iz<lattice_size[2]; iz += lattice_size[2]-1){
+
+                            int iz_min = 0;
+                            double m_min = 1.0;
+                            for (iz=(lattice_size[2]/4)*(1-BC[2]); iz<lattice_size[2]; iz += lattice_size[2]/4){
+                                double m_tmp = 0;
+                                #pragma omp parallel for reduction(+:m_tmp)
+                                for (iy = 0; iy < lattice_size[1]; iy++)
+                                {
+                                    for (ix = 0; ix < lattice_size[0]; ix++)
+                                    {
+                                        m_tmp += spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)]; 
+                                    }
+                                }
+                                m_tmp = fabs(m_tmp)/no_of_sites;
+                                if (m_tmp<m_min){
+                                    m_min = m_tmp;
+                                    iz_min = iz;
+                                }
+                            }
+                            for (iz=iz_min; iz<lattice_size[2]; iz += lattice_size[2]){
                                 for (iy = 0; iy < lattice_size[1]; iy++)
                                 {
                                     for (ix = 0; ix < lattice_size[0]; ix++)
@@ -2248,19 +2310,23 @@
                                         fprintf(pFile_train_data[8+7], "%d,", 1-ising_spin );
                                     }
                                 }
+                                for (it=0; it<16; it++)
+                                {
+                                    #ifdef C_IM
+                                        fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
+                                    #endif
+                                    #ifdef RFIM
+                                        fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
+                                    #endif
+                                }
                             }
 
                             for (it=0; it<16; it++)
                             {
-                                #ifdef C_IM
-                                    fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
-                                #endif
-                                #ifdef RFIM
-                                    fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
-                                #endif
                                 fclose(pFile_train_data[it]);
                             }
                         }
+
                     
                         if (BC[0]==0){
                             int it;
@@ -2269,8 +2335,26 @@
                                 sprintf(pos_ising_spin, "%s_s0_%g%g%g_%d.csv", append_string, BC[0], BC[1], BC[2], it);
                                 pFile_train_data[it] = fopen(output_file_ising_spin,"a");
                             }
-                            
+
+                            int ix_min = 0;
+                            double m_min = 1.0;
                             for (ix=0; ix<lattice_size[0]; ix += lattice_size[0]-1){
+                                double m_tmp = 0;
+                                #pragma omp parallel for reduction(+:m_tmp)
+                                for (iz = 0; iz < lattice_size[2]; iz++)
+                                {
+                                    for (iy = 0; iy < lattice_size[1]; iy++)
+                                    {
+                                        m_tmp += spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)]; 
+                                    }
+                                }
+                                m_tmp = fabs(m_tmp)/no_of_sites;
+                                if (m_tmp<m_min){
+                                    m_min = m_tmp;
+                                    ix_min = ix;
+                                }
+                            }
+                            for (ix=ix_min; ix<lattice_size[0]; ix += lattice_size[0]){
                                 for (iz = 0; iz < lattice_size[2]; iz++)
                                 {
                                     for (iy = 0; iy < lattice_size[1]; iy++)
@@ -2313,16 +2397,19 @@
                                         fprintf(pFile_train_data[8+7], "%d,", 1-ising_spin );
                                     }
                                 }
+                                for (it=0; it<16; it++)
+                                {
+                                    #ifdef C_IM
+                                        fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
+                                    #endif
+                                    #ifdef RFIM
+                                        fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
+                                    #endif
+                                }
                             }
 
                             for (it=0; it<16; it++)
                             {
-                                #ifdef C_IM
-                                    fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
-                                #endif
-                                #ifdef RFIM
-                                    fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
-                                #endif
                                 fclose(pFile_train_data[it]);
                             }
                         }
@@ -2333,8 +2420,26 @@
                                 sprintf(pos_ising_spin, "%s_s1_%g%g%g_%d.csv", append_string, BC[0], BC[1], BC[2], it);
                                 pFile_train_data[it] = fopen(output_file_ising_spin,"a");
                             }
-                            
+
+                            int iy_min = 0;
+                            double m_min = 1.0;
                             for (iy=0; iy<lattice_size[1]; iy += lattice_size[1]-1){
+                                double m_tmp = 0;
+                                #pragma omp parallel for reduction(+:m_tmp)
+                                for (ix = 0; ix < lattice_size[0]; ix++)
+                                {
+                                    for (iz = 0; iz < lattice_size[2]; iz++)
+                                    {
+                                        m_tmp += spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)]; 
+                                    }
+                                }
+                                m_tmp = fabs(m_tmp)/no_of_sites;
+                                if (m_tmp<m_min){
+                                    m_min = m_tmp;
+                                    iy_min = iy;
+                                }
+                            }
+                            for (iy=iy_min; iy<lattice_size[1]; iy += lattice_size[1]){
                                 for (ix = 0; ix < lattice_size[0]; ix++)
                                 {
                                     for (iz = 0; iz < lattice_size[2]; iz++)
@@ -2377,16 +2482,19 @@
                                         fprintf(pFile_train_data[8+7], "%d,", 1-ising_spin );
                                     }
                                 }
+                                for (it=0; it<16; it++)
+                                {
+                                    #ifdef C_IM
+                                        fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
+                                    #endif
+                                    #ifdef RFIM
+                                        fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
+                                    #endif
+                                }
                             }
 
                             for (it=0; it<16; it++)
                             {
-                                #ifdef C_IM
-                                    fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
-                                #endif
-                                #ifdef RFIM
-                                    fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
-                                #endif
                                 fclose(pFile_train_data[it]);
                             }
                         }
@@ -2397,8 +2505,26 @@
                                 sprintf(pos_ising_spin, "%s_s2_%g%g%g_%d.csv", append_string, BC[0], BC[1], BC[2], it);
                                 pFile_train_data[it] = fopen(output_file_ising_spin,"a");
                             }
-                            
+
+                            int iz_min = 0;
+                            double m_min = 1.0;
                             for (iz=0; iz<lattice_size[2]; iz += lattice_size[2]-1){
+                                double m_tmp = 0;
+                                #pragma omp parallel for reduction(+:m_tmp)
+                                for (iy = 0; iy < lattice_size[1]; iy++)
+                                {
+                                    for (ix = 0; ix < lattice_size[0]; ix++)
+                                    {
+                                        m_tmp += spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)]; 
+                                    }
+                                }
+                                m_tmp = fabs(m_tmp)/no_of_sites;
+                                if (m_tmp<m_min){
+                                    m_min = m_tmp;
+                                    iz_min = iz;
+                                }
+                            }
+                            for (iz=iz_min; iz<lattice_size[2]; iz += lattice_size[2]){
                                 for (iy = 0; iy < lattice_size[1]; iy++)
                                 {
                                     for (ix = 0; ix < lattice_size[0]; ix++)
@@ -2441,20 +2567,53 @@
                                         fprintf(pFile_train_data[8+7], "%d,", 1-ising_spin );
                                     }
                                 }
+                                for (it=0; it<16; it++)
+                                {
+                                    #ifdef C_IM
+                                        fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
+                                    #endif
+                                    #ifdef RFIM
+                                        fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
+                                    #endif
+                                }
                             }
 
                             for (it=0; it<16; it++)
                             {
-                                #ifdef C_IM
-                                    fprintf(pFile_train_data[it], "0,0,1,0,0,0,0\n"); // Clean Ising 3D
-                                #endif
-                                #ifdef RFIM
-                                    fprintf(pFile_train_data[it], "0,0,0,0,1,0,0\n"); // RFIM 3D
-                                #endif
                                 fclose(pFile_train_data[it]);
                             }
                         }
-                        
+                    #else
+                        for (iz = 0; iz < lattice_size[2]/2; iz+=10)
+                        {
+                            sprintf(pos_ising_spin, "%s_s%d.dat", append_string, iz);
+                            pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
+                            for (iy = 0; iy < lattice_size[1]; iy++)
+                            {
+                                for (ix = 0; ix < lattice_size[0]; ix++)
+                                {
+                                    ising_spin = (int)( spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)] + 1) / 2; 
+                                    fprintf(pFile_ising_spin, "%d\t", ising_spin );
+                                }
+                                fprintf(pFile_ising_spin, "\n");
+                            }
+                            fclose(pFile_ising_spin);
+                        }
+                        for (iz = lattice_size[2]/2-1; iz < lattice_size[2]; iz+=10)
+                        {
+                            sprintf(pos_ising_spin, "%s_s%d.dat", append_string, iz);
+                            pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
+                            for (iy = 0; iy < lattice_size[1]; iy++)
+                            {
+                                for (ix = 0; ix < lattice_size[0]; ix++)
+                                {
+                                    ising_spin = (int)( spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)] + 1) / 2; 
+                                    fprintf(pFile_ising_spin, "%d\t", ising_spin );
+                                }
+                                fprintf(pFile_ising_spin, "\n");
+                            }
+                            fclose(pFile_ising_spin);
+                        }
                     #endif
                 }
             }
@@ -3285,7 +3444,7 @@
         if (stopif == 1)
         {
             fclose(pFile_chkpt);
-            double time_now = omp_get_wtime();
+            double time_now = get_time_if_parallel();
             printf("\n---- Checkpoint after %lf seconds ----\n", time_now - start_time);
             return 1;
         }
@@ -5759,8 +5918,9 @@
                 s_mod=0.0;
                 for(j_S=0; j_S<dim_S; j_S=j_S+1)
                 {
-                    spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                    // spin_local[j_S] = (-1.0 + 2.0 * 0.75);
+                    // spin_local[j_S] = (1.0 - 2.0 * (double)rand_r(&random_seed[cache_size*thread_num_if_parallel()])/(double)(RAND_MAX));
+                    spin_local[j_S] = (1.0 - 2.0 * genrand64_real1(thread_num_if_parallel()));
+
                     s_mod = s_mod + spin_local[j_S] * spin_local[j_S];
                 }
             }
@@ -5790,8 +5950,10 @@
             s_mod = 0.0;
             for(j_S=0; j_S<dim_S; j_S=j_S+1)
             {
-                // reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
-                reflection_planes[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*omp_get_thread_num()])/(double)(RAND_MAX));
+                // reflection_plane[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*thread_num_if_parallel()])/(double)(RAND_MAX));
+                // reflection_planes[j_S] = (-1.0 + 2.0 * (double)rand_r(&random_seed[cache_size*thread_num_if_parallel()])/(double)(RAND_MAX));
+                reflection_planes[j_S] = (-1.0 + 2.0 * genrand64_real1(thread_num_if_parallel()));
+                
                 // s_mod = s_mod + (reflection_plane[j_S] * reflection_plane[j_S]);
                 s_mod = s_mod + (reflection_planes[j_S] * reflection_planes[j_S]);
             }
@@ -5936,7 +6098,9 @@
                 {
                     p_cluster = 1;
                 }
-                double r_cluster = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                // double r_cluster = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                double r_cluster = genrand64_real1(thread_num_if_parallel());
+                
                 if (r_cluster < p_cluster)
                 {
                     update_spin_single(xyzi, spin_reflected);
@@ -5957,7 +6121,9 @@
             }
             else
             {
-                double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                // double r_site = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                double r_site = genrand64_real1(thread_num_if_parallel());
+                
                 if (r_site<exp(-delta_E_site/T))
                 {
                     update_spin_single(xyzi, spin_reflected);
@@ -5996,7 +6162,9 @@
                         {
                             p_bond = 1;
                         }
-                        double r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                        // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                        double r_bond = genrand64_real1(thread_num_if_parallel());
+                        
                         if (r_bond < p_bond)
                         {
                             nucleate_from_site(xyzi_nn);
@@ -6010,7 +6178,7 @@
         return 0;
     }
     #else
-    #ifdef UPDATE_WOLFF
+    #ifdef UPDATE_WOLFF_BFS
     int nucleate_from_site(long int xyzi)
     {
         int j_SS = 0, j_L, k_L;
@@ -6056,7 +6224,9 @@
                                 {
                                     p_bond = 1;
                                 }
-                                r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                                // r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                                r_bond = genrand64_real1(thread_num_if_parallel());
+                                
                                 if (r_bond < p_bond)
                                 {
                                     nucleation_sites[i_2] = xyzi_nn;
@@ -6102,7 +6272,9 @@
                 {
                     p_cluster = 1;
                 }
-                double r_cluster = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                // double r_cluster = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                double r_cluster = genrand64_real1(thread_num_if_parallel());
+                
                 if (r_cluster < p_cluster)
                 {
                     update_spin_single(xyzi, spin_reflected);
@@ -6123,7 +6295,9 @@
             }
             else
             {
-                double r_site = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                // double r_site = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                double r_site = genrand64_real1(thread_num_if_parallel());
+                
                 if (r_site<exp(-delta_E_site/T))
                 {
                     update_spin_single(xyzi, spin_reflected);
@@ -6162,7 +6336,8 @@
                         {
                             p_bond = 1;
                         }
-                        double r_bond = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()]) / (double) RAND_MAX;
+                        // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                        double r_bond = genrand64_real1(thread_num_if_parallel());
                         if (r_bond < p_bond)
                         {
                             nucleate_from_site(xyzi_nn);
@@ -6219,7 +6394,8 @@
             generate_random_axis(ghost_spin);
             matrix_from_reflection_axis(ghost_spin, ghost_matrix);
             delta_E_cluster = 0;
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()]) % no_of_sites;
+            // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()]) % no_of_sites;
+            xyzi = genrand64_int64(thread_num_if_parallel()) % no_of_sites;
             for (xyzi=0; xyzi<no_of_sites; xyzi++)
             {
                 if (cluster[xyzi] == 0)
@@ -6232,20 +6408,160 @@
         return 0;
     }
     #else
+    #ifdef PARALLEL_WOLFF
     int random_Wolff_sweep(long int iter)
     {
-        long int xyzi;
-        int i, j_S;
+        long int xyzi, i;
+        int j_S;
 
         for (i=0; i<iter; i++)
         {
+            printf(": Step = %ld ... ", i);
+            printf("\b\b\b\b\b\b\b\b\b\b"       );
+            printf(           "\b\b\b\b\b");
+            long int i_iter = i/10;
+            while (i_iter>0)
+            {
+                printf("\b");
+                i_iter = i_iter/10;
+            }
+            fflush(stdout);
+            set_cluster_s(0);
+            
+            generate_random_axis(reflection_plane);
+            // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()]) % no_of_sites;
+            xyzi = genrand64_int64(thread_num_if_parallel()) % no_of_sites;
+            nucleation_sites[0] = xyzi;
+
+            double spin_reflected_0[dim_S];
+            transform_spin(xyzi, spin_reflected_0);
+            double delta_E_cluster = 0;
+            delta_E_cluster -= E_site_old(xyzi);
+            delta_E_cluster += E_site_new(xyzi, spin_reflected_0);
+            update_spin_single(xyzi, spin_reflected_0);
+            cluster[xyzi] = 1;
+            
+            
+            long int remaining_sites = no_of_sites;
+            long int no_of_nuclei = 1;
+            long int i_1 = no_of_sites-remaining_sites;
+            long int i_2 = no_of_sites-remaining_sites+no_of_nuclei;
+            long int i_3 = no_of_sites-remaining_sites+no_of_nuclei;
+            long int ii;
+
+            
+            while (i_1!=i_2)
+            {
+                int j_L,k_L;
+                #pragma omp parallel for private(j_L,k_L) collapse(3) schedule(static,i_2-i_1) // if(i_2-i_1>1) // private(j_L,k_L) 
+                for (ii=i_1; ii<i_2; ii++)
+                {
+                    for (j_L=0; j_L<dim_L; j_L++)
+                    {
+                        for (k_L=0; k_L<2; k_L++)
+                        {
+                            long int next_site = N_N_I[2*dim_L*nucleation_sites[ii] + 2*j_L + k_L];
+                            if (next_site<no_of_sites)
+                            {
+                                if (cluster[next_site] != 1)
+                                {
+                                    double p_bond = 0;
+                                    double spin_reflected[dim_S];
+                                    transform_spin(next_site, spin_reflected);
+                                    double delta_E_bond = 0;
+                                    delta_E_bond -= E_bond_old(xyzi, j_L, k_L, next_site);
+                                    delta_E_bond += E_bond_new(xyzi, j_L, k_L, spin_reflected);
+                                    if (delta_E_bond < 0)
+                                    {
+                                        if (T > 0)
+                                        {
+                                            p_bond = 1 - exp(delta_E_bond/T);
+                                        }
+                                        else
+                                        {
+                                            p_bond = 1;
+                                        }
+
+                                        // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                                        double r_bond = genrand64_real1(thread_num_if_parallel());
+                                        if (r_bond < p_bond)
+                                        {
+                                            #pragma omp critical
+                                            if ( cluster[next_site] != 1 )
+                                            {
+                                                cluster[next_site] = 1;
+                                                update_spin_single(next_site, spin_reflected);
+
+                                                nucleation_sites[i_3] = next_site;
+                                                i_3++;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                i_1 = i_2;
+                i_2 = i_3;
+            }
+            double p_cluster;
+            // if (r_cluster<exp(delta_E_cluster/T))
+            // {
+            //     revert_cluster();
+            // }
+            if (delta_E_cluster <= 0)
+            {
+                p_cluster = 1.0;
+            }
+            else 
+            {
+                if (T == 0)
+                {
+                    p_cluster = 0.0;
+                }
+                else 
+                {
+                    p_cluster = exp(-delta_E_cluster/T);
+                }
+            }
+            // double r_cluster = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+            double r_cluster = genrand64_real1(thread_num_if_parallel());
+            if(r_cluster >= p_cluster)
+            {
+                revert_cluster();
+            }
+        }
+
+        return 0;
+    }
+    #else
+    int random_Wolff_sweep(long int iter)
+    {
+        long int xyzi, i;
+        int j_S;
+
+        for (i=0; i<iter; i++)
+        {
+            printf(": Step = %ld ... ", i);
+            printf("\b\b\b\b\b\b\b\b\b\b"       );
+            printf(           "\b\b\b\b\b");
+            long int i_iter = i/10;
+            while (i_iter>0)
+            {
+                printf("\b");
+                i_iter = i_iter/10;
+            }
+            fflush(stdout);
             set_cluster_s(0);
             
             // do
             // {
                 generate_random_axis(reflection_plane);
                 double delta_E_cluster = 0;
-                xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()]) % no_of_sites;
+                // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()]) % no_of_sites;
+                xyzi = genrand64_int64(thread_num_if_parallel()) % no_of_sites;
 
                 nucleate_from_site(xyzi);
                 double p_cluster;
@@ -6268,7 +6584,8 @@
                         p_cluster = exp(-delta_E_cluster/T);
                     }
                 }
-                double r_cluster = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+                // double r_cluster = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+                double r_cluster = genrand64_real1(thread_num_if_parallel());
                 if(r_cluster >= p_cluster)
                 {
                     revert_cluster();
@@ -6279,6 +6596,7 @@
 
         return 0;
     }
+    #endif
     #endif
 
 //====================  Swendsen-Wang                 ====================//
@@ -6331,7 +6649,7 @@
             static double T_local = -1;
             static double h_local = 0;
             int j_L;
-            // printf("\n______YYYYYYYYYYYYYYYYYYYYY______%d\n",omp_get_thread_num());
+            // printf("\n______YYYYYYYYYYYYYYYYYYYYY______%d\n",thread_num_if_parallel());
             // if (h_local!=h[0] || T_local!=T || init_first_call == 1)
             // {
             //     T_local = T;
@@ -6407,10 +6725,10 @@
 
             int j_L;
             
-            if (first_call[omp_get_thread_num()]==1 || T_local[omp_get_thread_num()]!=T )
+            if (first_call[thread_num_if_parallel()]==1 || T_local[thread_num_if_parallel()]!=T )
             {
-                // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",omp_get_thread_num());
-                T_local[omp_get_thread_num()] = T;
+                // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",thread_num_if_parallel());
+                T_local[thread_num_if_parallel()] = T;
 
                 double delta_E_h = -2*h[0];
                 double delta_E_J = -2*J[0];
@@ -6423,21 +6741,21 @@
 
                     if (delta_E_IM <= 0)
                     {
-                        exp_Si_Sj[omp_get_thread_num()][j_config] = 1.0;
+                        exp_Si_Sj[thread_num_if_parallel()][j_config] = 1.0;
                     }
                     else 
                     {
                         if (T == 0)
                         {
-                            exp_Si_Sj[omp_get_thread_num()][j_config] = 0.0;
+                            exp_Si_Sj[thread_num_if_parallel()][j_config] = 0.0;
                         }
                         else 
                         {
-                            exp_Si_Sj[omp_get_thread_num()][j_config] = exp(-(delta_E_IM)/T);
+                            exp_Si_Sj[thread_num_if_parallel()][j_config] = exp(-(delta_E_IM)/T);
                         }
                     }
                 }
-                first_call[omp_get_thread_num()] = 0;
+                first_call[thread_num_if_parallel()] = 0;
                 
             }
 
@@ -6450,7 +6768,7 @@
             }
             spin_config *= -spin[xyzi]; 
             spin_config += dim_L*2;
-            return exp_Si_Sj[omp_get_thread_num()][(int)spin_config];
+            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
         #endif
         
 
@@ -6463,11 +6781,9 @@
         double update_prob, r;
         #ifdef C_IM
             update_prob = activation_probability(xyzi);
-            #ifdef _OPENMP
-            r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-            #else
-            r = (double) rand()/ (double) RAND_MAX;
-            #endif
+            // r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+            r = genrand64_real1(thread_num_if_parallel());
+            
             if(r < update_prob)
             {
                 spin[xyzi] = -spin[xyzi];
@@ -6475,7 +6791,7 @@
             }
         #else
             // double update_prob;
-            // printf("\n______ZZZZZZZZZZZZZZZZZZZZZ______%d\n",omp_get_thread_num());
+            // printf("\n______ZZZZZZZZZZZZZZZZZZZZZ______%d\n",thread_num_if_parallel());
             double spin_local[dim_S];
             double field_local[dim_S];
             double E_old = Energy_old(xyzi, spin_local, field_local);
@@ -6495,11 +6811,9 @@
                     update_prob = exp(-(E_new-E_old)/T);
                 }
             }
-            #ifdef _OPENMP
-            r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-            #else
-            r = (double) rand()/ (double) RAND_MAX;
-            #endif
+            // r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+            r = genrand64_real1(thread_num_if_parallel());
+            
             if(r < update_prob)
             {
                 update_spin_single(xyzi, spin_local);
@@ -6520,7 +6834,8 @@
 
                 double update_prob = update_probability_Metropolis(site_i);
 
-                // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+                // // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+                // double r = genrand64_real1(thread_num_if_parallel());
                 // if(r < update_prob)
                 // {
                 //     update_spin_single(site_i, 1);
@@ -6551,7 +6866,8 @@
                 {
                     do
                     {
-                        temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+                        // temp_i = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+                        temp_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
                     } while (cluster[temp_i]==1);
                     iter--;
                     random_sites[t_i] = temp_i;
@@ -6568,7 +6884,8 @@
 
             int j_L;
             
-            long int temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+            // long int temp_i = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+            long int temp_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
     
             while (iter)
             {
@@ -6587,11 +6904,9 @@
                     }
                     iter--;
                     batch_size++;
-                    #ifdef _OPENMP
-                    temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-                    #else
-                    temp_i = rand()%no_of_sites;
-                    #endif
+                    // temp_i = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+                    temp_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
+                    
                 }
                 #pragma omp parallel for
                 for(i_b=0; i_b<batch_size; i_b++)
@@ -6606,15 +6921,13 @@
         long int xyzi;
         do
         {
-            #ifdef _OPENMP
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-            #else
-            xyzi = rand()%no_of_sites;    
-            #endif
-
+            // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+            xyzi = genrand64_int64(thread_num_if_parallel())%no_of_sites;
+            
             double update_prob = update_probability_Metropolis(xyzi);
 
-            // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+            // // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+            // double r = genrand64_real1(thread_num_if_parallel());
             // if(r < update_prob)
             // {
             //     // spin[i] = -spin[i];
@@ -6698,11 +7011,9 @@
         {
             update_prob = 1/(1+exp((E_new-E_old)/T));
         }
-        #ifdef _OPENMP
-        double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-        #else
-        double r = (double) rand()/ (double) RAND_MAX;
-        #endif
+        // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+        double r = genrand64_real1(thread_num_if_parallel());
+        
         if(r < update_prob)
         {
             update_spin_single(xyzi, spin_local);
@@ -6721,7 +7032,8 @@
 
                 double update_prob = update_probability_Glauber(site_i);
 
-                // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
+                // // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+                // double r = genrand64_real1(thread_num_if_parallel());
                 // if(r < update_prob)
                 // {
                 //     update_spin_single(site_i, 1);
@@ -6752,7 +7064,8 @@
                 {
                     do
                     {
-                        temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+                        // temp_i = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+                        temp_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
                     } while (cluster[temp_i]==1);
                     iter--;
                     random_sites[t_i] = temp_i;
@@ -6769,7 +7082,8 @@
 
             int j_L;
             
-            long int temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
+            // long int temp_i = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+            long int temp_i = genrand64_real1(thread_num_if_parallel())%no_of_sites;
     
             while (iter)
             {
@@ -6788,11 +7102,9 @@
                     }
                     iter--;
                     batch_size++;
-                    #ifdef _OPENMP
-                    temp_i = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-                    #else
-                    temp_i = rand()%no_of_sites;
-                    #endif
+                    // temp_i = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+                    temp_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
+                    
                 }
                 #pragma omp parallel for
                 for(i_b=0; i_b<batch_size; i_b++)
@@ -6808,24 +7120,11 @@
         long int xyzi;
         do
         {
-            #ifdef _OPENMP
-            xyzi = rand_r(&random_seed[cache_size*omp_get_thread_num()])%no_of_sites;
-            #else
-            xyzi = rand()%no_of_sites;    
-            #endif
-
+            // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+            xyzi = genrand64_int64(thread_num_if_parallel())%no_of_sites;
+            
             double update_prob = update_probability_Glauber(xyzi);
 
-            // double r = (double) rand_r(&random_seed[cache_size*omp_get_thread_num()])/ (double) RAND_MAX;
-            // if(r < update_prob)
-            // {
-            //     // spin[i] = -spin[i];
-            //     update_spin_single(xyzi, 1);
-            // }
-            // else
-            // {
-            //     update_spin_single(xyzi, 0);
-            // }
             iter--;
         }
         while (iter > 0);
@@ -6931,6 +7230,9 @@
 
     int thermalizing_iteration(long int thermal_iter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
+        // printf("\n--------\n");
+        // printf("%ld,%d,%d", thermal_iter, MC_algo_type_local, MC_update_type_local);
+        // printf("\n--------\n");
         int j_S;
         if (reqd_to_print == 1)
         {
@@ -6961,9 +7263,11 @@
 
     int averaging_iteration(long int average_iter, long int sampl_inter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
+        // printf("\n--------\n");
+        // printf("%ld,%d,%d", average_iter, MC_algo_type_local, MC_update_type_local);
+        // printf("\n--------\n");
         double MCS_counter = 0;
         int j_S, j_SS, j_L;
-        
         
         set_sum_of_moment_all_0();
         // set_sum_of_moment_m_0();
@@ -6987,7 +7291,13 @@
 
         while(average_iter)
         {
-            Monte_Carlo_Sweep(sampl_inter-genrand64_int64()%sampl_inter, MC_algo_type_local, MC_update_type_local);
+            if (reqd_to_print == 1)
+            {
+                printf(" Iteration = %ld ", average_iter );
+                fflush(stdout);
+            }
+            Monte_Carlo_Sweep(sampl_inter-genrand64_int64(thread_num_if_parallel())%sampl_inter, MC_algo_type_local, MC_update_type_local);
+
             // random_Wolff_sweep(1);
             
             ensemble_all();
@@ -7007,6 +7317,16 @@
             // sum_of_moment_Y_ab_mu();
             MCS_counter = MCS_counter + 1;
             
+            
+            printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"       );
+            // printf(           "\b\b\b\b\b");
+            long int i_iter = average_iter/10;
+            while (i_iter>0)
+            {
+                printf("\b");
+                i_iter = i_iter/10;
+            }
+            fflush(stdout);
             average_iter = average_iter - 1;
         }
 
@@ -7046,10 +7366,10 @@
         return 0;
     }
 
-    int evolution_at_T(long int repeat_for_same_T)
+    int evolution_at_T(int ini_order, long int repeat_for_same_T)
     {
         printf("\n__________________________________________________________\n");
-        double start_time_local = omp_get_wtime();
+        double start_time_local = get_time_if_parallel();
         // repeat with different initial configurations
         int j_S, j_SS, j_L;
         //
@@ -7065,11 +7385,13 @@
                 h_temp[j_S] = h[j_S];
             }
 
-        thermal_i = 10;
-        average_j = 10;
+        thermal_i = 50;
+        average_j = 50;
         sampling_inter = 2;
-        // MC_algo_type = 1; // Metropolis
-        // MC_update_type = 0; // Checkerboard
+        MC_algo_type = 1; // Metropolis
+        MC_update_type = 0; // Checkerboard
+        int MC_algo_type_avg = 2; // Wolff
+        int MC_update_type_avg = 0; // irrelevant
 
         printf("\norder = ({%lf", order[0]);
         for(j_S=1; j_S<dim_S; j_S++)
@@ -7078,7 +7400,37 @@
         }
         printf("}, %d, %d)\n", h_order, r_order);
         
-        load_spin_config("_chkpt");
+        if (ini_order==0)
+        {
+            h_order = 0;
+            r_order = 0;
+            initialize_spin_config();
+        }
+        else
+        {
+            if (ini_order==1)
+            {
+                h_order = 1;
+                r_order = 0;
+                initialize_spin_config();
+            }
+            else
+            {
+                if (ini_order==2)
+                {
+                    h_order = 0;
+                    r_order = 1;
+                    initialize_spin_config();
+                }
+                else
+                {
+                    if (ini_order = 3)
+                    {
+                        load_spin_config("_chkpt");
+                    }
+                }
+            }
+        }
         // ensemble_all();
         ensemble_E();
         ensemble_m();
@@ -7203,14 +7555,14 @@
         for (i=0; i<repeat_for_same_T; i++)
         {
             thermalizing_iteration(thermal_i, MC_algo_type, MC_update_type, 0);
-            averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
-            printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)omp_get_wtime()-start_time_local);
+            averaging_iteration(average_j, sampling_inter, MC_algo_type_avg, MC_update_type_avg, 0);
+            printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)get_time_if_parallel()-start_time_local);
             fflush(stdout);
             char str_prep[128];
             char *pos_prep = str_prep;
             pos_prep += sprintf(pos_prep, "%ld\t", i);
             #ifdef SAVE_SPIN_AFTER
-            if (fabs(m[0])<0.2 && i%SAVE_SPIN_AFTER==0)
+            if (i%SAVE_SPIN_AFTER==0 /* && fabs(m[0])<0.5 */ )
             {
                 char append_string[128];
                 sprintf(append_string, "_i%ld", i/SAVE_SPIN_AFTER);
@@ -7240,18 +7592,18 @@
             }
         
         printf("\n__________________________________________________________\n");
-        // save_spin_config("_chkpt", "w", 1);
+        save_spin_config("_chkpt", "w", 1);
         return 0;
     }
 
-    int initialize_spin_and_evolve_at_T()
+    int initialize_spin_and_evolve_at_T(int MC_algo_type_th, int MC_update_type_th, int MC_algo_type_av, int MC_update_type_av)
     {
         // repeat with different initial configurations
         int j_S, j_SS, j_L;
-        double start_time_local = omp_get_wtime();
+        double start_time_local = get_time_if_parallel();
         initialize_spin_config();
-        Monte_Carlo_Sweep(/* sweeps */2, /* MC_algo_type_local */2, /* MC_update_type_local */0);
-        // printf("[t=%lf s] ", (double)omp_get_wtime()-start_time_local);
+        // Monte_Carlo_Sweep(/* sweeps */2, /* MC_algo_type_local */2, /* MC_update_type_local */0);
+        // printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
         printf("\norder = ({%lf", order[0]);
         for(j_S=1; j_S<dim_S; j_S++)
         {
@@ -7270,20 +7622,20 @@
         }
         printf("), Energy = %lf \n", E);
 
-        thermalizing_iteration(thermal_i, MC_algo_type, MC_update_type, 1);
-        Monte_Carlo_Sweep(/* sweeps */2, /* MC_algo_type_local */2, /* MC_update_type_local */0);
+        thermalizing_iteration(thermal_i, MC_algo_type_th, MC_update_type_th, 1);
+        // Monte_Carlo_Sweep(/* sweeps */2, /* MC_algo_type_local */2, /* MC_update_type_local */0);
         char append_string1[128];
         char *pos_append_string1 = append_string1;
         pos_append_string1 += sprintf(pos_append_string1, "_r%d%da", h_order, r_order);
         save_spin_config(append_string1, "a", 2);
-        printf("[t=%lf s] ", (double)omp_get_wtime()-start_time_local);
+        printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
 
-        averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 1);
+        averaging_iteration(average_j, sampling_inter, MC_algo_type_av, MC_update_type_av, 1);
         char append_string2[128];
         char *pos_append_string2 = append_string2;
         pos_append_string2 += sprintf(pos_append_string2, "_r%d%db", h_order, r_order);
         save_spin_config(append_string2, "a", 2);
-        printf("[t=%lf s] ", (double)omp_get_wtime()-start_time_local);
+        printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
         
         printf("------------------------\n");
 
@@ -7308,11 +7660,13 @@
             int r_order_temp = r_order;
             int h_order_temp = h_order;
         
-        thermal_i = 1024*10;//thermal_i*lattice_size[0];
-        average_j = 1024;//average_j*lattice_size[0];
+        thermal_i = 102400;//1024*10;//thermal_i*lattice_size[0];
+        average_j = 10240;//1024;//average_j*lattice_size[0];
         sampling_inter = 16;
-        // MC_algo_type = MC_algo_type;
-        // MC_update_type = MC_update_type;
+        MC_algo_type = 1;
+        MC_update_type = 0;
+        int MC_algo_type_avg = 1; // Wolff
+        int MC_update_type_avg = 0; // irrelevant
     
         if (ini_order==0)
         {
@@ -7328,10 +7682,12 @@
             }
             else
             {
-                h_order = 0;
-                r_order = 1;
+                if (ini_order==2)
+                {
+                    h_order = 0;
+                    r_order = 1;
+                }
             }
-            
         }
         
 
@@ -7354,6 +7710,7 @@
         {
             // output_h = 1;
             output_T = 1;
+            output_m = 1;
             output_m_avg = 1;
             // output_m_abs_avg = 1;
             // output_m_2_avg = 1;
@@ -7474,7 +7831,7 @@
         for (T=Temp_max; T>=Temp_min; T=T-delta_T)
         {
             printf("\nT=%lf\t ", T);
-            initialize_spin_and_evolve_at_T(); 
+            initialize_spin_and_evolve_at_T(MC_algo_type, MC_update_type, MC_algo_type_avg, MC_update_type_avg);
 
             output_data(output_file_0, "", "");
             
@@ -8177,7 +8534,7 @@
             #endif
             printf(    ", d_%s = %.3e ", text, order[jj_S]*delta_text );
             printf(    " -[ restore ]- ");
-            printf(    " Time = %.3e s | ", omp_get_wtime() - start_time );
+            printf(    " Time = %.3e s | ", get_time_if_parallel() - start_time );
             fflush(stdout);
             // printf(  "\n============================\n");
         // }
@@ -8555,7 +8912,7 @@
 
     int zero_temp_spin_at_hc(int inc_dec, long int count_local)
     {
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         int jj_S=0, j_S, j_L;
         //
             long int thermal_i_temp = thermal_i;
@@ -8752,7 +9109,7 @@
                     delta_h /= 2.0;
                     
                     unflipp_sites(order[0], remaining_sites, nucleation_sites, remaining_sites_new);
-                    printf("\rNow at: h = %lf(+%.2e), m = %lf(+%ld) |r| [t=%le s] ..  ", h[0], delta_h, m[0], remaining_sites, omp_get_wtime()-start_time);
+                    printf("\rNow at: h = %lf(+%.2e), m = %lf(+%ld) |r| [t=%le s] ..  ", h[0], delta_h, m[0], remaining_sites, get_time_if_parallel()-start_time);
                     fflush(stdout);
                     continue;
                 }
@@ -8763,7 +9120,7 @@
                         remaining_sites = remaining_sites_new;
                         m_bkp[0] = m[0];
                         output_data(output_file_0, "", "No\t");
-                        printf("\rNow at: h = %lf(+%.2e), m = %lf(+%ld) |b| [t=%le s] ..  ", h[0], delta_h, m[0], remaining_sites, omp_get_wtime()-start_time);
+                        printf("\rNow at: h = %lf(+%.2e), m = %lf(+%ld) |b| [t=%le s] ..  ", h[0], delta_h, m[0], remaining_sites, get_time_if_parallel()-start_time);
                         fflush(stdout);
                     }
                     else
@@ -8790,7 +9147,7 @@
                 remaining_sites = remaining_sites_new;
                 m_bkp[0] = m[0];
                 output_data(output_file_0, "", "No\t");
-                printf("\rNow at: h = %lf(+%.2e), m = %lf(+%ld) |b| [t=%le s] ..  ", h[0], delta_h, m[0], remaining_sites, omp_get_wtime()-start_time);
+                printf("\rNow at: h = %lf(+%.2e), m = %lf(+%ld) |b| [t=%le s] ..  ", h[0], delta_h, m[0], remaining_sites, get_time_if_parallel()-start_time);
                 fflush(stdout);
             }
             
@@ -8839,7 +9196,7 @@
 
     int zero_temp_IM_hysteresis_with_changing_field(int inc_dec)
     {
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         int jj_S=0, j_S, j_L;
         //
             long int thermal_i_temp = thermal_i;
@@ -9076,7 +9433,7 @@
                     delta_h /= 2.0;
                     // restoring_spin(h[0], delta_h, 0, delta_m_local, "h", 0);
                     unflipp_sites(order[0], remaining_sites, nucleation_sites, remaining_sites_new);
-                    printf("\rNow at: h = %lf(+%.2e), m = %lf(+%.2e) |r| [t=%le s] ..  ", h[0], delta_h, m[0], delta_m_local, omp_get_wtime()-start_time);
+                    printf("\rNow at: h = %lf(+%.2e), m = %lf(+%.2e) |r| [t=%le s] ..  ", h[0], delta_h, m[0], delta_m_local, get_time_if_parallel()-start_time);
                     fflush(stdout);
                     continue;
                 }
@@ -9086,7 +9443,7 @@
                     m_bkp[0] = m[0];
                     // backing_up_spin();
                     output_data(output_file_0, "", "No\t");
-                    printf("\rNow at: h = %lf(+%.2e), m = %lf(+%.2e) |b| [t=%le s] ..  ", h[0], delta_h, m[0], delta_m_local, omp_get_wtime()-start_time);
+                    printf("\rNow at: h = %lf(+%.2e), m = %lf(+%.2e) |b| [t=%le s] ..  ", h[0], delta_h, m[0], delta_m_local, get_time_if_parallel()-start_time);
                     fflush(stdout);
                 }
             }
@@ -9104,7 +9461,7 @@
                         delta_h = del_h;
                     }
                 }
-                printf("\rNow at: h = %lf(+%.2e), m = %lf(+%.2e) |b| [t=%le s] ..  ", h[0], delta_h, m[0], delta_m_local, omp_get_wtime()-start_time);
+                printf("\rNow at: h = %lf(+%.2e), m = %lf(+%.2e) |b| [t=%le s] ..  ", h[0], delta_h, m[0], delta_m_local, get_time_if_parallel()-start_time);
                 fflush(stdout);
             }
             #ifdef SAVE_SPIN_AFTER
@@ -11321,7 +11678,7 @@
             #endif
             printf(    ", d_%s = %.3e ", text, order[jj_S]*delta_text );
             printf(    " -[ backup ]-  ");
-            printf(    " Time = %.3e s | ", omp_get_wtime() - start_time );
+            printf(    " Time = %.3e s | ", get_time_if_parallel() - start_time );
             fflush(stdout);
             // printf(  "\n============================\n");
         // }
@@ -13930,7 +14287,7 @@
     int zero_temp_RFXY_hysteresis_axis_checkerboard_old(int jj_S, double order_start, double* h_sweep_abs)
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*del_h*del_h;
         // del_h_cutoff = del_h/no_of_sites;
         CUTOFF_M = 1.0/(double)no_of_sites;
@@ -14653,7 +15010,7 @@
     int zero_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start, double* h_start, double h_abs_jj_S, int finite_sweep, char output_file_name[])
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*pie*pie*del_phi*del_phi;
 
         // del_phi_cutoff = del_phi/no_of_sites;
@@ -14891,7 +15248,7 @@
             while (Spin_Order == 0)
             {
                 #ifdef CHECKPOINT_TIME
-                    if (omp_get_wtime()-start_time > CHECKPOINT_TIME)
+                    if (get_time_if_parallel()-start_time > CHECKPOINT_TIME)
                     {
                         for (j_S=0; j_S<dim_S; j_S++)
                         {
@@ -15112,7 +15469,7 @@
     int zero_temp_RFXY_hysteresis_rotate_checkerboard_old(int jj_S, double order_start, double h_start, char output_file_name[])
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*pie*pie*del_phi*del_phi;
 
         // del_phi_cutoff = del_phi/no_of_sites;
@@ -15250,7 +15607,7 @@
             while (h_phi * order[jj_S] <= 1.0)
             {
                 #ifdef CHECKPOINT_TIME
-                    if (omp_get_wtime()-start_time > CHECKPOINT_TIME)
+                    if (get_time_if_parallel()-start_time > CHECKPOINT_TIME)
                     {
                         if (jj_S == 0)
                         {
@@ -15504,7 +15861,7 @@
     int zero_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start, char output_file_name[])
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*pie*pie*del_phi*del_phi;
 
         // del_phi_cutoff = del_phi/no_of_sites;
@@ -15753,7 +16110,7 @@
             while (h_phi * order[jj_S] < 1.0)
             {
                 #ifdef CHECKPOINT_TIME
-                    if (omp_get_wtime()-start_time > CHECKPOINT_TIME)
+                    if (get_time_if_parallel()-start_time > CHECKPOINT_TIME)
                     {
                         if (jj_S == 0)
                         {
@@ -15975,7 +16332,7 @@
     int finite_temp_RFXY_hysteresis_axis_checkerboard_old(int jj_S, double order_start, double* h_sweep_abs)
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*del_h*del_h;
         // del_h_cutoff = del_h/no_of_sites;
         CUTOFF_M = 1.0/(double)no_of_sites;
@@ -16703,7 +17060,7 @@
     int finite_temp_RFXY_hysteresis_axis_checkerboard(int jj_S, double order_start, double* h_start, double h_abs_jj_S, int finite_sweep, char output_file_name[])
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*pie*pie*del_phi*del_phi;
 
         // del_phi_cutoff = del_phi/no_of_sites;
@@ -16937,7 +17294,7 @@
             while (Spin_Order == 0)
             {
                 #ifdef CHECKPOINT_TIME
-                    if (omp_get_wtime()-start_time > CHECKPOINT_TIME)
+                    if (get_time_if_parallel()-start_time > CHECKPOINT_TIME)
                     {
                         for (j_S=0; j_S<dim_S; j_S++)
                         {
@@ -17160,7 +17517,7 @@
     int finite_temp_RFXY_hysteresis_rotate_checkerboard_old(int jj_S, double order_start, double h_start, char output_file_name[])
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*pie*pie*del_phi*del_phi;
 
         // del_phi_cutoff = del_phi/no_of_sites;
@@ -17298,7 +17655,7 @@
             while (h_phi * order[jj_S] <= 1.0)
             {
                 #ifdef CHECKPOINT_TIME
-                    if (omp_get_wtime()-start_time > CHECKPOINT_TIME)
+                    if (get_time_if_parallel()-start_time > CHECKPOINT_TIME)
                     {
                         if (jj_S == 0)
                         {
@@ -17551,7 +17908,7 @@
     int finite_temp_RFXY_hysteresis_rotate_checkerboard(int jj_S, double order_start, double h_start, char output_file_name[])
     {
         restore_checkpoint(/* startif */-1, TYPE_DOUBLE, dim_S, h, 0); // reset static variable
-        start_time = omp_get_wtime();
+        start_time = get_time_if_parallel();
         // CUTOFF_S_SQ = 4.0*pie*pie*del_phi*del_phi;
 
         // del_phi_cutoff = del_phi/no_of_sites;
@@ -17796,7 +18153,7 @@
             while (h_phi * order[jj_S] < 1.0)
             {
                 #ifdef CHECKPOINT_TIME
-                    if (omp_get_wtime()-start_time > CHECKPOINT_TIME)
+                    if (get_time_if_parallel()-start_time > CHECKPOINT_TIME)
                     {
                         if (jj_S == 0)
                         {
@@ -18021,7 +18378,7 @@
 
     int ordered_initialize_and_axis_checkerboard(int jj_S, double order_start, double* h_sweep_abs, int finite_sweep, double zero_or_finite)
     {
-        double start_time_func = omp_get_wtime();
+        double start_time_func = get_time_if_parallel();
         T = zero_or_finite;
         ax_ro = 0;
         or_ho_ra = 0;
@@ -18301,7 +18658,7 @@
 
         reset_output_variable_name_0();
         
-        double end_time_func = omp_get_wtime();
+        double end_time_func = get_time_if_parallel();
 
         printf("\nTime taken by Sweeping Hysteresis = %lf s : ", end_time_func - start_time_func);
         printf("\n Starting from an ordered spin configuration and sweeping h[%d] with delta_h = %lf ", jj_S, del_h );
@@ -18312,7 +18669,7 @@
     
     int random_initialize_and_axis_checkerboard(int jj_S, double order_start, double* h_sweep_abs, int finite_sweep, double zero_or_finite)
     {
-        double start_time_func = omp_get_wtime();
+        double start_time_func = get_time_if_parallel();
         T = zero_or_finite;
         ax_ro = 0;
         or_ho_ra = 2;
@@ -18568,7 +18925,7 @@
 
         reset_output_variable_name_0();
         
-        double end_time_func = omp_get_wtime();
+        double end_time_func = get_time_if_parallel();
 
         printf("\nTime taken by Sweeping Hysteresis = %lf s : ", end_time_func - start_time_func);
         printf("\n Starting from a random spin configuration and sweeping h[%d] with delta_h = %lf ", jj_S, del_h );
@@ -18580,7 +18937,7 @@
 
     int load_spin_and_axis_checkerboard(char spin_file[], int jj_S, double order_start, double* h_sweep_abs, int finite_sweep, double zero_or_finite)
     {
-        double start_time_func = omp_get_wtime();
+        double start_time_func = get_time_if_parallel();
         T = zero_or_finite;
         ax_ro = 0;
         or_ho_ra = 2;
@@ -18837,7 +19194,7 @@
         
         reset_output_variable_name_0();
         
-        double end_time_func = omp_get_wtime();
+        double end_time_func = get_time_if_parallel();
 
         printf("\nTime taken by Sweeping Hysteresis = %lf s : ", end_time_func - start_time_func);
         printf("\n Starting from a given spin configuration and sweeping h[%d] with delta_h = %lf ", jj_S, del_h );
@@ -18849,7 +19206,7 @@
 
     int ordered_initialize_and_rotate_checkerboard(int jj_S, double order_start, double h_rotate_dir, double zero_or_finite)
     {
-        double start_time_func = omp_get_wtime();
+        double start_time_func = get_time_if_parallel();
         T = zero_or_finite;
         ax_ro = 1;
         or_ho_ra = 0;
@@ -19114,7 +19471,7 @@
         
         reset_output_variable_name_0();
         
-        double end_time_func = omp_get_wtime();
+        double end_time_func = get_time_if_parallel();
 
         printf("\nTime taken by Rotating Hysteresis = %lf s : ", end_time_func - start_time_func);
         printf("\n Starting from an ordered spin configuration along initial h[%d] = %lf and rotating with delta_phi = %lf ", jj_S, h_start, order_start*del_phi );
@@ -19125,7 +19482,7 @@
 
     int field_cool_and_rotate_checkerboard(int jj_S, double order_start, double h_rotate_dir, double zero_or_finite)
     {
-        double start_time_func_1 = omp_get_wtime();
+        double start_time_func_1 = get_time_if_parallel();
         int ax_ro = 1;
         int or_ho_ra = 2;
         T = Temp_max;
@@ -19305,7 +19662,7 @@
         
         reset_output_variable_name_0();
         
-        double end_time_func_1 = omp_get_wtime();
+        double end_time_func_1 = get_time_if_parallel();
 
         printf("\nTime taken by Field Cooling = %lf s : ", end_time_func_1 - start_time_func_1);
         printf("\n Starting from a random spin configuration at T = %lf and cooling step delta_T = %lf with h[%d] = %lf ", Temp_max, delta_T, jj_S, h_start );
@@ -19323,7 +19680,7 @@
         }
         else
         {
-            double start_time_func_2 = omp_get_wtime();
+            double start_time_func_2 = get_time_if_parallel();
             // set output_variable_name=1 here
             {
                 output_prepend = 1;
@@ -19439,7 +19796,7 @@
             
             reset_output_variable_name_0();
             
-            double end_time_func_2 = omp_get_wtime();
+            double end_time_func_2 = get_time_if_parallel();
             printf("\nTime taken by Rotating Hysteresis = %lf s : ", end_time_func_2 - start_time_func_2);
             printf("\n Starting from a field cooled spin configuration with initial h[%d] = %lf and rotating with delta_phi = %lf ", jj_S, h_start, order_start*del_phi );
             printf("\n------------------------------------------------------\n\n");
@@ -19453,7 +19810,7 @@
 
     int random_initialize_and_rotate_checkerboard(int jj_S, double order_start, double h_rotate_dir, double zero_or_finite)
     {
-        double start_time_func = omp_get_wtime();
+        double start_time_func = get_time_if_parallel();
         T = zero_or_finite;
         int ax_ro = 1;
         int or_ho_ra = 2;
@@ -19712,7 +20069,7 @@
         
         reset_output_variable_name_0();
         
-        double end_time_func = omp_get_wtime();
+        double end_time_func = get_time_if_parallel();
 
         printf("\nTime taken by Rotating Hysteresis = %lf s : ", end_time_func - start_time_func);
         printf("\n Starting from a random spin configuration with initial h[%d] = %lf and rotating with delta_phi = %lf ", jj_S, h_start, order_start*del_phi );
@@ -19723,7 +20080,7 @@
 
     int load_spin_and_rotate_checkerboard(char spin_file[], int jj_S, double order_start, double h_rotate_dir, double zero_or_finite)
     {
-        double start_time_func = omp_get_wtime();
+        double start_time_func = get_time_if_parallel();
         T = zero_or_finite;
         int ax_ro = 1;
         int or_ho_ra = 2;
@@ -19985,7 +20342,7 @@
 
         reset_output_variable_name_0();
         
-        double end_time_func = omp_get_wtime();
+        double end_time_func = get_time_if_parallel();
 
         printf("\nTime taken by Rotating Hysteresis = %lf s : ", end_time_func - start_time_func);
         printf("\n Starting from a given spin configuration with initial h[%d] = %lf and rotating with delta_phi = %lf ", jj_S, h_start, order_start*del_phi );
@@ -20057,7 +20414,7 @@
 
         T=0.1;
         
-        evolution_at_T(100);
+        evolution_at_T(3,100);
 
         // reset_output_variable_name_0();
         
@@ -20068,24 +20425,33 @@
 
 //========================================================================//
 //====================  Main                          ====================//
-
+    
     int for_cuda_parallelization()
     {
         printf("\nCUDA Active.\n");
         long int i, j;
+        #ifdef _OPENMP
+        printf("OpenMP Active.\n");
         num_of_threads = omp_get_max_threads();
         num_of_procs = omp_get_num_procs();
-        random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
-        
+        #else
+        num_of_threads = 1;
+        num_of_procs = 1;
+        #endif
+        // random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
+        init_mt19937_parallel(num_of_threads);
+        // init_genrand64( (unsigned long long) rand() );
+        init_genrand64( (unsigned long long) rand(), 0 );
         // use CUDA_RANDOM
-        init_genrand64( (unsigned long long) rand() );
+        
         
         printf("\nNo. of THREADS = %d\n", num_of_threads);
         printf("No. of PROCESSORS = %d\n", num_of_procs);
-        for (i=0; i < num_of_threads; i++)
+        for (i=1; i < num_of_threads; i++)
         {
             // random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
-            random_seed[i] = genrand64_int64();
+            // random_seed[cache_size*i] = genrand64_int64();
+            init_genrand64( genrand64_int64(i), i );
         }
         double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
@@ -20129,29 +20495,38 @@
 
         return 0;
     }
-
+    
     int for_omp_parallelization()
     {
-        printf("\nOpenMP Active.\n");
         long int i, j;
+        #ifdef _OPENMP
+        printf("\nOpenMP Active.\n");
         num_of_threads = omp_get_max_threads();
         num_of_procs = omp_get_num_procs();
-        random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
-        init_genrand64( (unsigned long long) rand() );
+        #else
+        num_of_threads = 1;
+        num_of_procs = 1;
+        #endif
+        // random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
+        init_mt19937_parallel(num_of_threads);
+        // init_genrand64( (unsigned long long) rand() );
+        init_genrand64( (unsigned long long) rand(), 0 );
         
         printf("\nNo. of THREADS = %d\n", num_of_threads);
         printf("No. of PROCESSORS = %d\n", num_of_procs);
-        for (i=0; i < num_of_threads; i++)
+        for (i=1; i < num_of_threads; i++)
         {
             // random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
-            random_seed[i] = genrand64_int64();
+            // random_seed[cache_size*i] = genrand64_int64();
+            init_genrand64( genrand64_int64(i), i );
         }
-        double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
-        double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
+
+        // double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
+        // double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         
         // for (i=num_of_threads; i>=1; i++)
         // {
-        //     start_time_loop[i-1] = omp_get_wtime();
+        //     start_time_loop[i-1] = get_time_if_parallel();
         //     omp_set_num_threads(i);
         //     printf("\n\nNo. of THREADS = %ld \n\n", i);
         //     // field_cool_and_rotate_checkerboard(0, 1);
@@ -20159,13 +20534,13 @@
         //     initialize_spin_config();
         //     for (j=0; j<100000; j++)
         //     {
-        //         spin[rand()%(dim_S*no_of_sites)] = (double)rand()/(double)RAND_MAX;
+        //         spin[genrand64_int64(thread_num_if_parallel())%(dim_S*no_of_sites)] = genrand64_real1(thread_num_if_parallel());
         //         ensemble_m();
         //         // ensemble_E();
         //     }
             
         //     // random_initialize_and_rotate_checkerboard(0, 1);
-        //     end_time_loop[i-1] = omp_get_wtime();
+        //     end_time_loop[i-1] = get_time_if_parallel();
         // }
         
         // for (i=1; i<=num_of_threads; i++)
@@ -20173,12 +20548,12 @@
         //     printf("No. of THREADS = %ld ,\t Time elapsed = %g s\n", i, end_time_loop[i-1]-start_time_loop[i-1]);
         // }
 
-        free(start_time_loop);
-        free(end_time_loop);
+        // free(start_time_loop);
+        // free(end_time_loop);
 
         return 0;
     }
-
+    
     #ifdef enable_CUDA_CODE
         __global__ void reduce0(int *g_idata, int *g_odata) 
         {
@@ -20418,8 +20793,8 @@
         // #ifdef enable_CUDA_CODE
         // cudaDeviceReset();
         // #endif
-        srand(time(NULL));
-        double abs_start_time = omp_get_wtime();
+        srand(time(NULL)+clock());
+        double abs_start_time = get_time_if_parallel();
         printf("\n---- BEGIN ----\n");
         printf("L = %d, dim_L = %d, dim_S = %d\n", lattice_size[0], dim_L, dim_S); 
         // srand(time(NULL));
@@ -20434,19 +20809,21 @@
         #else
             #ifdef _OPENMP
             for_omp_parallelization();
+            #else
+            for_omp_parallelization();
             #endif
         #endif
 
         // initialize_nearest_neighbor_index();
         initialize_nearest_neighbor_index_2();
-        printf("[t=%lf s] \n", omp_get_wtime()-abs_start_time);
+        printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         // printf("nearest neighbor initialized. \n");
         
         #if defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
             initialize_checkerboard_sites();
             // j_L = initialize_checkerboard_sites_2();
             if (j_L==-1){return -1;}
-            printf("[t=%lf s] \n", omp_get_wtime()-abs_start_time);
+            printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         #endif
         
         #ifdef RANDOM_BOND
@@ -20459,12 +20836,12 @@
         load_h_config("");
         // printf("h loaded. \n");
         #endif
-        printf("[t=%lf s] \n", omp_get_wtime()-abs_start_time);
+        printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
 
         // mergeSort(h_random, 0, no_of_sites-1);
         // long int * h_sorted = sort_h_index(h_random, no_of_sites);
 
-        printf("[t=%lf s] \n", omp_get_wtime()-abs_start_time);
+        printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         long int i, j;
         
         // thermal_i = thermal_i*lattice_size[0];
@@ -20481,8 +20858,8 @@
         //     zero_temp_spin_at_hc(-1, i);
         //     zero_temp_spin_at_hc(1, i);
         // }
-        // zero_temp_IM_hysteresis_with_changing_field(1);
-        zero_temp_RFIM_hysteresis();
+        zero_temp_IM_hysteresis_with_changing_field(1);
+        // zero_temp_RFIM_hysteresis();
         // zero_temp_RFIM_ringdown(0.1);
         // zero_temp_RFIM_return_point_memory();
         // hysteresis_protocol(0, -1);
@@ -20510,14 +20887,14 @@
             h_sweep[0] = 0.1*h_sweep_vals[i];
             // h_sweep[1] = 5*h_sweep_vals[i];
 
-            start_time_loop[0] = omp_get_wtime();
+            start_time_loop[0] = get_time_if_parallel();
             
             // is_chkpt = random_initialize_and_axis_checkerboard(1, 1, h_sweep, 2);
             is_chkpt = ordered_initialize_and_axis_checkerboard(0, 1, h_sweep, 0, 0);
             // is_chkpt = zero_temp_RFXY_hysteresis_axis_checkerboard_old(1, 1, h_sweep);
             // is_chkpt = finite_temp_RFXY_hysteresis_axis_checkerboard_old(1, 1, h_sweep);
             
-            end_time_loop[0] = omp_get_wtime();
+            end_time_loop[0] = get_time_if_parallel();
             
             if (is_chkpt == -1)
             {
@@ -20551,17 +20928,17 @@
                 // sigma_h[1] = 0.000;
                 load_h_config("");
                 
-                start_time_loop[0] = omp_get_wtime();
+                start_time_loop[0] = get_time_if_parallel();
                 // field_cool_and_rotate_checkerboard(0, 1);
                 // random_initialize_and_rotate_checkerboard(0, 1);
                 // zero_temp_RFXY_hysteresis_axis_checkerboard_old(0, -1);
                 // zero_temp_RFXY_hysteresis_axis_checkerboard_old(1, -1);
                 
-                start_time = omp_get_wtime();
+                start_time = get_time_if_parallel();
                 is_chkpt = ordered_initialize_and_rotate_checkerboard(1, 1, h_field_vals[i], 0.000);
                 
                 
-                end_time_loop[0] = omp_get_wtime();
+                end_time_loop[0] = get_time_if_parallel();
                 
                 printf("is_chkpt = %d\n", is_chkpt);
                 if (is_chkpt == -1)
@@ -20573,11 +20950,11 @@
                     printf("\nCompleted rotating hysteresis : Exit after = %lf s\n", end_time_loop[0] - start_time_loop[0] );
                 }
                 
-                start_time_loop[1] = omp_get_wtime();
-                // start_time = omp_get_wtime();
+                start_time_loop[1] = get_time_if_parallel();
+                // start_time = get_time_if_parallel();
                 // zero_temp_RFXY_hysteresis_axis_checkerboard(1, 1);
                 // evolution_at_T(100);
-                end_time_loop[1] = omp_get_wtime();
+                end_time_loop[1] = get_time_if_parallel();
                 
                 // printf("\nCooling protocol time (from T=%lf to T=%lf) = %lf \n", Temp_max, Temp_min, end_time_loop[0] - start_time_loop[0] );
                 // printf("\nRotating hysteresis starting from x ( |h|=%lf ) = %lf \n", h[0], end_time_loop[0] - start_time_loop[0] );
@@ -20677,7 +21054,7 @@
         
         
         free_memory();
-        double abs_end_time = omp_get_wtime();
+        double abs_end_time = get_time_if_parallel();
         printf("\nCPU Time elapsed total = %lf s\n", abs_end_time-abs_start_time);
         printf("\n----- END -----\n");
         // is_chkpt = -1;
