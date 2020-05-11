@@ -12,7 +12,7 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-#include <unistd.h> // chdir 
+#include <unistd.h> // chdir // usleep
 #include <errno.h> // strerror
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -21,13 +21,9 @@
 #include <cuda.h>
 #define CUDA_with_managed 1
 #endif
-// #define VARIABLE_SEPARATE
-#ifdef VARIABLE_SEPARATE
-#include "variable.h"
-#endif
 
-#define dim_L 3 // Lattice dimensions
-#define dim_S 1 // Spin dimensions
+int dim_L=3; // Lattice dimensions
+int dim_S=1; // Spin dimensions
 
 #define MARSAGLIA 1 // uncomment only one
 // #define REJECTION 1 // uncomment only one
@@ -44,7 +40,7 @@
 // #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
 
-// #define RANDOM_FIELD 1 // for random field disorder
+#define RANDOM_FIELD 1 // for random field disorder
 #define GAUSSIAN_FIELD 1 // for random gaussian fields
 // #define BIMODAL_FIELD 1 // for random bimodal fields
 
@@ -65,6 +61,9 @@
 #define RFBIM 1
 #endif
 
+#if defined(C_IM)
+#define UNI_J_NO_H 2
+#endif
 #if defined(C_IM) || defined(RFIM) || defined(RBIM) || defined(RFBIM)
 #define ZTNE_IM_MULTIPLE 1
 #endif
@@ -89,13 +88,13 @@
 #ifndef UPDATE_CHKR_NON_EQ
 // #define UPDATE_ALL_NON_EQ 1 // uncomment only one
 #endif
-#define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
+// #define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
 #ifdef _OPENMP
 #define PARALLEL_RANDOM_MC_SWEEP 1 // parallelized random updates
 #endif
 #define UPDATE_WOLFF_BFS 1
 #ifdef UPDATE_WOLFF_BFS
-#define PARALLEL_WOLFF 1 // not optimized
+// #define PARALLEL_WOLFF 1 // not optimized
 #else 
 #define UPDATE_WOLFF_DFS 1
 #endif
@@ -118,10 +117,8 @@
 //========================================================================//
 //====================  Variables                     ====================//
     
-    #ifndef VARIABLE_SEPARATE
     FILE *pFile_1, *pFile_2, *pFile_phase, *pFile_output = NULL, *pFile_chkpt, *pFile_temp, *pFile_ising_spin, *pFile_ising_h;
     char output_file_0[256];
-    #endif
     
     #ifdef TRAINING_DATA
     FILE *pFile_train_data[16];
@@ -146,7 +143,7 @@
 
 //========================================================================//
 //====================  Lattice size                  ====================//
-    int lattice_size[dim_L] = { 128, 128, 128 }; // lattice_size[dim_L]
+    int *lattice_size; // int lattice_size[dim_L] = { 128, 128, 128 }; // lattice_size[dim_L]
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -162,7 +159,7 @@
     #endif
     long int *black_checkerboard; int black_checkerboard_reqd = 0;
     long int *white_checkerboard; int white_checkerboard_reqd = 0;
-    int site_to_dir_index[dim_L];
+    int *site_to_dir_index; // int site_to_dir_index[dim_L];
 
 //====================  Ising hysteresis              ====================//
     long int *nucleation_sites; 
@@ -183,8 +180,8 @@
     // int cluster_reqd = 1;
 
 //====================  Wolff/Cluster variables       ====================//
-    double reflection_plane[dim_S];
-    double reflection_matrix[dim_S*dim_S];
+    double *reflection_plane; // double reflection_plane[dim_S];
+    double *reflection_matrix; // double reflection_matrix[dim_S*dim_S];
     int *cluster; 
     #if defined(UPDATE_WOLFF_BFS) || defined(UPDATE_WOLFF_DFS) || defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
     int cluster_reqd = 1;
@@ -198,12 +195,12 @@
     int bond_cluster_reqd = 0;
     #endif
     double delta_E_cluster = 0;
-    double ghost_spin[dim_S];
-    double ghost_matrix[dim_S*dim_S];
+    double *ghost_spin; // double ghost_spin[dim_S];
+    double *ghost_matrix; // double ghost_matrix[dim_S*dim_S];
 
 //====================  Near neighbor /Boundary Cond  ====================//
     long int *N_N_I; int N_N_I_reqd = 1;
-    double BC[dim_L] = { 1, 1, 0 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic(not implemented) -- Boundary Condition
+    double *BC; // double BC[dim_L] = { 1, 1, 0 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic(not implemented) -- Boundary Condition
 
 //====================  Spin variable                 ====================//
     double *spin; int spin_reqd = 1;
@@ -225,7 +222,7 @@
     // double spin_0[dim_S];
 
 //====================  Initialization type           ====================//
-    double order[dim_S] = { 1.0 };//  Initialize all spins along this direction (Norm(order) = Norm(spin) = 1)
+    double *order; // double order[dim_S] = { 1.0 };//  Initialize all spins along this direction (Norm(order) = Norm(spin) = 1)
     int h_order = 0; // 1/0 (Yes/No) Initialize spin along RF direction
     int r_order = 0; // 1/0 (Yes/No) Random initialize spin
     int or_ho_ra = 0; // 0/1/2 ordered/h-ordered/random initialization
@@ -245,9 +242,9 @@
     long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-genrand64_int64(0)%sampling_inter
 
 //====================  NN-interaction (J)            ====================//
-    double J[dim_L] = { 1.0, 1.0, 1.0 }; 
+    double *J; // double J[dim_L] = { 1.0, 1.0, 1.0 }; 
     int output_J = 0;
-    double sigma_J[dim_L] = { 0.0, 0.0, 0.0 };
+    double *sigma_J; // double sigma_J[dim_L] = { 0.0, 0.0, 0.0 };
     int output_sigma_J = 0;
     double *J_random;
     #ifdef RANDOM_BOND
@@ -258,13 +255,13 @@
     double J_max = 0.0; double J_min = 0.0;
     double J_i_max = 0.0, J_i_min = 0.0; // for hysteresis
     double del_J = 0.01, del_J_cutoff = 0.0001;
-    double J_dev_net[dim_L];
-    double J_dev_avg[dim_L];
+    double *J_dev_net; // double J_dev_net[dim_L];
+    double *J_dev_avg; // double J_dev_avg[dim_L];
 
 //====================  on-site field (h)             ====================//
-    double h[dim_S] = { 0.0 }; // uniform field 
+    double *h; // double h[dim_S] = { 0.0 }; // uniform field 
     int output_h = 0;
-    double sigma_h[dim_S] = { 2.27 }; // random field strength ( R = { R_x, R_y, ... } )
+    double *sigma_h; // double sigma_h[dim_S] = { 2.27 }; // random field strength ( R = { R_x, R_y, ... } )
     int output_sigma_h = 0;
     double *h_random;
     #ifdef RANDOM_FIELD
@@ -272,12 +269,12 @@
     #else
         int h_random_reqd = 0;
     #endif
-    double h_max = 2*dim_L+0.01; double h_min = -2*dim_L-0.01; // for hysteresis (axial)
+    double h_max /* = 2*dim_L+0.01 */; double h_min /* = -2*dim_L-0.01 */; // for hysteresis (axial)
     double h_i_max = 0.0, h_i_min = 0.0; 
     double del_h = 1.0/8.0/* 0.1 */, del_h_cutoff = 0.00001;
     double del_phi = 0.01, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
-    double h_dev_net[dim_S];
-    double h_dev_avg[dim_S];
+    double *h_dev_net; // double h_dev_net[dim_S];
+    double *h_dev_avg; // double h_dev_avg[dim_S];
     double *field_site; int field_site_reqd = 0; // field experienced by spin due to nearest neighbors and on-site field
 
 //====================  Temperature                   ====================//
@@ -288,51 +285,51 @@
     int output_T = 0;
 
 //====================  Avalanche delta(S)            ====================//
-    double delta_S_squared[dim_S] = { 0.0 };
+    double *delta_S_squared; // delta_S_squared[dim_S] = { 0.0 };
     int output_delta_S_squared = 0;
-    double delta_S_abs[dim_S] = { 0.0 };
+    double *delta_S_abs; // double delta_S_abs[dim_S] = { 0.0 };
     int output_delta_S_abs = 0;
     double delta_S_max = 0.0 ;
     int output_delta_S_max = 0;
-    double delta_M[dim_S] = { 0.0 };
+    double *delta_M; // double delta_M[dim_S] = { 0.0 };
     int output_delta_M = 0;
     double delta_E = 0.0 ;
     int output_delta_E = 0;
 
 //====================  Magnetization <M>             ====================//
-    double m[dim_S];
+    double *m; // double m[dim_S];
     int output_m = 0;
-    double m_bkp[dim_S];
+    double *m_bkp; // double m_bkp[dim_S];
     
-    double abs_m[dim_S];
+    double *abs_m; // double abs_m[dim_S];
     int output_abs_m = 0;
-    double m_sum[dim_S];
-    double m_avg[dim_S];
+    double *m_sum; // double m_sum[dim_S];
+    double *m_avg; // double m_avg[dim_S];
     int output_m_avg = 0;
 
     double m_abs_sum = 0;
     double m_abs_avg = 0;
     int output_m_abs_avg = 0;
-    double m_abs_vec_sum[dim_S] = { 0 };
-    double m_abs_vec_avg[dim_S] = { 0 };
+    double *m_abs_vec_sum; // double m_abs_vec_sum[dim_S] = { 0 };
+    double *m_abs_vec_avg; // double m_abs_vec_avg[dim_S] = { 0 };
     int output_m_abs_vec_avg = 0;
     double m_2_sum = 0;
     double m_2_avg = 0;
     int output_m_2_avg = 0;
 
-    double m_2_vec_sum[dim_S] = { 0 };
-    double m_2_vec_avg[dim_S] = { 0 };
+    double *m_2_vec_sum; // double m_2_vec_sum[dim_S] = { 0 };
+    double *m_2_vec_avg; // double m_2_vec_avg[dim_S] = { 0 };
     int output_m_2_vec_avg = 0;
 
     double m_4_sum = 0;
     double m_4_avg = 0;
     int output_m_4_avg = 0;
-    double m_4_vec_sum[dim_S] = { 0 };
-    double m_4_vec_avg[dim_S] = { 0 };
+    double *m_4_vec_sum; // double m_4_vec_sum[dim_S] = { 0 };
+    double *m_4_vec_avg; // double m_4_vec_avg[dim_S] = { 0 };
     int output_m_4_vec_avg = 0;
 
-    double m_ab_sum[dim_S*dim_S] = { 0 };
-    double m_ab_avg[dim_S*dim_S] = { 0 };
+    double *m_ab_sum; // double m_ab_sum[dim_S*dim_S] = { 0 };
+    double *m_ab_avg; // double m_ab_avg[dim_S*dim_S] = { 0 };
     int output_m_ab_avg = 0;
 
 //====================  Energy <E>                    ====================//
@@ -349,22 +346,22 @@
 //====================  Helicity <Y>                  ====================//
     // double Y_1[dim_S*dim_S*dim_L] = { 0 };
     // double Y_2[dim_S*dim_S*dim_L] = { 0 };
-    double Y_1[dim_L] = { 0 };
-    double Y_2[dim_L] = { 0 };
+    double *Y_1; // double Y_1[dim_L] = { 0 };
+    double *Y_2; // double Y_2[dim_L] = { 0 };
     int output_Y_1 = 0;
     int output_Y_2 = 0;
     // double Y_1_sum[dim_S*dim_S*dim_L] = { 0 };
     // double Y_2_sum[dim_S*dim_S*dim_L] = { 0 };
     // double Y_1_avg[dim_S*dim_S*dim_L] = { 0 };
     // double Y_2_avg[dim_S*dim_S*dim_L] = { 0 };
-    double Y_1_sum[dim_L] = { 0 };
-    double Y_2_sum[dim_L] = { 0 };
-    double Y_1_avg[dim_L] = { 0 };
-    double Y_2_avg[dim_L] = { 0 };
+    double *Y_1_sum; // double Y_1_sum[dim_L] = { 0 };
+    double *Y_2_sum; // double Y_2_sum[dim_L] = { 0 };
+    double *Y_1_avg; // double Y_1_avg[dim_L] = { 0 };
+    double *Y_2_avg; // double Y_2_avg[dim_L] = { 0 };
     int output_Y_1_avg = 0;
     int output_Y_2_avg = 0;
     // double Y_ab_mu[dim_S*dim_S*dim_L] = { 0 };
-    double Y_x_mu[dim_L] = { 0 };
+    double *Y_x_mu; // double Y_x_mu[dim_L] = { 0 };
     int output_Y_x_mu = 0;
 
 //====================  Specific heat Cv              ====================//
@@ -374,13 +371,13 @@
 //====================  Susceptibility (Tensor) X     ====================//
     double X = 0;
     int output_X = 0;
-    double X_ab[dim_S*dim_S] = { 0 };
+    double *X_ab; // double X_ab[dim_S*dim_S] = { 0 };
     int output_X_ab = 0;
 
 //====================  Binder Parameter B            ====================//
     double B = 0;
     int output_B = 0;
-    double B_a[dim_S] = { 0 };
+    double *B_a; // double B_a[dim_S] = { 0 };
     int output_B_a = 0;
     
 //====================  Hysteresis                    ====================//
@@ -4574,19 +4571,6 @@
         return 0;
     }
 
-    /* int set_sum_of_moment_m_0()
-    {
-        int j_S;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_sum[j_S] = 0;
-            m_avg[j_S] = 1;
-        }
-
-        return 0;
-    } */
-
     #ifdef enable_CUDA_CODE
         __global__ void ensemble_m_cuda_reduce(long int max_sites, long int stride_second_site)
         {
@@ -4708,327 +4692,6 @@
         }
     #endif
     
-    /* int sum_of_moment_m()
-    {
-        int j_S;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_sum[j_S] += m[j_S];
-        }
-        
-        return 0;
-    } */
-
-    /* int average_of_moment_m(double MCS_counter)
-    {
-        int j_S;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_avg[j_S] = m_sum[j_S] / MCS_counter;
-        }
-        
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_abs_0()
-    {
-        m_abs_sum = 0;
-        m_abs_avg = 1;
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_abs()
-    {
-        int j_S, j_SS, j_L;
-        double m_2_persite = 0;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_2_persite += m[j_S] * m[j_S];
-        }
-
-        m_abs_sum += sqrt(m_2_persite);
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_abs(double MCS_counter)
-    {
-        m_abs_avg = m_abs_sum / MCS_counter;
-
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_2_0()
-    {
-        m_2_sum = 0;
-        m_2_avg = 1;
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_2()
-    {
-        int j_S, j_SS, j_L;
-        double m_2_persite = 0;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_2_persite += m[j_S] * m[j_S];
-        }
-
-        m_2_sum += m_2_persite;
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_2(double MCS_counter)
-    {
-        m_2_avg = m_2_sum / MCS_counter;
-
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_4_0()
-    {
-        m_4_sum = 0;
-        m_4_avg = 1;
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_4()
-    {
-        int j_S, j_SS, j_L;
-        double m_2_persite = 0;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_2_persite += m[j_S] * m[j_S];
-        }
-
-        m_4_sum += m_2_persite * m_2_persite;
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_4(double MCS_counter)
-    {
-        m_4_avg = m_4_sum / MCS_counter;
-
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_ab_0()
-    {
-        int j_S, j_SS;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_sum[j_S*dim_S + j_SS] = 0;
-                m_ab_avg[j_S*dim_S + j_SS] = 1;
-            }
-        }
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_ab()
-    {
-        int j_S, j_SS;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {    
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_sum[j_S*dim_S + j_SS] += m[j_S] * m[j_SS];            
-            }
-        }
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_ab(double MCS_counter)
-    {
-        int j_S, j_SS;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_avg[j_S*dim_S + j_SS] = m_ab_sum[j_S*dim_S + j_SS] / MCS_counter;
-            }
-        }
-        
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_higher_0()
-    {
-        int j_S, j_SS;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_sum[j_S*dim_S + j_SS] = 0;
-                m_ab_avg[j_S*dim_S + j_SS] = 1;
-            }
-        }
-
-        m_2_sum = 0;
-        m_2_avg = 1;
-        m_4_sum = 0;
-        m_4_avg = 1;
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_higher()
-    {
-        int j_S, j_SS, j_L;
-        double m_2_persite = 0;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_sum[j_S*dim_S + j_SS] += m[j_S] * m[j_SS];            
-            }
-            m_2_persite += m[j_S] * m[j_S];
-        }
-
-        m_2_sum += m_2_persite;
-        m_4_sum += m_2_persite * m_2_persite;
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_higher(double MCS_counter)
-    {
-        int j_S, j_SS, j_L;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_avg[j_S*dim_S + j_SS] = m_ab_sum[j_S*dim_S + j_SS] / MCS_counter;
-            }
-        }
-        m_2_avg = m_2_sum / MCS_counter;
-        m_4_avg = m_4_sum / MCS_counter;
-        
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_all_0()
-    {
-        int j_S, j_SS;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_sum[j_S*dim_S + j_SS] = 0;
-                m_ab_avg[j_S*dim_S + j_SS] = 1;
-            }
-        }
-        m_abs_sum = 0;
-        m_abs_avg = 1;
-        m_2_sum = 0;
-        m_2_avg = 1;
-        m_4_sum = 0;
-        m_4_avg = 1;
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_all()
-    {
-        int j_S, j_SS, j_L;
-        double m_2_persite = 0;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_sum[j_S*dim_S + j_SS] += m[j_S] * m[j_SS];            
-            }
-            m_2_persite += m[j_S] * m[j_S];
-        }
-
-        m_abs_sum += sqrt(m_2_persite);
-        m_2_sum += m_2_persite;
-        m_4_sum += m_2_persite * m_2_persite;
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_all(double MCS_counter)
-    {
-        int j_S, j_SS, j_L;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            for (j_SS=0; j_SS<dim_S; j_SS++)
-            {
-                m_ab_avg[j_S*dim_S + j_SS] = m_ab_sum[j_S*dim_S + j_SS] / MCS_counter;
-            }
-        }
-        m_abs_avg = m_abs_sum / MCS_counter;
-        m_2_avg = m_2_sum / MCS_counter;
-        m_4_avg = m_4_sum / MCS_counter;
-        
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_m_vec_0()
-    {
-        int j_S, j_SS;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_abs_vec_sum[j_S] = 0;
-            m_abs_vec_avg[j_S] = 1;
-            m_2_vec_sum[j_S] = 0;
-            m_2_vec_avg[j_S] = 1;
-            m_4_vec_sum[j_S] = 0;
-            m_4_vec_avg[j_S] = 1;
-        }
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_m_vec()
-    {
-        int j_S, j_SS, j_L;
-        double m_2_vec_persite = 0;
-        
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_2_vec_persite = m[j_S] * m[j_S];
-            m_abs_vec_sum[j_S] += fabs(m[j_S]);
-            m_2_vec_sum[j_S] += m_2_vec_persite;
-            m_4_vec_sum[j_S] += m_2_vec_persite * m_2_vec_persite;
-        }
-
-        return 0;
-    } */
-
-    /* int average_of_moment_m_vec(double MCS_counter)
-    {
-        int j_S, j_SS, j_L;
-        for (j_S=0; j_S<dim_S; j_S++)
-        {
-            m_abs_vec_avg[j_S] = m_abs_vec_sum[j_S] / MCS_counter;
-            m_2_vec_avg[j_S] = m_2_vec_sum[j_S] / MCS_counter;
-            m_4_vec_avg[j_S] = m_4_vec_sum[j_S] / MCS_counter;
-        }
-        
-        return 0;
-    } */
-
-
 //====================  Binder Parameter              ====================//
 
     int calculate_B() // (double MCS_counter)
@@ -5076,14 +4739,6 @@
 
 //====================  Energy                        ====================//
 
-    /* int set_sum_of_moment_E_0()
-    {
-        E_sum = 0;
-        E_avg = 1;
-
-        return 0;
-    } */
-
     int ensemble_E()
     {
         long int i;
@@ -5110,57 +4765,9 @@
                 #endif
             }
         }
-        // for (j_S=0; j_S<dim_S; j_S++)
-        // {
-            // #pragma omp parallel for private(j_L) reduction(+:E)
-            // for(i=0; i<no_of_sites; i++)
-            // {
-                // for (j_L=0; j_L<dim_L; j_L++)
-                // {
-                    // E += - (J[j_L] + J_random[2*dim_L*i + 2*j_L])  * spin[dim_S * N_N_I[i*2*dim_L + 2*j_L] + j_S] * (spin[dim_S*i + j_S]);
-                // }
-                // E += - (h[j_S] + h_random[dim_S*i + j_S]) * (spin[dim_S*i + j_S]);
-            // }
-        // }
         E = E / no_of_sites;
         return 0;
     }
-
-    /* int sum_of_moment_E()
-    {
-        E_sum += E;
-        
-        return 0;
-    } */
-
-    /* int average_of_moment_E(double MCS_counter)
-    {
-        E_avg = E_sum / MCS_counter;
-        
-        return 0;
-    } */
-
-    /* int set_sum_of_moment_E_2_0()
-    {
-        E_2_sum = 0;
-        E_2_avg = 1;
-
-        return 0;
-    } */
-
-    /* int sum_of_moment_E_2()
-    {
-        E_2_sum += E * E;
-        
-        return 0;
-    } */
-
-    /* int average_of_moment_E_2(double MCS_counter)
-    {
-        E_2_avg = E_2_sum / MCS_counter;
-        
-        return 0;
-    } */
 
 //====================  Specific Heat                 ====================//
 
@@ -5173,28 +4780,6 @@
     }
 
 //====================  Helicity                      ====================//
-
-    /* int set_sum_of_moment_Y_0()
-    {
-        int j_S, j_SS, j_L;
-        
-        for (j_L=0; j_L<dim_L; j_L++)
-        {
-            Y_1_sum[j_L] = 0;
-            Y_1_avg[j_L] = 1;
-            Y_2_sum[j_L] = 0;
-            Y_2_avg[j_L] = 1;
-        }
-        // for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
-        // {
-        //     Y_1_sum[j_L_j_S_j_SS] = 0;
-        //     Y_1_avg[j_L_j_S_j_SS] = 1;
-        //     Y_2_sum[j_L_j_S_j_SS] = 0;
-        //     Y_2_avg[j_L_j_S_j_SS] = 1;
-        // }
-
-        return 0;
-    } */
 
     int ensemble_Y()
     {
@@ -5319,57 +4904,14 @@
             Y_1[j_L] = Y_1[j_L] / no_of_sites;
             Y_2[j_L] = (Y_2[j_L] * Y_2[j_L]) / no_of_sites;
         }
-        // for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
-        // {
-        //     Y_1[j_L_j_S_j_SS] = Y_1[j_L_j_S_j_SS] / no_of_sites;
-        //     Y_2[j_L_j_S_j_SS] = (Y_2[j_L_j_S_j_SS] * Y_2[j_L_j_S_j_SS]) / no_of_sites;
-        // }
-        
+
         return 0;
     }
-
-    /* int sum_of_moment_Y()
-    {
-        int j_S, j_SS, j_L;
-        
-        for (j_L=0; j_L<dim_L; j_L++)
-        {
-            Y_1_sum[j_L] += Y_1[j_L];
-            Y_2_sum[j_L] += Y_2[j_L];
-        }
-        // for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
-        // {
-        //     Y_1_sum[j_L_j_S_j_SS] += Y_1[j_L_j_S_j_SS];
-        //     Y_2_sum[j_L_j_S_j_SS] += Y_2[j_L_j_S_j_SS];
-        // }
-        
-        return 0;
-    } */
-
-    /* int average_of_moment_Y(double MCS_counter)
-    {
-        int j_S, j_SS, j_L;
-        
-        for (j_L=0; j_L<dim_L; j_L++)
-        {
-            Y_1_avg[j_L] = Y_1_sum[j_L] / MCS_counter;
-            Y_2_avg[j_L] = Y_2_sum[j_L] / MCS_counter;
-        }
-
-        // for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
-        // {
-        //     Y_1_avg[j_L_j_S_j_SS] = Y_1_sum[j_L_j_S_j_SS] / MCS_counter;
-        //     Y_2_avg[j_L_j_S_j_SS] = Y_2_sum[j_L_j_S_j_SS] / MCS_counter;
-        // }
-        
-        return 0;
-    } */
 
 //====================  Helicity Modulus              ====================//
 
     int calculate_Y_x_mu() // (double MCS_counter)
     {
-
         int j_S, j_SS, j_L;
         
         for (j_L=0; j_L<dim_L; j_L++)
@@ -5377,11 +4919,6 @@
             Y_x_mu[j_L] = Y_1_avg[j_L] - Y_2_avg[j_L] / T;
         }
 
-        // for (j_L_j_S_j_SS=0; j_L_j_S_j_SS < dim_S*dim_S*dim_L; j_L_j_S_j_SS++)
-        // {
-        //     Y_ab_mu[j_L_j_S_j_SS] = Y_1_avg[j_L_j_S_j_SS] - Y_2_avg[j_L_j_S_j_SS] / T;
-        // }
-        
         return 0;
     }
 
@@ -6395,165 +5932,6 @@
         return 0;
     }
 
-    double activation_probability_Wolff(long int xyzi, long int xyzi_nn, int j_LL, int init)
-    {
-        static int stat_init = 0;
-        static int *first_call = NULL;
-        static int poss_config = 1;
-        static double **exp_Si_Sj = NULL;
-        if (init==0)
-        {
-            // printf("______ZZZZZZZZZZZZZZZZZZZZZ______%d", stat_init);
-            // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-            // fflush(stdout);
-            double spin_config = 0;
-            if ( stat_init==1 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
-                spin_config /= 2;
-            }
-            else if ( stat_init==2 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
-                spin_config += (-spin[xyzi_nn]+1)/2;
-            }
-            else if ( stat_init==3 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
-                // spin_config /= 2;
-                spin_config += j_LL;
-            }
-            else { // if ( stat_init==4 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
-                spin_config += 2*j_LL;
-                spin_config += (-spin[xyzi_nn]+1)/2;
-            }
-            // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
-        }
-
-        if ( stat_init == 0 || init==1 )
-        {
-            // printf("______XXXXXXXXXXXXXXXXXXXXX______%d", num_of_threads);
-            // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-            if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
-            memset(first_call, 1, num_of_threads);
-
-            stat_init = 1;
-            stat_init += (int)(h[0]!=0);
-            int t_i,j_L;
-            for (j_L=1; j_L<dim_L; j_L++) {
-                stat_init += 2*(int)(J[0]!=J[j_L]);
-                if ( J[0]!=J[j_L] ) { break; }
-            }
-
-            if ( stat_init==1 ) { poss_config = 2; }
-            if ( stat_init==2 ) { poss_config = 2*2; }
-            if ( stat_init==3 ) { poss_config = 2*dim_L; }
-            if ( stat_init==4 ) { poss_config = 2*2*dim_L; }
-            if ( exp_Si_Sj==NULL ) {
-                exp_Si_Sj = (double **)malloc(num_of_threads*sizeof(double *));
-                for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double)); }
-            }
-            else {
-                for (t_i=0; t_i<num_of_threads; t_i++) {
-                    free(exp_Si_Sj[t_i]);
-                    exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double));
-                }
-            }
-        //     return 0;
-        // }
-
-        // int j_L;
-        // if (first_call[thread_num_if_parallel()]==1 && init==0)
-        // {
-            // printf("______YYYYYYYYYYYYYYYYYYYYY______%d", stat_init);
-            // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-            if (stat_init=1) {
-                double delta_E_IM;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    delta_E_IM += (double)(p_i*2-1) * (-2*J[0]);
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<dim_L; t_i++){
-                        if (delta_E_IM < 0) {
-                            if (T > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0 - exp(delta_E_IM/T); }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                    }
-                }
-            }
-            else if (stat_init=2) {
-                double delta_E_IM;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    
-                    delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
-                    delta_E_IM += (double)((p_i-(p_i%2))-1) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<dim_L; t_i++){
-                        if (delta_E_IM < 0) {
-                            if (T > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0 - exp(delta_E_IM/T); }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                    }
-                }
-            }
-            else if (stat_init=3) {
-                double delta_E_IM;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    delta_E_IM += (double)((p_i%2)*2-1) * (-2*J[(p_i-(p_i%2))/2]);
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<dim_L; t_i++){
-                        if (delta_E_IM < 0) {
-                            if (T > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0 - exp(delta_E_IM/T); }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                    }
-                }
-            }
-            else { // if (stat_init=4) {
-                double delta_E_IM;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-                    delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
-                    p_i = (p_i-(p_i%2))/2;
-                    delta_E_IM += (double)((p_i%2)*2-1) * (-2*J[(p_i-(p_i%2))/2]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<dim_L; t_i++){
-                        if (delta_E_IM < 0) {
-                            if (T > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0 - exp(delta_E_IM/T); }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                    }
-                }
-            }
-            first_call[thread_num_if_parallel()] = 0;
-            return 0;
-        }
-        
-    }
-
     #ifdef UPDATE_WOLFF_GHOST
     int random_Wolff_sweep(long int iter)
     {
@@ -6607,16 +5985,12 @@
             xyzi = genrand64_int64(thread_num_if_parallel()) % no_of_sites;
             nucleation_sites[0] = xyzi;
 
-            #ifdef C_IM
-            spin[xyzi] = -spin[xyzi];
-            #else
             double spin_reflected_0[dim_S];
             transform_spin(xyzi, spin_reflected_0);
             double delta_E_cluster = 0;
             delta_E_cluster -= E_site_old(xyzi);
             delta_E_cluster += E_site_new(xyzi, spin_reflected_0);
             update_spin_single(xyzi, spin_reflected_0);
-            #endif
             cluster[xyzi] = 1;
             
             
@@ -6627,11 +6001,11 @@
             long int i_3 = no_of_sites-remaining_sites+no_of_nuclei;
             long int ii;
 
-            int alt_nuc = 0;
+            
             while (i_1!=i_2)
             {
                 int j_L,k_L;
-                #pragma omp parallel for private(j_L,k_L) collapse(3) //schedule(static,i_2-i_1) // if(i_2-i_1>1) // private(j_L,k_L) 
+                #pragma omp parallel for private(j_L,k_L) collapse(3) schedule(static,i_2-i_1) // if(i_2-i_1>1) // private(j_L,k_L) 
                 for (ii=i_1; ii<i_2; ii++)
                 {
                     for (j_L=0; j_L<dim_L; j_L++)
@@ -6641,13 +6015,9 @@
                             long int next_site = N_N_I[2*dim_L*nucleation_sites[ii] + 2*j_L + k_L];
                             if (next_site<no_of_sites)
                             {
-                                if (cluster[next_site] == 0)
+                                if (cluster[next_site] != 1)
                                 {
                                     double p_bond = 0;
-                                    #ifdef C_IM
-                                    // printf("\rhere.");
-                                    p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L, 0);
-                                    #else
                                     double spin_reflected[dim_S];
                                     transform_spin(next_site, spin_reflected);
                                     double delta_E_bond = 0;
@@ -6663,37 +6033,22 @@
                                         {
                                             p_bond = 1;
                                         }
-                                    #endif
+
                                         // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
                                         double r_bond = genrand64_real1(thread_num_if_parallel());
                                         if (r_bond < p_bond)
                                         {
-                                            int update_this_thread = 0;
-                                            // #pragma omp flush(cluster)
                                             #pragma omp critical
-                                            if ( cluster[next_site] != 2 )
+                                            if ( cluster[next_site] != 1 )
                                             {
-                                                update_this_thread = 1;
-                                                cluster[next_site] = 2;
-                                            }
-                                            
-                                            if (update_this_thread)
-                                            {
-                                                // #pragma omp flush(cluster) 
-                                                #ifdef C_IM
-                                                spin[next_site] = -spin[next_site];
-                                                #else
+                                                cluster[next_site] = 1;
                                                 update_spin_single(next_site, spin_reflected);
-                                                #endif
 
                                                 nucleation_sites[i_3] = next_site;
                                                 i_3++;
                                             }
                                         }
-                                    #ifdef C_IM
-                                    #else
                                     }
-                                    #endif
                                 }
                             }
                         }
@@ -6702,7 +6057,6 @@
                 
                 i_1 = i_2;
                 i_2 = i_3;
-                alt_nuc = 1-alt_nuc;
             }
             double p_cluster;
             // if (r_cluster<exp(delta_E_cluster/T))
@@ -6798,6 +6152,7 @@
     #endif
 
 //====================  Swendsen-Wang                 ====================//
+    
     int populate_bonds()
     {
         long int i;
@@ -6836,202 +6191,156 @@
 
         return 0;
     }
+
 //====================  Metropolis                    ====================//
     
-    double activation_probability_Metropolis(long int xyzi, int init)
+    double activation_probability(long int xyzi)
     {
-        static int stat_init = 0;
-        static int *first_call = NULL;
-        static int poss_config = 1;
-        static double **exp_Si_Sj = NULL;
-        if (init==0)
-        {
+        #ifndef UNI_J_NO_H
+            static int first_call = 1;
+            static double *exp_Si_Sj=NULL;
+            static int poss_config = 0;
+            static double T_local = -1;
+            static double h_local = 0;
             int j_L;
-            double spin_config = 0;
-            if ( stat_init==1 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config /= 2;
-            }
-            else if ( stat_init==2 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config += (-spin[xyzi]+1)/2;
-            }
-            else if ( stat_init==3 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config /= 2;
-            }
-            else {  // if ( stat_init==4 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config += (-spin[xyzi]+1)/2;
-            }
-            // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
-        }
-
-        if ( stat_init == 0 || init==1 )
-        {
-            if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
-            memset(first_call, 1, num_of_threads);
-
-            stat_init = 1;
-            stat_init += (int)(h[0]!=0);
-            int t_i,j_L;
-            for (j_L=1; j_L<dim_L; j_L++) {
-                stat_init += 2*(int)(J[0]!=J[j_L]);
-                if ( J[0]!=J[j_L] ) { break; }
-            }
-
-            if ( stat_init==1 ) { poss_config = 2*dim_L+1; }
-            if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
-            if ( stat_init==3 ) {
+            // printf("\n______YYYYYYYYYYYYYYYYYYYYY______%d\n",thread_num_if_parallel());
+            // if (h_local!=h[0] || T_local!=T || init_first_call == 1)
+            // {
+            //     T_local = T;
+            //     h_local = h[0];
+            //     first_call = 1;
+            // }
+            
+            if (first_call==1 || h_local!=h[0] || T_local!=T )
+            {
+                T_local = T;
+                h_local = h[0];
                 poss_config = 1;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
-            }
-            if ( stat_init==4 ) {
-                poss_config = 2;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
-            }
-            if ( exp_Si_Sj==NULL ) {
-                exp_Si_Sj = (double **)malloc(num_of_threads*sizeof(double *));
-                for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double)); }
-            }
-            else {
-                for (t_i=0; t_i<num_of_threads; t_i++) {
-                    free(exp_Si_Sj[t_i]);
-                    exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double));
+                double delta_E_h = -2*h[0];
+                double delta_E_J[dim_L];
+                for (j_L=0; j_L<dim_L; j_L++)
+                {
+                    poss_config *= 5;
+                    delta_E_J[j_L] = -2*J[j_L];
                 }
-            }
-        // }
+                poss_config *= 2;
+                if (exp_Si_Sj==NULL)
+                {
+                    free(exp_Si_Sj);
+                }
+                exp_Si_Sj = (double *)malloc(poss_config*sizeof(double));
 
-        // int j_L;
-        // if (first_call[thread_num_if_parallel()]==1 && init==0)
-        // {
-            // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",thread_num_if_parallel());
-            if (stat_init=1) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
+                int j_config;
+                for (j_config=0; j_config<poss_config; j_config++)
                 {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    delta_E_IM += (double)((p_i-dim_L)*2) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
-                        }
-                    }
-                }
-            }
-            else if (stat_init=2) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    
-                    delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
-                    delta_E_IM += (double)((p_i-(p_i%2))-2*dim_L) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
-                        }
-                    }
-                }
-            }
-            else if (stat_init=3) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    for (j_config=0; j_config<=dim_L; j_config++)
+                    int s_cfg = j_config;
+                    double delta_E_IM = 0.0;
+                    for (j_L=dim_L-1; j_L>=0; j_L--)
                     {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
+                        delta_E_IM += (double)(2-(s_cfg%5))*delta_E_J[j_L];
+                        s_cfg /= 5;
                     }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
-                        }
-                    }
-                }
-            }
-            else { // if (stat_init=4) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-                    delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
-                    p_i = (p_i-(p_i%2))/2;
-
-                    for (j_config=0; j_config<=dim_L; j_config++)
+                    delta_E_IM += (double)(1-2*(s_cfg%2)) * delta_E_h;
+                    s_cfg /= 2;
+                    if (delta_E_IM <= 0)
                     {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
+                        exp_Si_Sj[j_config] = 1.0;
                     }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
+                    else 
+                    {
+                        if (T == 0)
+                        {
+                            exp_Si_Sj[j_config] = 0.0;
+                        }
+                        else 
+                        {
+                            exp_Si_Sj[j_config] = exp(-(delta_E_IM)/T);
                         }
                     }
                 }
+                first_call = 0;
             }
-            first_call[thread_num_if_parallel()] = 0;
-            return 0;
-        }
+
+            int spin_config = ((int)spin[xyzi]+1)/2;
+
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                spin_config = 5*spin_config + 
+                                ( (int)spin[xyzi] * 
+                                    ( (int)spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + 
+                                        (int)spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) + 2 ) ;
+            }
+            return exp_Si_Sj[(int)spin_config];
+        #else
+            static int first_call[28] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+            static double exp_Si_Sj[28][dim_L*4+1];
+            static int poss_config = dim_L*4+1;
+            static double T_local[28] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+
+            int j_L;
+            
+            if (first_call[thread_num_if_parallel()]==1 || T_local[thread_num_if_parallel()]!=T )
+            {
+                // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",thread_num_if_parallel());
+                T_local[thread_num_if_parallel()] = T;
+
+                double delta_E_h = -2*h[0];
+                double delta_E_J = -2*J[0];
+                double delta_E_IM;
+                
+                int j_config;
+                for (j_config=0; j_config<poss_config; j_config++)
+                {
+                    delta_E_IM = (double)(j_config-dim_L*2) * delta_E_J;
+
+                    if (delta_E_IM <= 0)
+                    {
+                        exp_Si_Sj[thread_num_if_parallel()][j_config] = 1.0;
+                    }
+                    else 
+                    {
+                        if (T == 0)
+                        {
+                            exp_Si_Sj[thread_num_if_parallel()][j_config] = 0.0;
+                        }
+                        else 
+                        {
+                            exp_Si_Sj[thread_num_if_parallel()][j_config] = exp(-(delta_E_IM)/T);
+                        }
+                    }
+                }
+                first_call[thread_num_if_parallel()] = 0;
+                
+            }
+
+            double spin_config = 0;
+
+            for (j_L=0; j_L<dim_L; j_L++)
+            {
+                spin_config +=  ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + 
+                                    spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) ;
+            }
+            spin_config *= -spin[xyzi]; 
+            spin_config += dim_L*2;
+            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
+        #endif
         
+
         // return 1.0;
+
     }
 
     double update_probability_Metropolis(long int xyzi)
     {
         double update_prob, r;
         #ifdef C_IM
-            update_prob = activation_probability_Metropolis(xyzi, 0);
+            update_prob = activation_probability(xyzi);
             // r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
             r = genrand64_real1(thread_num_if_parallel());
             
             if(r < update_prob)
             {
                 spin[xyzi] = -spin[xyzi];
-                
                 return 1.0;
             }
         #else
@@ -7041,10 +6350,20 @@
             double field_local[dim_S];
             double E_old = Energy_old(xyzi, spin_local, field_local);
             double E_new = Energy_new(xyzi, spin_local, field_local);
-            if (E_new - E_old <= 0) { update_prob = 1.0; }
-            else {
-                if (T == 0) { update_prob = 0.0; }
-                else { update_prob = exp(-(E_new-E_old)/T); }
+            if (E_new - E_old <= 0)
+            {
+                update_prob = 1.0;
+            }
+            else 
+            {
+                if (T == 0)
+                {
+                    update_prob = 0.0;
+                }
+                else 
+                {
+                    update_prob = exp(-(E_new-E_old)/T);
+                }
             }
             // r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
             r = genrand64_real1(thread_num_if_parallel());
@@ -7055,6 +6374,7 @@
                 return 1.0;
             }
         #endif
+        
         return 0.0;
     }
 
@@ -7152,28 +6472,28 @@
             #endif
         #else
 
-            long int xyzi;
-            do
-            {
-                // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
-                xyzi = genrand64_int64(thread_num_if_parallel())%no_of_sites;
-                
-                double update_prob = update_probability_Metropolis(xyzi);
+        long int xyzi;
+        do
+        {
+            // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()])%no_of_sites;
+            xyzi = genrand64_int64(thread_num_if_parallel())%no_of_sites;
+            
+            double update_prob = update_probability_Metropolis(xyzi);
 
-                // // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
-                // double r = genrand64_real1(thread_num_if_parallel());
-                // if(r < update_prob)
-                // {
-                //     // spin[i] = -spin[i];
-                //     update_spin_single(xyzi, 1);
-                // }
-                // else
-                // {
-                //     update_spin_single(xyzi, 0);
-                // }
-                iter--;
-            }
-            while (iter > 0);
+            // // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+            // double r = genrand64_real1(thread_num_if_parallel());
+            // if(r < update_prob)
+            // {
+            //     // spin[i] = -spin[i];
+            //     update_spin_single(xyzi, 1);
+            // }
+            // else
+            // {
+            //     update_spin_single(xyzi, 0);
+            // }
+            iter--;
+        }
+        while (iter > 0);
         
         #endif
 
@@ -7197,15 +6517,7 @@
             
             black_or_white = !black_or_white;
             iter--;
-            // printf(": Step = %ld ... ", iter);
-            // printf("\b\b\b\b\b\b\b\b\b\b"       );
-            // printf(           "\b\b\b\b\b");
-            // long int i_iter = iter/10;
-            // while (i_iter>0)
-            // {
-            //     printf("\b");
-            //     i_iter = i_iter/10;
-            // }
+            // printf("Iteration=%ld\n", iter);
         } 
         
         
@@ -7214,225 +6526,53 @@
 
 //====================  Glauber                       ====================//
 
-    double activation_probability_Glauber(long int xyzi, int init)
-    {
-        static int stat_init = 0;
-        static int *first_call = NULL;
-        static int poss_config = 1;
-        static double **exp_Si_Sj = NULL;
-        if (init==0)
-        {
-            int j_L;
-            double spin_config = 0;
-            if ( stat_init==1 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config /= 2;
-            }
-            if ( stat_init==2 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config += (-spin[xyzi]+1)/2;
-            }
-            if ( stat_init==3 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config /= 2;
-            }
-            if ( stat_init==4 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
-                }
-                spin_config += (-spin[xyzi]+1)/2;
-            }
-            // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
-        }
-
-        if ( stat_init == 0 || init==1 )
-        {
-            if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
-            memset(first_call, 1, num_of_threads);
-
-            stat_init = 1;
-            stat_init += (int)(h[0]!=0);
-            int t_i,j_L;
-            for (j_L=1; j_L<dim_L; j_L++) {
-                stat_init += 2*(int)(J[0]!=J[j_L]);
-                if ( J[0]!=J[j_L] ) { break; }
-            }
-
-            if ( stat_init==1 ) { poss_config = 2*dim_L+1; }
-            if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
-            if ( stat_init==3 ) {
-                poss_config = 1;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
-            }
-            if ( stat_init==4 ) {
-                poss_config = 2;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
-            }
-            if ( exp_Si_Sj==NULL ) {
-                exp_Si_Sj = (double **)malloc(num_of_threads*sizeof(double *));
-                for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double)); }
-            }
-            else {
-                for (t_i=0; t_i<num_of_threads; t_i++) {
-                    free(exp_Si_Sj[t_i]);
-                    exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double));
-                }
-            }
-        // }
-
-        // int j_L;
-        // if (first_call[thread_num_if_parallel()]==1 && init==0)
-        // {
-            // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",thread_num_if_parallel());
-            if (stat_init=1) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    delta_E_IM += (double)((p_i-dim_L)*2) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
-                    }
-                }
-            }
-            if (stat_init=2) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    
-                    delta_E_IM += (double)(p_i%2) * (-2*h[0]);
-                    delta_E_IM += (double)(p_i-(p_i%2)) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
-                    }
-                }
-            }
-            if (stat_init=3) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    for (j_config=0; j_config<=dim_L; j_config++) {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
-                    }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
-                    }
-                }
-            }
-            if (stat_init=4) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-                    delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
-                    p_i = (p_i-(p_i%2))/2;
-
-                    for (j_config=0; j_config<=dim_L; j_config++) {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
-                    }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
-                        }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
-                    }
-                }
-            }
-            first_call[thread_num_if_parallel()] = 0;
-            return 0;
-        }
-        
-        // return 1.0;
-    }
-
     double update_probability_Glauber(long int xyzi)
     {
         #ifdef C_IM
-            double update_prob = activation_probability_Glauber(xyzi, 0);
-            // r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
-            double r = genrand64_real1(thread_num_if_parallel());
-            
-            if(r < update_prob)
-            {
-                spin[xyzi] = -spin[xyzi];
-                
-                return 1.0;
-            }
-        #else
-            double update_prob;
-            double spin_local[dim_S];
-            double field_local[dim_S];
-            double E_old = Energy_old(xyzi, spin_local, field_local);
-            double E_new = Energy_new(xyzi, spin_local, field_local);
-            if (T == 0) {
-                if (E_new - E_old > 0) { update_prob = 0.0; }
-                else if (E_new - E_old < 0) { update_prob = 1.0; }
-                else { update_prob = 0.5; }
-            }
-            else { update_prob = 1/(1+exp((E_new-E_old)/T)); }
-            // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
-            double r = genrand64_real1(thread_num_if_parallel());
-            
-            if(r < update_prob)
-            {
-                update_spin_single(xyzi, spin_local);
-                return 1.0;
-            }
+
         #endif
+        
+        #ifdef RFIM
+        #endif
+
+        #ifdef RBIM
+        #endif
+
+        #ifdef RFBIM
+        #endif
+
+        double update_prob;
+        double spin_local[dim_S];
+        double field_local[dim_S];
+        double E_old = Energy_old(xyzi, spin_local, field_local);
+        double E_new = Energy_new(xyzi, spin_local, field_local);
+        if (T == 0)
+        {
+            if (E_new - E_old > 0)
+            {
+                update_prob = 0.0;
+            }
+            else if (E_new - E_old < 0)
+            {
+                update_prob = 1.0;
+            }
+            else
+            {
+                update_prob = 0.5;
+            }
+        }
+        else 
+        {
+            update_prob = 1/(1+exp((E_new-E_old)/T));
+        }
+        // double r = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
+        double r = genrand64_real1(thread_num_if_parallel());
+        
+        if(r < update_prob)
+        {
+            update_spin_single(xyzi, spin_local);
+            return 1.0;
+        }
         return 0.0;
     }
 
@@ -7644,10 +6784,6 @@
 
     int thermalizing_iteration(long int thermal_iter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
-        activation_probability_Metropolis(0, 1);
-        activation_probability_Glauber(0, 1);
-        activation_probability_Wolff(0, 0, 0, 1);
-
         // printf("\n--------\n");
         // printf("%ld,%d,%d", thermal_iter, MC_algo_type_local, MC_update_type_local);
         // printf("\n--------\n");
@@ -8078,13 +7214,13 @@
             int r_order_temp = r_order;
             int h_order_temp = h_order;
         
-        thermal_i = 1024;//1024*10;//thermal_i*lattice_size[0];
-        average_j = 1024;//1024;//average_j*lattice_size[0];
-        sampling_inter = 1;
-        MC_algo_type = 2;
+        thermal_i = 102400;//1024*10;//thermal_i*lattice_size[0];
+        average_j = 10240;//1024;//average_j*lattice_size[0];
+        sampling_inter = 16;
+        MC_algo_type = 1;
         MC_update_type = 0;
-        int MC_algo_type_avg = 2; // 0-Glauber // 1-Metropolis // 2-Wolff
-        int MC_update_type_avg = 0; // 0-Checkerboard // 1-Random // 2-Linear // Wolff-irrelevant
+        int MC_algo_type_avg = 1; // Wolff
+        int MC_update_type_avg = 0; // irrelevant
     
         if (ini_order==0)
         {
@@ -8963,111 +8099,6 @@
 
 //====================  RFIM ZTNE                     ====================//
     
-    // Merges two subarrays of arr[]. 
-    // First subarray is arr[l..m] 
-    // Second subarray is arr[m+1..r] 
-    void merge(double arr[], long int l, long int m, long int r) 
-    { 
-        long int i, j, k; 
-        long int n1 = m - l + 1; 
-        long int n2 = r - m; 
-
-        /* create temp arrays */
-        double L[n1], R[n2]; 
-
-        /* Copy data to temp arrays L[] and R[] */
-        for (i = 0; i < n1; i++) 
-            L[i] = arr[l + i]; 
-        for (j = 0; j < n2; j++) 
-            R[j] = arr[m + 1+ j]; 
-
-        /* Merge the temp arrays back into arr[l..r]*/
-        i = 0; // Initial index of first subarray 
-        j = 0; // Initial index of second subarray 
-        k = l; // Initial index of merged subarray 
-        while (i < n1 && j < n2) 
-        { 
-            if (L[i] <= R[j]) 
-            { 
-                arr[k] = L[i]; 
-                i++; 
-            } 
-            else
-            { 
-                arr[k] = R[j]; 
-                j++; 
-            } 
-            k++; 
-        } 
-
-        /* Copy the remaining elements of L[], if there 
-        are any */
-        while (i < n1) 
-        { 
-            arr[k] = L[i]; 
-            i++; 
-            k++; 
-        } 
-
-        /* Copy the remaining elements of R[], if there 
-        are any */
-        while (j < n2) 
-        { 
-            arr[k] = R[j]; 
-            j++; 
-            k++; 
-        } 
-    } 
-
-    /* l is for left index and r is right index of the 
-    sub-array of arr to be sorted */
-    void mergeSort(double arr[], long int l, long int r) 
-    { 
-        if (l < r) 
-        { 
-            // Same as (l+r)/2, but avoids overflow for 
-            // large l and h 
-            long int m = l+(r-l)/2; 
-
-            // Sort first and second halves 
-            mergeSort(arr, l, m); 
-            mergeSort(arr, m+1, r); 
-
-            merge(arr, l, m, r); 
-        } 
-    } 
-
-    long int searchInsert(double nums[], long int ind[], double target, long int size_array) 
-    {
-        long int pivot, left = 0, right = size_array - 1;
-        while (left <= right) 
-        {
-            pivot = left + (right - left) / 2;
-            if (nums[ind[pivot]] == target) return pivot;
-            if (target < nums[ind[pivot]]) right = pivot - 1;
-            else left = pivot + 1;
-        }
-        return left;
-    }
-
-    long int* sort_h_index(double h_sort[], long int size_array)
-    {
-        long int *sorted_indices = (long int *)malloc(size_array*sizeof(long int));
-        long int i;
-        sorted_indices[0] = 0;
-        for(i=1; i<no_of_sites; i++)
-        {
-            long int pivot = searchInsert(h_sort, sorted_indices, h_sort[i], i);
-            long int i_p = pivot;
-            while(i_p<i)
-            {
-                sorted_indices[i_p+1] = sorted_indices[i_p];
-            }
-            sorted_indices[pivot] = i;
-        }
-        return sorted_indices;
-    }
-
     long int mark_unstables(double s, long int remaining_sites, long int *nucleation_sites)
     {
         // if (remaining_sites<=0) { return 0; } // remove
@@ -20916,7 +19947,6 @@
     
     int for_omp_parallelization()
     {
-        
         long int i, j;
         #ifdef _OPENMP
         printf("\nOpenMP Active.\n");
@@ -20926,41 +19956,20 @@
         num_of_threads = 1;
         num_of_procs = 1;
         #endif
+        // random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
+        init_mt19937_parallel(num_of_threads);
+        // init_genrand64( (unsigned long long) rand() );
+        init_genrand64( (unsigned long long) rand(), 0 );
         
         printf("\nNo. of THREADS = %d\n", num_of_threads);
         printf("No. of PROCESSORS = %d\n", num_of_procs);
-
-        // init_genrand64( (unsigned long long) rand() );
-        // init_genrand64( (unsigned long long) rand(), 0 );
-        // random_seed = (unsigned int*)malloc(cache_size*num_of_threads*sizeof(unsigned int));
-
-        init_mt19937_parallel(num_of_threads);
-        int init_key_length_NN = 312;
-        int init_key_length_MM = 156;
-        unsigned long long *init_keys = (unsigned long long *)malloc(init_key_length_NN*sizeof(unsigned long long));
-        for (i=0; i < num_of_threads; i++)
+        for (i=1; i < num_of_threads; i++)
         {
-            // printf("%ld\n", time(NULL));
-            // usleep(1199294);
-            // printf("clock = %le\n", (double)clock()/CLOCKS_PER_SEC);
-            // srand(time(NULL)+clock());
-
             // random_seed[i] = rand_r(&random_seed[cache_size*(i-1)]);
             // random_seed[cache_size*i] = genrand64_int64();
-
-            // init_genrand64( genrand64_int64(i), i );
-
-            int init_key_length = init_key_length_MM + rand()%(init_key_length_NN-init_key_length_MM);
-            int j = 0;
-            for (j=0; j<init_key_length; j++)
-            {
-                init_keys[j] = rand();
-            }
-            init_by_array64(init_keys, init_key_length, i);
+            init_genrand64( genrand64_int64(i), i );
         }
-        free(init_keys);
-        
-        
+
         // double *start_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         // double *end_time_loop = (double*)malloc((num_of_threads)*sizeof(double)); 
         
@@ -21239,8 +20248,81 @@
         return 0;
     }
 
+    int init(char filename[])
+    {
+        FILE * pFile = fopen(filename, "r");
+        char word[4][8];
+        int i=0;
+        while (fscanf(pFile, "%s", word[i])>0)
+        {
+            i++;
+            int chk = fscanf(pFile, "%s", word[i]);
+            if (chk>0)
+            {
+                if (strcmp(word[i-1],"-dimL")==0)
+                {
+                    dim_L = atoi(word[i]);
+                    printf("Lattice dimension = %d\n", dim_L);
+                }
+                else if (strcmp(word[i-1],"-dimS")==0)
+                {
+                    dim_S = atoi(word[i]);
+                    printf("Spin dimension = %d\n", dim_S);
+                }
+                i++;
+            }
+        }
+        fclose(pFile);
+
+        lattice_size = (int *)malloc(dim_L*sizeof(int));
+        site_to_dir_index = (int *)malloc(dim_L*sizeof(int));
+        reflection_plane = (double *)malloc(dim_S*sizeof(double));
+        reflection_matrix = (double *)malloc(dim_S*dim_S*sizeof(double));
+        ghost_spin = (double *)malloc(dim_S*sizeof(double));
+        ghost_matrix = (double *)malloc(dim_S*dim_S*sizeof(double));
+        BC = (double *)malloc(dim_L*sizeof(double));
+        order = (double *)malloc(dim_S*sizeof(double));
+        J = (double *)malloc(dim_L*sizeof(double));
+        sigma_J = (double *)malloc(dim_L*sizeof(double));
+        J_dev_avg = (double *)malloc(dim_L*sizeof(double));
+        J_dev_net = (double *)malloc(dim_L*sizeof(double));
+        h = (double *)malloc(dim_S*sizeof(double));
+        sigma_h = (double *)malloc(dim_S*sizeof(double));
+        h_dev_net = (double *)malloc(dim_S*sizeof(double));
+        h_dev_avg = (double *)malloc(dim_S*sizeof(double));
+        delta_S_squared = (double *)malloc(dim_S*sizeof(double));
+        delta_S_abs = (double *)malloc(dim_S*sizeof(double));
+        delta_M = (double *)malloc(dim_S*sizeof(double));
+        m = (double *)malloc(dim_S*sizeof(double));
+        m_bkp = (double *)malloc(dim_S*sizeof(double));
+        abs_m = (double *)malloc(dim_S*sizeof(double));
+        m_sum = (double *)malloc(dim_S*sizeof(double));
+        m_avg = (double *)malloc(dim_S*sizeof(double));
+        m_abs_vec_sum = (double *)malloc(dim_S*sizeof(double));
+        m_abs_vec_avg = (double *)malloc(dim_S*sizeof(double));
+        m_2_vec_sum = (double *)malloc(dim_S*sizeof(double));
+        m_2_vec_avg = (double *)malloc(dim_S*sizeof(double));
+        m_4_vec_sum = (double *)malloc(dim_S*sizeof(double));
+        m_4_vec_avg = (double *)malloc(dim_S*sizeof(double));
+        m_ab_sum = (double *)malloc(dim_S*sizeof(double));
+        m_ab_avg = (double *)malloc(dim_S*sizeof(double));
+        Y_1 = (double *)malloc(dim_L*sizeof(double));
+        Y_2 = (double *)malloc(dim_L*sizeof(double));
+        Y_1_sum = (double *)malloc(dim_L*sizeof(double));
+        Y_2_sum = (double *)malloc(dim_L*sizeof(double));
+        Y_1_avg = (double *)malloc(dim_L*sizeof(double));
+        Y_2_avg = (double *)malloc(dim_L*sizeof(double));
+        Y_x_mu = (double *)malloc(dim_L*sizeof(double));
+        X_ab = (double *)malloc(dim_S*dim_S*sizeof(double));
+        B_a = (double *)malloc(dim_S*sizeof(double));
+
+        return 0;
+    }
+
     int main(int argc, char *argv[])
     {
+        init("model_type.txt");
+        // return 0;
         char *function_list[] = {
             "ZTNE_inc", 
             "ZTNE_dec", 
@@ -21259,88 +20341,106 @@
             int i=1;
             while (i<argc){
                 if ( strcmp("-L", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                    lattice_size = (int *)malloc(dim_L*sizeof(int));
+                    printf("%s ", argv[i]);
                     i++;
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
                         lattice_size[j_L] = atoi(argv[i]);
-                        // printf("%s\n", argv[i]);
+                        printf("%s ", argv[i]);
                         i++;
                     }
                 }
                 if (i>=argc) break;
                 if ( strcmp("-BC", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                    printf("%s ", argv[i]);
                     i++;
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
                         BC[j_L] = (atoi(argv[i])==0 ? 0 : 1);
-                        // printf("%s\n", argv[i]);
+                        printf("%s ", argv[i]);
                         i++;
                     }
                 }
                 if (i>=argc) break;
                 if ( strcmp("-T", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     T = atof(argv[i]);
+                    printf("%s ", argv[i]);
                     i++;
                 }
                 if (i>=argc) break;
                 if ( strcmp("-Tmax", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     Temp_max = atof(argv[i]);
+                    printf("%s ", argv[i]);
                     i++;
                 }
                 if (i>=argc) break;
                 if ( strcmp("-Tmin", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     Temp_min = atof(argv[i]);
+                    printf("%s ", argv[i]);
                     i++;
                 }
                 if (i>=argc) break;
                 if ( strcmp("-dT", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     delta_T = atof(argv[i]);
+                    printf("%s ", argv[i]);
                     i++;
                 }
                 if (i>=argc) break;
                 if ( strcmp("-J", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
                         J[j_L] = atof(argv[i]);
+                        printf("%s ", argv[i]);
                         i++;
                     }
                 }
                 if (i>=argc) break;
                 if ( strcmp("-h", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     int j_S;
                     for(j_S=0; j_S<dim_S; j_S++){
                         h[j_S] = atof(argv[i]);
+                        printf("%s ", argv[i]);
                         i++;
                     }
                 }
                 if (i>=argc) break;
                 if ( strcmp("-RB", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
                         sigma_J[j_L] = atof(argv[i]);
+                        printf("%s ", argv[i]);
                         i++;
                     }
                 }
                 if (i>=argc) break;
                 if ( strcmp("-RF", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     int j_S;
                     for(j_S=0; j_S<dim_S; j_S++){
                         sigma_h[j_S] = atof(argv[i]);
+                        printf("%s ", argv[i]);
                         i++;
                     }
                 }
                 if (i>=argc) break;
                 if ( strcmp("-fn", argv[i])==0 ){
+                    printf("%s ", argv[i]);
                     i++;
                     int j=0;
                     while ( strcmp(function_list[j], argv[i])!=0 ){
@@ -21350,6 +20450,7 @@
                             return 0;
                         }
                     }
+                    printf("%s ", argv[i]);
                     i++;
                     no_of_functions+=1;
                     run_this_function = realloc(run_this_function,no_of_functions*sizeof(int));
@@ -21357,7 +20458,8 @@
                 }
             }
         }
-        
+        printf("\n");
+        fflush(stdout);
         #ifdef C_IM
             printf("Clean Ising Model.\n");
         #else
@@ -21375,6 +20477,7 @@
                 #endif
             #endif
         #endif
+        fflush(stdout);
         // return 0;
         // #ifdef enable_CUDA_CODE
         // cudaDeviceReset();
@@ -21679,39 +20782,3 @@
         }
     }
 */
-
-// output_J = 1;
-// output_sigma_J = 1;
-// output_h = 1;
-// output_sigma_h = 1;
-// output_T = 1;
-// output_abs_m = 1;
-// output_m = 1;
-// output_m_avg = 1;
-// output_m_abs_avg = 1;
-// output_m_2_avg = 1;
-// output_m_4_avg = 1;
-// output_m_abs_vec_avg = 1;
-// output_m_2_vec_avg = 1;
-// output_m_4_vec_avg = 1;
-// output_m_ab_avg = 1;
-// output_delta_S_squared = 1;
-// output_delta_S_abs = 1;
-// output_delta_S_max = 1;
-// output_delta_M = 1;
-// output_X = 1;
-// output_X_ab = 1;
-// output_B = 1;
-// output_B_a = 1;
-// output_E = 1;
-// output_E_avg = 1;
-// output_E_2_avg = 1;
-// output_delta_E = 1;
-// output_Cv = 1;
-// output_Y_1 = 1;
-// output_Y_2 = 1;
-// output_Y_1_avg = 1;
-// output_Y_2_avg = 1;
-// output_Y_x_mu = 1;
-// output_prepend = 1;
-// output_append = 1;
