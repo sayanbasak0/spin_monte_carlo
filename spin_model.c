@@ -40,33 +40,29 @@ int dim_S=1; // Spin dimensions
 // #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
 
-#define RANDOM_FIELD 1 // for random field disorder
-#define GAUSSIAN_FIELD 1 // for random gaussian fields
-// #define BIMODAL_FIELD 1 // for random bimodal fields
+int RANDOM_FIELD=0 // for random field disorder
+int GAUSSIAN_FIELD=1 // for random gaussian fields
+int BIMODAL_FIELD=0 // for random bimodal fields
 
-// #define RANDOM_BOND 1 // for random bond disorder
-// #define GAUSSIAN_BOND 1 // for random gaussian bonds
-#define BIMODAL_BOND 1 // for random bimodal bonds
+int RANDOM_BOND=0 // for random bond disorder
+int GAUSSIAN_BOND=1 // for random gaussian bonds
+int BIMODAL_BOND=0 // for random bimodal bonds
 
-#if !defined(RANDOM_BOND) && !defined(RANDOM_FIELD) && !(dim_S-1)
-#define C_IM 1
-#endif
-#if !defined(RANDOM_BOND) && defined(RANDOM_FIELD) && !(dim_S-1)
-#define RFIM 1
-#endif
-#if defined(RANDOM_BOND) && !defined(RANDOM_FIELD) && !(dim_S-1)
-#define RBIM 1
-#endif
-#if defined(RANDOM_BOND) && defined(RANDOM_FIELD) && !(dim_S-1)
-#define RFBIM 1
-#endif
+// #if !defined(RANDOM_BOND) && !defined(RANDOM_FIELD) && !(dim_S-1)
+int C_IM=0
+// #endif
+// #if !defined(RANDOM_BOND) && defined(RANDOM_FIELD) && !(dim_S-1)
+int RFIM=0
+// #endif
+// #if defined(RANDOM_BOND) && !defined(RANDOM_FIELD) && !(dim_S-1)
+int RBIM=0
+// #endif
+// #if defined(RANDOM_BOND) && defined(RANDOM_FIELD) && !(dim_S-1)
+int RFBIM=0
+// #endif
 
-#if defined(C_IM)
-#define UNI_J_NO_H 2
-#endif
-#if defined(C_IM) || defined(RFIM) || defined(RBIM) || defined(RFBIM)
 #define ZTNE_IM_MULTIPLE 1
-#endif
+
 
 #define SAVE_SPIN_AFTER -1
 // #define TRAINING_DATA 1
@@ -20315,7 +20311,30 @@ int dim_S=1; // Spin dimensions
         Y_x_mu = (double *)malloc(dim_L*sizeof(double));
         X_ab = (double *)malloc(dim_S*dim_S*sizeof(double));
         B_a = (double *)malloc(dim_S*sizeof(double));
-
+        int j_L, k_L, j_S;
+        RANDOM_FIELD = 0;
+        for (j_S=0; j_S<dim_S; j_S++){
+            RANDOM_FIELD+=(int)(sigma_h[j_S]!=0)
+        }
+        RANDOM_BOND = 0;
+        for (j_L=0; j_L<dim_L; j_L++){
+            RANDOM_BOND+=(int)(sigma_J[j_L]!=0)
+        }
+        if (dim_S==1){
+            if (RANDOM_FIELD==0 && RANDOM_BOND==0){
+                C_IM=1;
+            }
+            else if (RANDOM_FIELD==1 && RANDOM_BOND==0){
+                RFIM=1;
+            }
+            else if (RANDOM_FIELD==0 && RANDOM_BOND==1){
+                RFIM=1;
+            }
+            else if (RANDOM_FIELD==1 && RANDOM_BOND==1){
+                RFBIM=1;
+            }
+        }
+        RBFIM = (int)((RFIM!=0) && (RBIM!=0))
         return 0;
     }
 

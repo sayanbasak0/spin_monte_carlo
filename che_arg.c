@@ -95,7 +95,7 @@
 #endif
 #define UPDATE_WOLFF_BFS 1
 #ifdef UPDATE_WOLFF_BFS
-#define PARALLEL_WOLFF 1 // not optimized
+// #define PARALLEL_WOLFF 1 // not optimized
 #else 
 #define UPDATE_WOLFF_DFS 1
 #endif
@@ -235,8 +235,12 @@
 
 //====================  MC-update type                ====================//
     int MC_algo_type = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
+    int MC_algo_type_th = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
+    int MC_algo_type_avg = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
     char G_M_W[] = "GMW";
     int MC_update_type = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
+    int MC_update_type_th = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
+    int MC_update_type_avg = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
     char C_R_L[] = "CRL";
 
 //====================  MC-update iterations          ====================//
@@ -7644,10 +7648,12 @@
 
     int thermalizing_iteration(long int thermal_iter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
+        #ifdef C_IM
         activation_probability_Metropolis(0, 1);
         activation_probability_Glauber(0, 1);
         activation_probability_Wolff(0, 0, 0, 1);
-
+        #endif
+        
         // printf("\n--------\n");
         // printf("%ld,%d,%d", thermal_iter, MC_algo_type_local, MC_update_type_local);
         // printf("\n--------\n");
@@ -8078,13 +8084,13 @@
             int r_order_temp = r_order;
             int h_order_temp = h_order;
         
-        thermal_i = 1024;//1024*10;//thermal_i*lattice_size[0];
-        average_j = 1024;//1024;//average_j*lattice_size[0];
-        sampling_inter = 1;
-        MC_algo_type = 2;
-        MC_update_type = 0;
-        int MC_algo_type_avg = 2; // 0-Glauber // 1-Metropolis // 2-Wolff
-        int MC_update_type_avg = 0; // 0-Checkerboard // 1-Random // 2-Linear // Wolff-irrelevant
+        // thermal_i = 1024;//1024*10;//thermal_i*lattice_size[0];
+        // average_j = 1024;//1024;//average_j*lattice_size[0];
+        // sampling_inter = 1;
+        // MC_algo_type = 2; // 0-Glauber // 1-Metropolis // 2-Wolff
+        // MC_update_type = 0; // 0-Checkerboard // 1-Random // 2-Linear // Wolff-irrelevant
+        // int MC_algo_type_avg = 2; // 0-Glauber // 1-Metropolis // 2-Wolff
+        // int MC_update_type_avg = 0; // 0-Checkerboard // 1-Random // 2-Linear // Wolff-irrelevant
     
         if (ini_order==0)
         {
@@ -8249,7 +8255,7 @@
         for (T=Temp_max; T>=Temp_min; T=T-delta_T)
         {
             printf("\nT=%lf\t ", T);
-            initialize_spin_and_evolve_at_T(MC_algo_type, MC_update_type, MC_algo_type_avg, MC_update_type_avg);
+            initialize_spin_and_evolve_at_T(MC_algo_type_th, MC_update_type_th, MC_algo_type_avg, MC_update_type_avg);
 
             output_data(output_file_0, "", "");
             
@@ -21216,6 +21222,14 @@
         printf("a.out -L <Lattice Size>\n");
         printf("a.out -BC <Boundary Condition>\n");
 
+        printf("a.out -th <thermalizing steps>\n");
+        printf("a.out -av <averaging steps>\n");
+        printf("a.out -smpl <sampling/measurement interval>\n");
+        printf("a.out -algo_av <Glauber(0)/Metropolis(1)/Wolff(2)>\n");
+        printf("a.out -algo_th <Glauber(0)/Metropolis(1)/Wolff(2)>\n");
+        printf("a.out -updt_av <Checkerboard(0)/Random sites(1)/Linear sites(2)>\n");
+        printf("a.out -updt_th <Checkerboard(0)/Random sites(1)/Linear sites(2)>\n");
+        
         printf("a.out -T <Temperature>\n");
         printf("a.out -Tmax <maximum Temperature>\n");
         printf("a.out -Tmin <minimum Temperature>\n");
@@ -21258,6 +21272,55 @@
         else{
             int i=1;
             while (i<argc){
+                if ( strcmp("-th", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    thermal_i = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
+                if ( strcmp("-av", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    average_j = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
+                if ( strcmp("-smpl", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    sampling_inter = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
+                if ( strcmp("-algo_av", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    MC_algo_type_avg = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
+                if ( strcmp("-algo_th", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    MC_algo_type_th = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
+                if ( strcmp("-updt_av", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    MC_update_type_avg = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
+                if ( strcmp("-updt_th", argv[i])==0 ){
+                    // printf("%s\n", argv[i]);
+                    i++;
+                    MC_update_type_th = atoi(argv[i]);
+                    i++;
+                }
+                if (i>=argc) break;
                 if ( strcmp("-L", argv[i])==0 ){
                     // printf("%s\n", argv[i]);
                     i++;
