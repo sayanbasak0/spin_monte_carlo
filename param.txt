@@ -1,6 +1,14 @@
--L 64 64 64
--Tmax 5.0
--Tmin 4.0
--dT 0.1
--fn EQ_init_Ordrd
-
+-L 64 64 64 
+-th_step 100 
+-th_algo 1 
+-av_step 100 
+-av_smpl 16 
+-av_algo 2 
+-av_updt 0 
+-Tmin 0.9 
+-Tmax 1 
+-dT 0.2
+-fn EQ_init_Randm 
+-out T
+-out m
+-out m_avg
