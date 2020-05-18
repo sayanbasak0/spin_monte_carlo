@@ -59,12 +59,16 @@ where, parameter file can look like this:
 ```
 $ cat param.txt
 -L 64 64 64 
+-BC 1 1 0
+-J 1 1 1 
+-h 0
 -th_step 100 
 -th_algo 1 
+-th_updt 0 
 -av_step 100 
 -av_smpl 16 
 -av_algo 2 
--av_updt 0 
+-av_updt 1 
 -Tmin 0.9 
 -Tmax 1 
 -dT 0.2
@@ -72,6 +76,7 @@ $ cat param.txt
 -out T
 -out m
 -out m_avg
+
 ```
 
 ## Requires recompilations after edits in **che_arg.c** to run different models.

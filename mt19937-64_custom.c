@@ -103,9 +103,12 @@ void reinit_mt19937_parallel(int size)
         free(mt[i]);
         free(mag01[i]);
     }
-    free(mt);
-    free(mag01);
-    free(mti);
+    if (prev_size!=0)
+    {
+        free(mt);
+        free(mag01);
+        free(mti);
+    }
 
     mt = (unsigned long long **)malloc(size*sizeof(unsigned long long*));
     mag01 = (unsigned long long **)malloc(size*sizeof(unsigned long long*));

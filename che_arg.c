@@ -38,7 +38,7 @@
 
 // #define BUNDLE 4
 
-#define CONST_RATE 1 // uncomment only one
+// #define CONST_RATE 1 // uncomment only one
 // #define DIVIDE_BY_SLOPE 1 // uncomment only one
 // #define BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
@@ -90,6 +90,7 @@
 // #define UPDATE_ALL_NON_EQ 1 // uncomment only one
 #endif
 #define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
+
 #ifdef _OPENMP
 #define PARALLEL_RANDOM_MC_SWEEP 1 // parallelized random updates
 #endif
@@ -142,7 +143,7 @@
     #endif
     // long int CHUNK_SIZE = 256; 
     int output_prepend = 0; 
-    int output_append = 0;
+    int output_append = 1;
 
 //========================================================================//
 //====================  Lattice size                  ====================//
@@ -162,7 +163,6 @@
     #endif
     long int *black_checkerboard; int black_checkerboard_reqd = 0;
     long int *white_checkerboard; int white_checkerboard_reqd = 0;
-    int site_to_dir_index[dim_L];
 
 //====================  Ising hysteresis              ====================//
     long int *nucleation_sites; 
@@ -185,7 +185,7 @@
 //====================  Wolff/Cluster variables       ====================//
     double reflection_plane[dim_S];
     double reflection_matrix[dim_S*dim_S];
-    int *cluster; 
+    long int *cluster; 
     #if defined(UPDATE_WOLFF_BFS) || defined(UPDATE_WOLFF_DFS) || defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
     int cluster_reqd = 1;
     #else
@@ -262,8 +262,8 @@
     double J_max = 0.0; double J_min = 0.0;
     double J_i_max = 0.0, J_i_min = 0.0; // for hysteresis
     double del_J = 0.01, del_J_cutoff = 0.0001;
-    double J_dev_net[dim_L];
     double J_dev_avg[dim_L];
+    double J_dev_std[dim_L];
 
 //====================  on-site field (h)             ====================//
     double h[dim_S] = { 0.0 }; // uniform field 
@@ -280,8 +280,8 @@
     double h_i_max = 0.0, h_i_min = 0.0; 
     double del_h = 1.0/8.0/* 0.1 */, del_h_cutoff = 0.00001;
     double del_phi = 0.01, del_phi_cutoff = 0.00000001; // for hysteresis (rotating)
-    double h_dev_net[dim_S];
     double h_dev_avg[dim_S];
+    double h_dev_std[dim_S];
     double *field_site; int field_site_reqd = 0; // field experienced by spin due to nearest neighbors and on-site field
 
 //====================  Temperature                   ====================//
@@ -488,21 +488,21 @@
         {
             printf("spin, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(spin);
         }
         if (N_N_I_reqd == 1)
         {
             printf("N_N_I, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(N_N_I);
         }
         if (black_white_checkerboard_reqd == 1)
         {
             printf("black_white_checkerboard, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(black_white_checkerboard);
             // free(black_white_checkerboard[0]);
             // free(black_white_checkerboard[1]);
@@ -511,86 +511,86 @@
         {
             printf("spin, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(random_sites);
         }
         if (spin_bkp_reqd == 1)
         {
             printf("spin_bkp, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(spin_bkp);
         }
         if (spin_temp_reqd == 1)
         {
             printf("spin_temp, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(spin_temp);
         }
         if (h_random_reqd == 1)
         {
             printf("h_random, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(h_random);
         }
         if (J_random_reqd == 1)
         {
             printf("J_random, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(J_random);
         }
         if (cluster_reqd == 1)
         {
             printf("cluster, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(cluster);
         }
         if (bond_cluster_reqd == 1)
         {
             printf("bond_cluster, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(bond_cluster);
         }
         if (nucleation_sites_reqd == 1)
         {
             printf("nucleation_sites, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(nucleation_sites);
         }
         if (spin_old_reqd == 1)
         {
             printf("spin_old, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(spin_old);
         }
         if (spin_new_reqd == 1)
         {
             printf("spin_new, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(spin_new);
         }
         if (field_site_reqd == 1)
         {
             printf("field_site, ");
             fflush(stdout);
-            // usleep(1000);
+            // usleep(1000000);
             free(field_site);
         }
         #ifdef _OPENMP
-            // usleep(1000);
             // free(random_seed);
             // printf("random_seed[for_omp_parallelization()] ");
             // fflush(stdout);
             printf("mt19937 variables ");
             fflush(stdout);
+            // usleep(1000000);
             uninit_mt19937_parallel();
         #endif
         
@@ -649,7 +649,7 @@
         static int spin_reqd_local = 0;
         if (spin_reqd_local == 0 && spin_reqd == 1)
         {
-            printf("spin_reqd_local, ");
+            printf("spin");
             spin = (double*)malloc(dim_S*(no_of_sites+1)*sizeof(double));
             spin_reqd_local = 1;
         }
@@ -676,7 +676,7 @@
         static int N_N_I_reqd_local = 0;
         if (N_N_I_reqd_local == 0 && N_N_I_reqd == 1)
         {
-            printf("N_N_I_reqd_local, ");
+            printf(", N_N_I");
             N_N_I = (long int*)malloc(2*dim_L*(no_of_sites+1)*sizeof(long int));
             N_N_I_reqd_local = 1;
         }
@@ -703,7 +703,7 @@
         static int black_white_checkerboard_reqd_local = 0;
         if (black_white_checkerboard_reqd_local == 0 && black_white_checkerboard_reqd == 1)
         {
-            printf("black_white_checkerboard_reqd_local, ");
+            printf(", black_white_checkerboard");
             if (no_of_sites % 2 == 1)
             {
                 no_of_black_white_sites[0] = (no_of_sites + 1) / 2;
@@ -758,7 +758,7 @@
         static int random_sites_reqd_local = 0;
         if (random_sites_reqd_local == 0 && random_sites_reqd == 1)
         {
-            printf("random_sites_reqd_local, ");
+            printf(", random_sites");
             #ifdef PARALLEL_RANDOM_MC_SWEEP
             random_sites = (long int*)malloc(omp_get_max_threads()*sizeof(long int));
             #else
@@ -793,7 +793,7 @@
         static int spin_bkp_reqd_local = 0;
         if (spin_bkp_reqd_local == 0 && spin_bkp_reqd == 1)
         {
-            printf("spin_bkp_reqd_local, ");
+            printf(", spin_bkp");
             spin_bkp = (double*)malloc(dim_S*(no_of_sites+1)*sizeof(double));
             spin_bkp_reqd_local = 1;
         }
@@ -820,7 +820,7 @@
         static int spin_temp_reqd_local = 0;
         if (spin_temp_reqd_local == 0 && spin_temp_reqd == 1)
         {
-            printf("spin_temp_reqd_local, ");
+            printf(", spin_temp");
             spin_temp = (double*)malloc(dim_S*(no_of_sites+1)*sizeof(double));
             spin_temp_reqd_local = 1;
         }
@@ -847,7 +847,7 @@
         static int h_random_reqd_local = 0;
         if (h_random_reqd_local == 0 && h_random_reqd == 1)
         {
-            printf("h_random_reqd_local, ");
+            printf(", h_random");
             h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
             h_random_reqd_local = 1;
         }
@@ -874,7 +874,7 @@
         static int J_random_reqd_local = 0;
         if (J_random_reqd_local == 0 && J_random_reqd == 1)
         {
-            printf("J_random_reqd_local, ");
+            printf(", J_random");
             J_random = (double*)malloc(2*dim_L*(no_of_sites+1)*sizeof(double));
             J_random_reqd_local = 1;
         }
@@ -901,8 +901,8 @@
         static int cluster_reqd_local = 0;
         if (cluster_reqd_local == 0 && cluster_reqd == 1)
         {
-            printf("cluster_reqd_local, ");
-            cluster = (int*)malloc((no_of_sites+1)*sizeof(int));
+            printf(", cluster");
+            cluster = (long int*)malloc((no_of_sites+1)*sizeof(long int));
             cluster_reqd_local = 1;
         }
         else 
@@ -912,7 +912,7 @@
                 if (free_and_allocate == 1)
                 {
                     free(cluster);
-                    cluster = (int*)malloc((no_of_sites+1)*sizeof(int));
+                    cluster = (long int*)malloc((no_of_sites+1)*sizeof(long int));
                 }
             }
             else 
@@ -928,7 +928,7 @@
         static int bond_cluster_reqd_local = 0;
         if (bond_cluster_reqd_local == 0 && bond_cluster_reqd == 1)
         {
-            printf("bond_cluster_reqd_local, ");
+            printf(", bond_cluster");
             bond_cluster = (int*)malloc(dim_L*(no_of_sites+1)*sizeof(int));
             bond_cluster_reqd_local = 1;
         }
@@ -955,7 +955,7 @@
         static int nucleation_sites_reqd_local = 0;
         if (nucleation_sites_reqd_local == 0 && nucleation_sites_reqd == 1)
         {
-            printf("nucleation_sites_reqd_local, ");
+            printf(", nucleation_sites");
             nucleation_sites = (long int*)malloc(no_of_sites*sizeof(long int));
             nucleation_sites_reqd_local = 1;
         }
@@ -982,7 +982,7 @@
         static int spin_old_reqd_local = 0;
         if (spin_old_reqd_local == 0 && spin_old_reqd == 1)
         {
-            printf("spin_old_reqd_local, ");
+            printf(", spin_old");
             spin_old = (double*)malloc(dim_S*no_of_sites*sizeof(double));
             spin_old_reqd_local = 1;
         }
@@ -1009,7 +1009,7 @@
         static int spin_new_reqd_local = 0;
         if (spin_new_reqd_local == 0 && spin_new_reqd == 1)
         {
-            printf("spin_new_reqd_local, ");
+            printf(", spin_new");
             spin_new = (double*)malloc(dim_S*no_of_sites*sizeof(double));
             spin_new_reqd_local = 1;
         }
@@ -1036,7 +1036,7 @@
         static int field_site_reqd_local = 0;
         if (field_site_reqd_local == 0 && field_site_reqd == 1)
         {
-            printf("field_site_reqd_local, ");
+            printf(", field_site");
             field_site = (double*)malloc(dim_S*no_of_sites*sizeof(double));
             field_site_reqd_local = 1;
         }
@@ -1059,7 +1059,7 @@
                 }
             }
         }
-        printf(")\n");
+        printf(" )\n");
         return 0;
 
     }
@@ -1248,61 +1248,54 @@
     int initialize_h_zero()
     {
         long int i;
-
-        for(i=0; i<dim_S*no_of_sites; i=i+1)
+        #pragma omp parallel for
+        for (i=0; i<dim_S*no_of_sites; i++)
         {
             h_random[i] = 0;
-            // h_total[i] = h; 
         }
+        // memset(h_random, 0, dim_S*no_of_sites);
         return 0;
     }
 
     int initialize_h_random_bimodal()
     {
-        long int i, r_i;
+        long int i;
         int j_S;
         
         #ifdef RANDOM_FIELD
+        h_i_min = 0;
+        h_i_max = 0;
         initialize_h_zero();
-        for(j_S=0; j_S<dim_S; j_S=j_S+1)
+        for(j_S=0; j_S<dim_S; j_S++)
         {
             h_dev_avg[j_S] = 0;
+            h_dev_std[j_S] = 0;
         }
-        double h_random_sum = 0.0;
+        #pragma omp parallel for private(j_S) reduction(min:h_i_min) reduction(max:h_i_max) reduction(+:h_dev_avg[:dim_S],h_dev_std[:dim_S])
         for(i=0; i<no_of_sites; i=i+1)
         {
-            
-            // do
-            // {
-            //     h_random_sum = 0.0;
-            //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
-            //     for(j_S=0; j_S<dim_S; j_S=j_S+1)
-            //     {
-            //         h_random_sum += h_random[dim_S*r_i + j_S]*h_random[dim_S*r_i + j_S];
-            //     }
-            // } while(h_random_sum!=0);
-            r_i = i;
             double r_bim = generate_bimodal();
-            for(j_S=0; j_S<dim_S; j_S=j_S+1)
+            for(j_S=0; j_S<dim_S; j_S++)
             {
-                h_random[dim_S*r_i + j_S] = sigma_h[j_S] * r_bim;
-                h_dev_net[j_S] += h_random[dim_S*r_i + j_S];
+                h_random[dim_S*i + j_S] = sigma_h[j_S] * r_bim;
+                h_dev_avg[j_S] += h_random[dim_S*i + j_S];
+                h_dev_std[j_S] += h_random[dim_S*i + j_S]*h_random[dim_S*i + j_S];
 
-                if (h_random[dim_S*r_i + j_S]>h_i_max)
+                if (h_random[dim_S*i + j_S]>h_i_max)
                 {
-                    h_i_max = h_random[dim_S*r_i + j_S];
+                    h_i_max = h_random[dim_S*i + j_S];
                 }
-                else if (h_random[dim_S*r_i + j_S]<h_i_min)
+                else if (h_random[dim_S*i + j_S]<h_i_min)
                 {
-                    h_i_min = h_random[dim_S*r_i + j_S];
+                    h_i_min = h_random[dim_S*i + j_S];
                 }
             }
-            
         }
 
-        for(j_S=0; j_S<dim_S; j_S=j_S+1)
+        for(j_S=0; j_S<dim_S; j_S++)
         {
-            h_dev_avg[j_S] = h_dev_net[j_S] / no_of_sites;
+            h_dev_avg[j_S] = h_dev_avg[j_S] / no_of_sites;
+            h_dev_std[j_S] = sqrt(h_dev_std[j_S] / no_of_sites - h_dev_avg[j_S]);
         }
         #endif
 
@@ -1311,45 +1304,37 @@
 
     int initialize_h_random_gaussian()
     {
-        long int i, r_i;
+        long int i;
         int j_S;
         
         #ifdef RANDOM_FIELD
+        h_i_min = 0;
+        h_i_max = 0;
         initialize_h_zero();
-        for(j_S=0; j_S<dim_S; j_S=j_S+1)
+        for(j_S=0; j_S<dim_S; j_S++)
         {
-            h_dev_net[j_S] = 0;
-            for(i=0; i<no_of_sites; i=i+1)
+            h_dev_avg[j_S] = 0;
+            h_dev_std[j_S] = 0;
+            #pragma omp parallel for reduction(min:h_i_min) reduction(max:h_i_max) reduction(+:h_dev_avg[:dim_S],h_dev_std[:dim_S])
+            for(i=0; i<no_of_sites; i++)
             {
-                // do
-                // {
-                //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
-                // } while(h_random[dim_S*r_i + j_S]!=0);
-                r_i = i;
-                h_random[dim_S*r_i + j_S] = sigma_h[j_S] * generate_gaussian();
-                h_dev_net[j_S] += h_random[dim_S*r_i + j_S];
+                h_random[dim_S*i + j_S] = sigma_h[j_S] * generate_gaussian();
+                h_dev_avg[j_S] += h_random[dim_S*i + j_S];
+                h_dev_std[j_S] += h_random[dim_S*i + j_S]*h_random[dim_S*i + j_S];
 
-                if (h_random[dim_S*r_i + j_S]>h_i_max)
+                if (h_random[dim_S*i + j_S]>h_i_max)
                 {
-                    h_i_max = h_random[dim_S*r_i + j_S];
+                    h_i_max = h_random[dim_S*i + j_S];
                 }
-                else if (h_random[dim_S*r_i + j_S]<h_i_min)
+                else if (h_random[dim_S*i + j_S]<h_i_min)
                 {
-                    h_i_min = h_random[dim_S*r_i + j_S];
+                    h_i_min = h_random[dim_S*i + j_S];
                 }
             }
             
-            h_dev_avg[j_S] = h_dev_net[j_S] / no_of_sites;
+            h_dev_avg[j_S] = h_dev_avg[j_S] / no_of_sites;
+            h_dev_std[j_S] = sqrt( h_dev_std[j_S] / no_of_sites - h_dev_avg[j_S] );
         }
-        // if (fabs(h_i_max) < fabs(h_i_min))
-        // {
-        //     h_i_max = fabs(h_i_min);
-        // }
-        // else
-        // {
-        //     h_i_max = fabs(h_i_max);
-        // }
-        // h_i_min = -h_i_max;
         #endif
 
         return 0;
@@ -1358,45 +1343,47 @@
     int initialize_J_zero()
     {
         long int i;
-        for(i=0; i<2*dim_L*(no_of_sites+1); i=i+1)
+        #pragma omp parallel for
+        for (i=0; i<2*dim_L*(no_of_sites+1); i++)
         {
             J_random[i] = 0;
-            // h_total[i] = h; 
         }
+        // memset(J_random, 0, 2*dim_L*(no_of_sites+1));
         return 0;
     }
-
+    
     int initialize_J_random_bimodal()
     {
-        long int i, r_i;
+        long int i;
         int j_L, k_L;
         
         #ifdef RANDOM_BOND
+        J_i_min = 0;
+        J_i_max = 0;
         initialize_J_zero();
         for(j_L=0; j_L<dim_L; j_L=j_L+1)
         {
-            J_dev_net[j_L] = 0;
+            J_dev_avg[j_L] = 0;
+            J_dev_std[j_L] = 0;
+            #pragma omp parallel for reduction(min:J_i_min) reduction(max:J_i_max) reduction(+:J_dev_avg[:dim_L],J_dev_std[:dim_L])
             for(i=0; i<no_of_sites; i=i+1)
             {
-                // do
-                // {
-                //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
-                // } while(J_random[2*dim_L*r_i + 2*j_L]!=0);
-                r_i = i;
-                J_random[2*dim_L*r_i + 2*j_L] = sigma_J[j_L] * generate_bimodal();
-                J_dev_net[j_L] += J_random[2*dim_L*r_i + 2*j_L];
+                J_random[2*dim_L*i + 2*j_L] = sigma_J[j_L] * generate_bimodal();
+                J_dev_avg[j_L] += J_random[2*dim_L*i + 2*j_L];
+                J_dev_std[j_L] += J_random[2*dim_L*i + 2*j_L]*J_random[2*dim_L*i + 2*j_L];
 
-                if (J_random[2*dim_L*r_i + 2*j_L]>J_i_max)
+                if (J_random[2*dim_L*i + 2*j_L]>J_i_max)
                 {
-                    J_i_max = J_random[2*dim_L*r_i + 2*j_L];
+                    J_i_max = J_random[2*dim_L*i + 2*j_L];
                 }
-                else if (J_random[2*dim_L*r_i + 2*j_L]<J_i_min)
+                else if (J_random[2*dim_L*i + 2*j_L]<J_i_min)
                 {
-                    J_i_min = J_random[2*dim_L*r_i + 2*j_L];
+                    J_i_min = J_random[2*dim_L*i + 2*j_L];
                 }
-                J_random[2*dim_L*N_N_I[2*dim_L*r_i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*r_i + 2*j_L];
+                J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
             }
-            J_dev_avg[j_L] = J_dev_net[j_L] / no_of_sites;
+            J_dev_avg[j_L] = J_dev_avg[j_L] / no_of_sites;
+            J_dev_std[j_L] = sqrt(J_dev_std[j_L] / no_of_sites - J_dev_avg[j_L]);
         }
         #endif
         
@@ -1405,35 +1392,37 @@
 
     int initialize_J_random_gaussian()
     {
-        long int i, r_i;
+        long int i;
         int j_L, k_L;
         
         #ifdef RANDOM_BOND
+        J_i_min = 0;
+        J_i_max = 0;
         initialize_J_zero();
         for(j_L=0; j_L<dim_L; j_L=j_L+1)
         {
-            J_dev_net[j_L] = 0;
+            J_dev_avg[j_L] = 0;
+            J_dev_std[j_L] = 0;
+            #pragma omp parallel for reduction(min:J_i_min) reduction(max:J_i_max) reduction(+:J_dev_avg[:dim_L],J_dev_std[:dim_L])
             for(i=0; i<no_of_sites; i=i+1)
             {
-                // do
-                // {
-                //     r_i = genrand64_int64(thread_num_if_parallel())%no_of_sites;
-                // } while(J_random[2*dim_L*r_i + 2*j_L]!=0);
-                r_i = i;
-                J_random[2*dim_L*r_i + 2*j_L] = sigma_J[j_L] * generate_gaussian();
-                J_dev_net[j_L] += J_random[2*dim_L*r_i + 2*j_L];
+                J_random[2*dim_L*i + 2*j_L] = sigma_J[j_L] * generate_gaussian();
+                J_dev_avg[j_L] += J_random[2*dim_L*i + 2*j_L];
+                J_dev_std[j_L] += J_random[2*dim_L*i + 2*j_L]*J_random[2*dim_L*i + 2*j_L];
 
-                if (J_random[2*dim_L*r_i + 2*j_L]>J_i_max)
+                if (J_random[2*dim_L*i + 2*j_L]>J_i_max)
                 {
-                    J_i_max = J_random[2*dim_L*r_i + 2*j_L];
+                    J_i_max = J_random[2*dim_L*i + 2*j_L];
                 }
-                else if (J_random[2*dim_L*r_i + 2*j_L]<J_i_min)
+                else if (J_random[2*dim_L*i + 2*j_L]<J_i_min)
                 {
-                    J_i_min = J_random[2*dim_L*r_i + 2*j_L];
+                    J_i_min = J_random[2*dim_L*i + 2*j_L];
                 }
-                J_random[2*dim_L*N_N_I[2*dim_L*r_i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*r_i + 2*j_L];
+                J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
+                J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
             }
-            J_dev_avg[j_L] = J_dev_net[j_L] / no_of_sites;
+            J_dev_avg[j_L] = J_dev_avg[j_L] / no_of_sites;
+            J_dev_std[j_L] = sqrt(J_dev_std[j_L] / no_of_sites - J_dev_avg[j_L]);
         }
         #endif
         
@@ -1444,9 +1433,15 @@
     {
         long int i; 
         int j_L, k_L;
+        // no_of_sites = 1;
+        // for (j_L=0; j_L<dim_L; j_L++)
+        // {
+        //     no_of_sites = no_of_sites*lattice_size[j_L];
+        // }
+        // N_N_I = (long int*)malloc(2*dim_L*no_of_sites*sizeof(long int));  
         
         #pragma omp parallel for private(j_L,k_L) //memcheck
-        for(i=0; i<no_of_sites; i=i+1)
+        for(i=0; i<no_of_sites; i++)
         {
             int site_to_dir_index[dim_L];
             long int dir_mult[dim_L];
@@ -1479,6 +1474,7 @@
                             N_N_I[i*2*dim_L + 2*j_L + k_L] = no_of_sites;
                         }
                     }
+
                     // if (N_N_I[i*2*dim_L + 2*j_L + k_L] != nn)
                     // {
                     //     printf("%ld,%ld,%d,%d\n", N_N_I[i*2*dim_L + 2*j_L + k_L], i, j_L, k_L);
@@ -1504,12 +1500,12 @@
         // N_N_I = (long int*)malloc(2*dim_L*no_of_sites*sizeof(long int));  
         
         #pragma omp parallel for private(j_L,k_L) //memcheck
-        for(i=0; i<no_of_sites; i=i+1)
+        for(i=0; i<no_of_sites; i++)
         {
             // direction_index(i);
-            for(j_L=0; j_L<dim_L; j_L=j_L+1)
+            for(j_L=0; j_L<dim_L; j_L++)
             {
-                for(k_L=0; k_L<2; k_L=k_L+1)
+                for(k_L=0; k_L<2; k_L++)
                 {
                     N_N_I[i*2*dim_L + 2*j_L + k_L] = nearest_neighbor(i, j_L, k_L);
                     
@@ -2589,7 +2585,7 @@
                             }
                         }
                     #else
-                        for (iz = 0; iz < lattice_size[2]; iz+=SLICE_STRIDE)
+                        for (iz = 0; iz < lattice_size[2]-1; iz+=SLICE_STRIDE)
                         {
                             sprintf(pos_ising_spin, "%s_s%d.dat", append_string, iz);
                             pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
@@ -2604,22 +2600,20 @@
                             }
                             fclose(pFile_ising_spin);
                         }
-                        if (iz<lattice_size[2]-1)
+
+                        iz = lattice_size[2]-1;
+                        sprintf(pos_ising_spin, "%s_s%d.dat", append_string, iz);
+                        pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
+                        for (iy = 0; iy < lattice_size[1]; iy++)
                         {
-                            iz = lattice_size[2]-1;
-                            sprintf(pos_ising_spin, "%s_s%d.dat", append_string, iz);
-                            pFile_ising_spin = fopen(output_file_ising_spin, write_mode); // opens new file for writing
-                            for (iy = 0; iy < lattice_size[1]; iy++)
+                            for (ix = 0; ix < lattice_size[0]; ix++)
                             {
-                                for (ix = 0; ix < lattice_size[0]; ix++)
-                                {
-                                    ising_spin = (int)( spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)] + 1) / 2; 
-                                    fprintf(pFile_ising_spin, "%d\t", ising_spin );
-                                }
-                                fprintf(pFile_ising_spin, "\n");
+                                ising_spin = (int)( spin[dim_S*(lattice_size[0]*lattice_size[1]*iz+lattice_size[0]*iy + ix)] + 1) / 2; 
+                                fprintf(pFile_ising_spin, "%d\t", ising_spin );
                             }
-                            fclose(pFile_ising_spin);
+                            fprintf(pFile_ising_spin, "\n");
                         }
+                        fclose(pFile_ising_spin);
 
                     #endif
                 }
@@ -3600,36 +3594,45 @@
 
         if (MC_algo_type_thrm == 2)
         {
-            fprintf(pFile_output, "Wolff cluster update ,\n");
-        }
-        else
-        {
-            if (MC_algo_type_thrm == 0)
+            if (MC_update_type_thrm == 0)
             {
-                fprintf(pFile_output, "Glauber - ");
+                fprintf(pFile_output, "Swendsen-Wang cluster update ,\n");
             }
             else
             {
-                if (MC_algo_type_thrm == 1)
-                {
-                    fprintf(pFile_output, "Metropolis - ");
-                }
+                fprintf(pFile_output, "Wolff cluster update ,\n");
             }
-            
+        }
+        else if (MC_algo_type_thrm == 1)
+        {
+            fprintf(pFile_output, "Metropolis - ");
             if (MC_update_type_thrm == 0)
             {
                 fprintf(pFile_output, "Checkerboard site update ,\n");
             }
-            else 
+            else if (MC_update_type_thrm == 1)
             {
-                if (MC_update_type_thrm == 1)
-                {
-                    fprintf(pFile_output, "Random site update ,\n");
-                }
-                if (MC_update_type_thrm == 2)
-                {
-                    fprintf(pFile_output, "Linear site update ,\n");
-                }
+                fprintf(pFile_output, "Random site update ,\n");
+            }
+            else if (MC_update_type_thrm == 2)
+            {
+                fprintf(pFile_output, "Linear site update ,\n");
+            }
+        }
+        else if (MC_algo_type_thrm == 0)
+        {
+            fprintf(pFile_output, "Glauber - ");
+            if (MC_update_type_thrm == 0)
+            {
+                fprintf(pFile_output, "Checkerboard site update ,\n");
+            }
+            else if (MC_update_type_thrm == 1)
+            {
+                fprintf(pFile_output, "Random site update ,\n");
+            }
+            else if (MC_update_type_thrm == 2)
+            {
+                fprintf(pFile_output, "Linear site update ,\n");
             }
         }
 
@@ -3637,36 +3640,45 @@
 
         if (MC_algo_type_avg == 2)
         {
-            fprintf(pFile_output, "Wolff cluster update ,\n");
-        }
-        else
-        {
-            if (MC_algo_type_avg == 0)
+            if (MC_update_type_avg == 0)
             {
-                fprintf(pFile_output, "Glauber - ");
+                fprintf(pFile_output, "Swendsen-Wang cluster update ,\n");
             }
             else
             {
-                if (MC_algo_type_avg == 1)
-                {
-                    fprintf(pFile_output, "Metropolis - ");
-                }
+                fprintf(pFile_output, "Wolff cluster update ,\n");
             }
-            
+        }
+        else if (MC_algo_type_avg == 1)
+        {
+            fprintf(pFile_output, "Metropolis - ");
             if (MC_update_type_avg == 0)
             {
                 fprintf(pFile_output, "Checkerboard site update ,\n");
             }
-            else 
+            else if (MC_update_type_avg == 1)
             {
-                if (MC_update_type_avg == 1)
-                {
-                    fprintf(pFile_output, "Random site update ,\n");
-                }
-                if (MC_update_type_avg == 2)
-                {
-                    fprintf(pFile_output, "Linear site update ,\n");
-                }
+                fprintf(pFile_output, "Random site update ,\n");
+            }
+            else if (MC_update_type_avg == 2)
+            {
+                fprintf(pFile_output, "Linear site update ,\n");
+            }
+        }
+        else if (MC_algo_type_avg == 0)
+        {
+            fprintf(pFile_output, "Glauber - ");
+            if (MC_update_type_avg == 0)
+            {
+                fprintf(pFile_output, "Checkerboard site update ,\n");
+            }
+            else if (MC_update_type_avg == 1)
+            {
+                fprintf(pFile_output, "Random site update ,\n");
+            }
+            else if (MC_update_type_avg == 2)
+            {
+                fprintf(pFile_output, "Linear site update ,\n");
             }
         }
 
@@ -6129,7 +6141,7 @@
     double activation_probability_Wolff(long int xyzi, long int xyzi_nn, int j_LL, int init)
     {
         static int stat_init = 0;
-        static int *first_call = NULL;
+        // static int *first_call = NULL;
         static int poss_config = 1;
         static double **exp_Si_Sj = NULL;
         if (init==0)
@@ -6139,20 +6151,20 @@
             // fflush(stdout);
             double spin_config = 0;
             if ( stat_init==1 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
+                spin_config = ( -spin[xyzi] * spin[xyzi_nn] ) + 1;
                 spin_config /= 2;
             }
             else if ( stat_init==2 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
+                spin_config = ( -spin[xyzi] * spin[xyzi_nn] ) + 1;
                 spin_config += (-spin[xyzi_nn]+1)/2;
             }
             else if ( stat_init==3 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
+                spin_config = ( -spin[xyzi] * spin[xyzi_nn] ) + 1;
                 // spin_config /= 2;
                 spin_config += j_LL;
             }
             else { // if ( stat_init==4 ) {
-                spin_config = ( spin[xyzi] * spin[xyzi_nn] ) + 1;
+                spin_config = ( -spin[xyzi] * spin[xyzi_nn] ) + 1;
                 spin_config += 2*j_LL;
                 spin_config += (-spin[xyzi_nn]+1)/2;
             }
@@ -6160,13 +6172,13 @@
             return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
         }
 
-        if ( stat_init == 0 || init==1 )
+        else if ( stat_init == 0 || init==1 )
         {
             // printf("______XXXXXXXXXXXXXXXXXXXXX______%d", num_of_threads);
             // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-            if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
-            memset(first_call, 1, num_of_threads);
-
+            // if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
+            // memset(first_call, 1, num_of_threads);
+            
             stat_init = 1;
             stat_init += (int)(h[0]!=0);
             int t_i,j_L;
@@ -6174,11 +6186,11 @@
                 stat_init += 2*(int)(J[0]!=J[j_L]);
                 if ( J[0]!=J[j_L] ) { break; }
             }
-
+            // printf("%d",stat_init);
             if ( stat_init==1 ) { poss_config = 2; }
-            if ( stat_init==2 ) { poss_config = 2*2; }
-            if ( stat_init==3 ) { poss_config = 2*dim_L; }
-            if ( stat_init==4 ) { poss_config = 2*2*dim_L; }
+            else if ( stat_init==2 ) { poss_config = 2*2; }
+            else if ( stat_init==3 ) { poss_config = 2*dim_L; }
+            else { /* if ( stat_init==4 ) { */ poss_config = 2*2*dim_L; }
             if ( exp_Si_Sj==NULL ) {
                 exp_Si_Sj = (double **)malloc(num_of_threads*sizeof(double *));
                 for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double)); }
@@ -6273,7 +6285,7 @@
                     }
                 }
             }
-            first_call[thread_num_if_parallel()] = 0;
+            // memset(first_call, 0, num_of_threads);
             return 0;
         }
         return 1.0;
@@ -6574,7 +6586,7 @@
         #pragma omp parallel for
         for (i=0; i<no_of_sites; i++)
         {
-            if (cluster[i] == 1)
+            if (cluster[i] != 0)
             {
                 double spin_reflected[dim_S];
                 transform_spin(i, spin_reflected);
@@ -6593,7 +6605,8 @@
         {
             cluster[i] = s;
         }
-        cluster[no_of_sites] = 1;
+        // memset(cluster, s, no_of_sites);
+        cluster[no_of_sites] = -1;
         return 0;
     }
 
@@ -6645,7 +6658,6 @@
             fflush(stdout);
             set_cluster_s(0);
             
-            generate_random_axis(reflection_plane);
             // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()]) % no_of_sites;
             xyzi = genrand64_int64(thread_num_if_parallel()) % no_of_sites;
             nucleation_sites[0] = xyzi;
@@ -6653,6 +6665,7 @@
             #ifdef C_IM
             spin[xyzi] = -spin[xyzi];
             #else
+            generate_random_axis(reflection_plane);
             double spin_reflected_0[dim_S];
             transform_spin(xyzi, spin_reflected_0);
             double delta_E_cluster = 0;
@@ -6693,8 +6706,8 @@
                                     double spin_reflected[dim_S];
                                     transform_spin(next_site, spin_reflected);
                                     double delta_E_bond = 0;
-                                    delta_E_bond -= E_bond_old(xyzi, j_L, k_L, next_site);
-                                    delta_E_bond += E_bond_new(xyzi, j_L, k_L, spin_reflected);
+                                    delta_E_bond -= E_bond_old(nucleation_sites[ii], j_L, k_L, next_site);
+                                    delta_E_bond += E_bond_new(nucleation_sites[ii], j_L, k_L, spin_reflected);
                                     if (delta_E_bond < 0)
                                     {
                                         if (T > 0)
@@ -6713,10 +6726,11 @@
                                             int update_this_thread = 0;
                                             // #pragma omp flush(cluster)
                                             #pragma omp critical
-                                            if ( cluster[next_site] != 2 )
+                                            if ( cluster[next_site] != 1 )
                                             {
-                                                update_this_thread = 1;
-                                                cluster[next_site] = 2;
+                                                update_this_thread = 1+i_3;
+                                                i_3++;
+                                                cluster[next_site] = 1;
                                             }
                                             
                                             if (update_this_thread)
@@ -6728,8 +6742,8 @@
                                                 update_spin_single(next_site, spin_reflected);
                                                 #endif
 
-                                                nucleation_sites[i_3] = next_site;
-                                                i_3++;
+                                                nucleation_sites[update_this_thread-1] = next_site;
+                                                // i_3++;
                                             }
                                         }
                                     #ifdef C_IM
@@ -6745,6 +6759,7 @@
                 i_1 = i_2;
                 i_2 = i_3;
             }
+            // printf("%ld \n",i_3);
             double p_cluster;
             // if (r_cluster<exp(delta_E_cluster/T))
             // {
@@ -6839,14 +6854,15 @@
     #endif
 
 //====================  Swendsen-Wang                 ====================//
+    
     int populate_bonds()
     {
         long int i;
         int j_L;
-        for (i=0; i<no_of_sites; i++)
-        {
+        // for (i=0; i<no_of_sites; i++)
+        // {
             
-        }
+        // }
 
         return 0;
     }
@@ -6856,33 +6872,196 @@
         return 0;
     }
 
+    int set_nucleation_site()
+    {
+        long int i;
+        #pragma omp parallel for
+        for (i=0; i<no_of_sites; i++)
+        {
+            nucleation_sites[i] = i;
+        }
+        
+        return 0;
+    }
+
     int full_Wolff_sweep(long int iter)
     {
-        long int xyzi;
-        int i, j_S;
+        long int xyzi, i;
+        int j_S;
 
         for (i=0; i<iter; i++)
         {
-            set_cluster_s(0);
-
-            populate_bonds();
-
-            long int no_of_clusters = break_into_clusters();
-            while(no_of_clusters)
+            printf(": Step = %ld ... ", i);
+            printf("\b\b\b\b\b\b\b\b\b\b"       );
+            printf(           "\b\b\b\b\b");
+            long int i_iter = i/10;
+            while (i_iter>0)
             {
-
-                no_of_clusters--;
+                printf("\b");
+                i_iter = i_iter/10;
             }
-        }
+            fflush(stdout);
+            set_cluster_s(0);
+            set_nucleation_site();
+            #ifdef C_IM
+            #else
+            generate_random_axis(reflection_plane);
+            #endif
+            
+            long int remaining_sites = no_of_sites;
+            long int no_of_nuclei = 1;
+            long int i_0 = 0;
+            long int i_1 = no_of_sites-remaining_sites;
+            long int i_2 = no_of_sites-remaining_sites+no_of_nuclei;
+            long int i_3 = no_of_sites-remaining_sites+no_of_nuclei;
+            long int ii = 0;
+            long int no_of_clusters = 0;
+            long int next_to_visit=0;
 
+            while ( remaining_sites>0 )
+            {
+                no_of_clusters++;
+                // next_to_visit = 0;
+                while ( cluster[next_to_visit]!=0 )
+                {
+                    next_to_visit++;
+                }
+                // if (next_to_visit>=no_of_sites)
+                // {
+                //     printf("%ld,%ld,%ld,%ld,%ld,%ld                               \n", next_to_visit,i_0,i_1,i_2,i_3,no_of_clusters);
+                //     break;
+                // }
+                // i_0 = no_of_sites-remaining_sites;
+                // i_1 = no_of_sites-remaining_sites;
+                // i_2 = no_of_sites-remaining_sites+no_of_nuclei;
+                // i_3 = no_of_sites-remaining_sites+no_of_nuclei;
+
+                nucleation_sites[i_1] = next_to_visit;
+                cluster[next_to_visit] = no_of_clusters;
+                #ifdef C_IM
+                spin[next_to_visit] = -spin[next_to_visit];
+                #else
+                double spin_reflected_0[dim_S];
+                transform_spin(next_to_visit, spin_reflected_0);
+                update_spin_single(next_to_visit, spin_reflected_0);
+                #endif
+
+                while (i_1!=i_2)
+                {
+                    int j_L,k_L;
+                    #pragma omp parallel for private(j_L,k_L) collapse(3) //schedule(static,i_2-i_1) // if(i_2-i_1>1) 
+                    for (ii=i_1; ii<i_2; ii++)
+                    {
+                        for (j_L=0; j_L<dim_L; j_L++)
+                        {
+                            for (k_L=0; k_L<2; k_L++)
+                            {
+                                long int next_site = N_N_I[2*dim_L*nucleation_sites[ii] + 2*j_L + k_L];
+                                if (next_site<no_of_sites)
+                                {
+                                    if (cluster[next_site] == 0)
+                                    {
+                                        double p_bond = 0;
+                                        #ifdef C_IM
+                                        // printf("\rhere.");
+                                        p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L, 0);
+                                        #else
+                                        double spin_reflected[dim_S];
+                                        transform_spin(next_site, spin_reflected);
+                                        double delta_E_bond = 0;
+                                        delta_E_bond -= E_bond_old(nucleation_sites[ii], j_L, k_L, next_site);
+                                        delta_E_bond += E_bond_new(nucleation_sites[ii], j_L, k_L, spin_reflected);
+                                        if (delta_E_bond < 0)
+                                        {
+                                            if (T > 0)
+                                            {
+                                                p_bond = 1 - exp(delta_E_bond/T);
+                                            }
+                                            else
+                                            {
+                                                p_bond = 1;
+                                            }
+                                        #endif
+                                            // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                                            double r_bond = genrand64_real1(thread_num_if_parallel());
+                                            if (r_bond < p_bond)
+                                            {
+                                                int update_this_thread = 0;
+                                                // #pragma omp flush(cluster)
+                                                #pragma omp critical
+                                                if ( cluster[next_site] != no_of_clusters )
+                                                {
+                                                    update_this_thread = 1+i_3;
+                                                    i_3++;
+                                                    cluster[next_site] = no_of_clusters;
+                                                }
+                                                
+                                                if (update_this_thread)
+                                                {
+                                                    // #pragma omp flush(cluster)
+                                                    #ifdef C_IM
+                                                    spin[next_site] = -spin[next_site];
+                                                    #else
+                                                    update_spin_single(next_site, spin_reflected);
+                                                    #endif
+
+                                                    nucleation_sites[update_this_thread-1] = next_site;
+                                                    // i_3++;
+                                                }
+                                            }
+                                        #ifdef C_IM
+                                        #else
+                                        }
+                                        #endif
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    i_1 = i_2;
+                    i_2 = i_3;
+                }
+                
+                if (genrand64_int64(thread_num_if_parallel()) % 2)
+                {
+                    #pragma omp parallel for
+                    for (ii=i_0; ii<i_3; ii++)
+                    {
+                        #ifdef C_IM
+                        spin[nucleation_sites[ii]] = -spin[nucleation_sites[ii]]; 
+                        #else
+                        double spin_reflected[dim_S];
+                        transform_spin(ii, spin_reflected);
+                        update_spin_single(ii, spin_reflected);
+                        #endif
+                    }
+                }
+                i_0=i_1;
+                remaining_sites = no_of_sites-i_3;
+                i_2++;
+                i_3++;
+            }
+
+            // printf("%ld \n",no_of_clusters);
+
+            // for (ii=i_0; ii<i_3; ii++)
+            // {
+            //     if (cluster[ii]==0)
+            //     {
+            //         printf("%d",cluster[ii]);
+            //         return 0;
+            //     }
+            // }
+        }
         return 0;
     }
+
 //====================  Metropolis                    ====================//
     
     double activation_probability_Metropolis(long int xyzi, int init)
     {
         static int stat_init = 0;
-        static int *first_call = NULL;
+        // static int *first_call = NULL;
         static int poss_config = 1;
         static double **exp_Si_Sj = NULL;
         if (init==0)
@@ -6917,10 +7096,10 @@
             return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
         }
 
-        if ( stat_init == 0 || init==1 )
+        else if ( stat_init == 0 || init==1 )
         {
-            if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
-            memset(first_call, 1, num_of_threads);
+            // if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
+            // memset(first_call, 1, num_of_threads);
 
             stat_init = 1;
             stat_init += (int)(h[0]!=0);
@@ -6931,12 +7110,12 @@
             }
 
             if ( stat_init==1 ) { poss_config = 2*dim_L+1; }
-            if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
-            if ( stat_init==3 ) {
+            else if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
+            else if ( stat_init==3 ) {
                 poss_config = 1;
                 for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
             }
-            if ( stat_init==4 ) {
+            else { // if ( stat_init==4 ) {
                 poss_config = 2;
                 for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
             }
@@ -7050,7 +7229,7 @@
                     }
                 }
             }
-            first_call[thread_num_if_parallel()] = 0;
+            // memset(first_call, 0, num_of_threads);
             return 0;
         }
         
@@ -7254,7 +7433,7 @@
     double activation_probability_Glauber(long int xyzi, int init)
     {
         static int stat_init = 0;
-        static int *first_call = NULL;
+        // static int *first_call = NULL;
         static int poss_config = 1;
         static double **exp_Si_Sj = NULL;
         if (init==0)
@@ -7268,21 +7447,21 @@
                 }
                 spin_config /= 2;
             }
-            if ( stat_init==2 ) {
+            else if ( stat_init==2 ) {
                 for (j_L=dim_L-1; j_L>=0; j_L--)
                 {
                     spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
                 }
                 spin_config += (-spin[xyzi]+1)/2;
             }
-            if ( stat_init==3 ) {
+            else if ( stat_init==3 ) {
                 for (j_L=dim_L-1; j_L>=0; j_L--)
                 {
                     spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
                 }
                 spin_config /= 2;
             }
-            if ( stat_init==4 ) {
+            else { // if ( stat_init==4 ) {
                 for (j_L=dim_L-1; j_L>=0; j_L--)
                 {
                     spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
@@ -7293,10 +7472,10 @@
             return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
         }
 
-        if ( stat_init == 0 || init==1 )
+        else if ( stat_init == 0 || init==1 )
         {
-            if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
-            memset(first_call, 1, num_of_threads);
+            // if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
+            // memset(first_call, 1, num_of_threads);
 
             stat_init = 1;
             stat_init += (int)(h[0]!=0);
@@ -7307,12 +7486,12 @@
             }
 
             if ( stat_init==1 ) { poss_config = 2*dim_L+1; }
-            if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
-            if ( stat_init==3 ) {
+            else if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
+            else if ( stat_init==3 ) {
                 poss_config = 1;
                 for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
             }
-            if ( stat_init==4 ) {
+            else { // if ( stat_init==4 ) {
                 poss_config = 2;
                 for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
             }
@@ -7350,7 +7529,7 @@
                     }
                 }
             }
-            if (stat_init=2) {
+            else if (stat_init=2) {
                 double delta_E_IM;
                 int j_config;
                 int i;
@@ -7373,7 +7552,7 @@
                     }
                 }
             }
-            if (stat_init=3) {
+            else if (stat_init=3) {
                 double delta_E_IM;
                 int j_config;
                 int i;
@@ -7398,7 +7577,7 @@
                     }
                 }
             }
-            if (stat_init=4) {
+            else { // if (stat_init=4) {
                 double delta_E_IM;
                 int j_config;
                 int i;
@@ -7425,7 +7604,7 @@
                     }
                 }
             }
-            first_call[thread_num_if_parallel()] = 0;
+            // memset(first_call, 0, num_of_threads);
             return 0;
         }
         
@@ -7625,33 +7804,37 @@
                 }
             }
         }
-        else
+        else if (MC_algo_type_local == 1)
         {
-            if (MC_algo_type_local == 1)
+            if (MC_update_type_local == 0)
             {
-                if (MC_update_type_local == 0)
-                {
-                    checkerboard_Metropolis_sweep(2*sweeps);
-                }
-                else
-                {
-                    if (MC_update_type_local == 1)
-                    {
-                        random_Metropolis_sweep(no_of_sites*sweeps);
-                    }
-                    else
-                    {
-                        linear_Metropolis_sweep(sweeps);
-                    }
-                }
+                checkerboard_Metropolis_sweep(2*sweeps);
             }
             else
             {
-                #ifdef SWENDSEN_WANG
+                if (MC_update_type_local == 1)
+                {
+                    random_Metropolis_sweep(no_of_sites*sweeps);
+                }
+                else
+                {
+                    linear_Metropolis_sweep(sweeps);
+                }
+            }
+        }
+        else
+        {
+            if (MC_update_type_local == 0)
+            {
+                // #ifdef SWENDSEN_WANG
                 full_Wolff_sweep(sweeps);
-                #else
+                // #endif
+            }
+            else
+            {
+                // #ifndef SWENDSEN_WANG
                 random_Wolff_sweep(sweeps);
-                #endif
+                // #endif
             }
         }
         return 0;
@@ -8005,11 +8188,12 @@
         output_label(output_file_0, "Step\t", "Saved_Spin\t");
 
         long int i;
-        int init=1;
+        
+        thermalizing_iteration(0, 0, 0, 0, 1);
         for (i=0; i<repeat_for_same_T; i++)
         {
-            init = (!i)*2 - 1;
-            thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, init);
+            
+            thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, 0);
             averaging_iteration(average_j, sampling_inter, MC_algo_type_avg, MC_update_type_avg, 0);
             printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)get_time_if_parallel()-start_time_local);
             fflush(stdout);
@@ -21321,24 +21505,28 @@
         }
         printf(" (Uniform Field)\n");
         // printf("  -dh <field step>\n");
+        #ifdef RANDOM_FIELD
         printf("  -RF");
         for(j_S=0; j_S<dim_S; j_S++){
             printf(" <RF[%d]>",j_S+1);
         }
         printf(" (Random Field Strength)\n");
-        
+        #endif
+
         printf("  -J");
         for(j_L=0; j_L<dim_L; j_L++){
             printf(" <J[%d]>",j_L+1);
         }
         printf(" (Uniform Bond)\n");
         // printf("  -dJ <bond step>\n");
+        #ifdef RANDOM_BOND
         printf("  -RB");
         for(j_L=0; j_L<dim_L; j_L++){
             printf(" <RB[%d]>",j_L+1);
         }
         printf(" (Random Bond Strength)\n");
-        
+        #endif
+
         printf("  -fn <");
         while (func_len>0) {
             func_len--;
@@ -21363,12 +21551,52 @@
             }
 
         }
-        printf("> (Outputs to File)\n");
+        printf("> (Output Columns)\n");
         return 0;
+    }
+
+    void print_model_name()
+    {
+        char model[128];
+        char *pos_end=model;
+        
+        #if !defined(RANDOM_FIELD) && !defined(RANDOM_BOND)
+        pos_end += sprintf(pos_end, "| %dD Clean ", dim_L);
+        #endif
+        #if defined(RANDOM_FIELD) && !defined(RANDOM_BOND)
+        pos_end += sprintf(pos_end, "| %dD Random Field ", dim_L);
+        #endif
+        #if !defined(RANDOM_FIELD) && defined(RANDOM_BOND)
+        pos_end += sprintf(pos_end, "| %dD Random Bond ", dim_L);
+        #endif
+        #if defined(RANDOM_FIELD) && defined(RANDOM_BOND)
+        pos_end += sprintf(pos_end, "| %dD Random Field + Bond ", dim_L);
+        #endif
+
+        #if !(dim_S-1)
+        pos_end += sprintf(pos_end,"Ising Model |");
+        #else
+        #if !(dim_S-2)
+        pos_end += sprintf(pos_end,"XY Model |");
+        #else
+        #if !(dim_S-3)
+        pos_end += sprintf(pos_end,"Heisenberg Model |");
+        #else
+        pos_end += sprintf(pos_end,"O(%d) Model |", dim_S);
+        #endif
+        #endif
+        #endif
+
+        char *pos;
+        for(pos=model; pos<pos_end; pos++) { printf("_"); } printf("\n");
+        for(pos=model; pos<pos_end; pos++) { printf("%c", *pos); } printf("\n");
+        for(pos=model; pos<pos_end; pos++) { printf("^"); } printf("\n");
+        
     }
 
     int main(int argc, char *argv[])
     {
+        print_model_name();
         char *function_list[] = {
             "ZTNE_inc", 
             "ZTNE_dec", 
@@ -21593,23 +21821,7 @@
             }
         }
         
-        #ifdef C_IM
-            printf("Clean Ising Model.\n");
-        #else
-            #ifdef RFIM
-                printf("Random Field Ising Model.\n");
-            #else
-                #ifdef RBIM
-                    printf("Random Bond Ising Model.\n");
-                #else
-                    #ifdef RFBIM
-                        printf("Random Field+Bond Ising Model.\n");
-                    #else
-                        printf("Not Ising Model.\n");
-                    #endif
-                #endif
-            #endif
-        #endif
+        
         // return 0;
         // #ifdef enable_CUDA_CODE
         // cudaDeviceReset();
@@ -21643,41 +21855,41 @@
         #if defined (UPDATE_CHKR_NON_EQ) || defined (UPDATE_CHKR_EQ_MC)
             initialize_checkerboard_sites();
             // j_L = initialize_checkerboard_sites_2();
-            if (j_L==-1){return -1;}
+            // if (j_L==-1){return -1;}
             printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         #endif
         
         #ifdef RANDOM_BOND
         load_J_config("");
         // printf("J loaded. \n");
+        printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         #endif
         
         #ifdef RANDOM_FIELD
         // initialize_h_random_gaussian();
         load_h_config("");
         // printf("h loaded. \n");
-        #endif
         printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
+        #endif
 
         // mergeSort(h_random, 0, no_of_sites-1);
         // long int * h_sorted = sort_h_index(h_random, no_of_sites);
 
-        printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         long int i, j;
         
         int fi;
         for (fi=0; fi<no_of_functions; fi++)
         {
             if (run_this_function[fi] == 0){
-                zero_temp_IM_hysteresis_with_changing_field(1);
-            }
-            if (run_this_function[fi] == 1){
                 zero_temp_IM_hysteresis_with_changing_field(-1);
             }
-            if (run_this_function[fi] == 2){
+            else if (run_this_function[fi] == 1){
+                zero_temp_IM_hysteresis_with_changing_field(1);
+            }
+            else if (run_this_function[fi] == 2){
                 evo_diff_ini_config_temp(0);
             }
-            if (run_this_function[fi] == 3){
+            else if (run_this_function[fi] == 3){
                 evo_diff_ini_config_temp(2);
             }
         }
