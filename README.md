@@ -47,7 +47,7 @@ $ ./a.out
 
 ### Example run:
 ```
-$ ./a.out -L 64 64 64 -th_step 100 -th_algo 1 -av_step 100 -av_algo 2 -av_updt 0 -fn EQ_init_Randm -smpl 16 -Tmin 0.9 -Tmax 1 -dT 0.2 -out T -out m -out m_avg 
+$ ./a.out -L 64 64 64 -BC 1 1 0 -J 1 1 1 -h 0 -th_step 100 -th_algo 1 -av_step 100 -av_algo 2 -av_updt 1 -fn EQ_init_Randm -smpl 16 -Tmin 0.9 -Tmax 1 -dT 0.2 -out T -out m -out m_avg 
 ```
 
 ### Input through parameters file:
@@ -55,7 +55,7 @@ $ ./a.out -L 64 64 64 -th_step 100 -th_algo 1 -av_step 100 -av_algo 2 -av_updt 0
 $ ./a.out `cat param.txt`
 ```
 
-where, parameter file can look like this:
+with, example parameter file for equilibrium simulation of Clean Ising Model:
 ```
 $ cat param.txt
 -L 64 64 64 
@@ -76,10 +76,22 @@ $ cat param.txt
 -out T
 -out m
 -out m_avg
-
+```
+example parameter file for zero temperature non-equilibrium simulation of Random Field Ising Model:
+> (recompile with `#define RANDOM_FIELD 1`)
+```
+$ cat param2.txt
+-L 64 64 64 
+-BC 1 1 0
+-J 1 1 1 
+-RF 2.27
+-T 0
+-fn ZTNE_dec
+-out h
+-out m
 ```
 
-## Requires recompilations after edits in **che_arg.c** to run different models.
+## Requires recompilations after editing **che_arg.c** to run different models.
 * *dim_S* = Spin dimension(s) - O(n) model - Hard spins
 * *dim_L* = Lattice dimension(s) or the Spatial dimension(s)
 * *RANDOM_FIELD* = Gaussian/Bimodal Distribution
