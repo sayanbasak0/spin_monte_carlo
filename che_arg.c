@@ -241,6 +241,7 @@
     int MC_update_type = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
     int MC_update_type_thrm = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
     int MC_update_type_avg = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
+    char C_R_L[] = "CRL";
 
 //====================  MC-update iterations          ====================//
     long int thermal_i = 10*10; // 128*10*10*10; // thermalizing MCS 
@@ -7832,7 +7833,7 @@
             else
             {
                 // #ifndef SWENDSEN_WANG
-                random_Wolff_sweep(sweeps);
+                random_Wolff_sweep(2*sweeps);
                 // #endif
             }
         }
