@@ -7833,7 +7833,7 @@
             else
             {
                 // #ifndef SWENDSEN_WANG
-                random_Wolff_sweep(2*sweeps);
+                random_Wolff_sweep(sweeps);
                 // #endif
             }
         }
