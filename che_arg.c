@@ -238,10 +238,9 @@
     int MC_algo_type_thrm = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
     int MC_algo_type_avg = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
     char G_M_W[] = "GMW";
-    int MC_update_type = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
-    int MC_update_type_thrm = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
-    int MC_update_type_avg = 0; // 0 -> Checkerboard updates , 1 -> Random updates , 2 -> Linear updates
-    char C_R_L[] = "CRL";
+    int MC_update_type = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
+    int MC_update_type_thrm = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
+    int MC_update_type_avg = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
 
 //====================  MC-update iterations          ====================//
     long int thermal_i = 10*10; // 128*10*10*10; // thermalizing MCS 
