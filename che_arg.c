@@ -147,7 +147,7 @@
 
 //========================================================================//
 //====================  Lattice size                  ====================//
-    int lattice_size[dim_L] = { 128, 128, 128 }; // lattice_size[dim_L]
+    int lattice_size[dim_L] = { 128, 128, 128 }; // lattice_size[dim_L] = { 128 }{ 128, 128, 128 };
     long int no_of_sites;
     long int no_of_black_sites;
     long int no_of_white_sites;
@@ -203,7 +203,7 @@
 
 //====================  Near neighbor /Boundary Cond  ====================//
     long int *N_N_I; int N_N_I_reqd = 1;
-    double BC[dim_L] = { 1, 1, 0 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic(not implemented) -- Boundary Condition
+    double BC[dim_L] = { 1, 1, 0 }; // double BC[dim_L] = { 1 }; // 1 -> Periodic | 0 -> Open | -1 -> Anti-periodic(not implemented) -- Boundary Condition
 
 //====================  Spin variable                 ====================//
     double *spin; int spin_reqd = 1;
@@ -249,9 +249,9 @@
     long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-genrand64_int64(0)%sampling_inter
 
 //====================  NN-interaction (J)            ====================//
-    double J[dim_L] = { 1.0, 1.0, 1.0 }; 
+    double J[dim_L] = { 1.0, 1.0, 1.0 }; // double J[dim_L] = { 1.0 }; 
     int output_J = 0;
-    double sigma_J[dim_L] = { 0.0, 0.0, 0.0 };
+    double sigma_J[dim_L] = { 0.0, 0.0, 0.0 }; // double sigma_J[dim_L] = { 0.0 };
     int output_sigma_J = 0;
     double *J_random;
     #ifdef RANDOM_BOND
@@ -475,7 +475,12 @@
         #ifdef _OPENMP
         return omp_get_wtime();
         #else
-        return (double) clock()/CLOCKS_PER_SEC;
+        // return (double) time(NULL);
+        // return (double) clock()/CLOCKS_PER_SEC;
+        static double nanosec_to_sec = 1000000000.0;
+        struct timespec t_local ;
+        clock_gettime(CLOCK_MONOTONIC, &t_local);
+        return (double)(t_local.tv_sec)+(double)(t_local.tv_nsec)/nanosec_to_sec;
         #endif
     }
 
@@ -1419,7 +1424,7 @@
                     J_i_min = J_random[2*dim_L*i + 2*j_L];
                 }
                 J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
-                J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
+                // J_random[2*dim_L*N_N_I[2*dim_L*i + 2*j_L] + 2*j_L + 1] = J_random[2*dim_L*i + 2*j_L];
             }
             J_dev_avg[j_L] = J_dev_avg[j_L] / no_of_sites;
             J_dev_std[j_L] = sqrt(J_dev_std[j_L] / no_of_sites - J_dev_avg[j_L]);
@@ -3474,6 +3479,17 @@
                 fprintf(pFile_output, "x");
             }
             fprintf(pFile_output, " %d ", lattice_size[j_L]);
+        }
+        fprintf(pFile_output, ") ,\n");
+        
+        fprintf(pFile_output, "Boundary Condition(s) = (");
+        for (j_L=0; j_L<dim_L; j_L++)
+        {
+            if (j_L)
+            {
+                fprintf(pFile_output, ",");
+            }
+            fprintf(pFile_output, " %.1e ", BC[j_L]);
         }
         fprintf(pFile_output, ") ,\n");
 
@@ -6149,7 +6165,7 @@
             // printf("______ZZZZZZZZZZZZZZZZZZZZZ______%d", stat_init);
             // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
             // fflush(stdout);
-            double spin_config = 0;
+            int spin_config = 0;
             if ( stat_init==1 ) {
                 spin_config = ( -spin[xyzi] * spin[xyzi_nn] ) + 1;
                 spin_config /= 2;
@@ -6169,7 +6185,7 @@
                 spin_config += (-spin[xyzi_nn]+1)/2;
             }
             // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
+            return exp_Si_Sj[thread_num_if_parallel()][spin_config];
         }
 
         else if ( stat_init == 0 || init==1 )
@@ -6183,8 +6199,7 @@
             stat_init += (int)(h[0]!=0);
             int t_i,j_L;
             for (j_L=1; j_L<dim_L; j_L++) {
-                stat_init += 2*(int)(J[0]!=J[j_L]);
-                if ( J[0]!=J[j_L] ) { break; }
+                if ( J[0]!=J[j_L] ) { stat_init += 2*(int)(J[0]!=J[j_L]); break; }
             }
             // printf("%d",stat_init);
             if ( stat_init==1 ) { poss_config = 2; }
@@ -6203,7 +6218,7 @@
             }
             // printf("______YYYYYYYYYYYYYYYYYYYYY______%d", stat_init);
             // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-            if (stat_init=1) {
+            if (stat_init==1) {
                 double delta_E_IM;
                 int i;
                 for (i=0; i<poss_config; i++) {
@@ -6223,7 +6238,7 @@
                     }
                 }
             }
-            else if (stat_init=2) {
+            else if (stat_init==2) {
                 double delta_E_IM;
                 int i;
                 for (i=0; i<poss_config; i++) {
@@ -6244,7 +6259,7 @@
                     }
                 }
             }
-            else if (stat_init=3) {
+            else if (stat_init==3) {
                 double delta_E_IM;
                 int i;
                 for (i=0; i<poss_config; i++) {
@@ -6264,7 +6279,7 @@
                     }
                 }
             }
-            else { // if (stat_init=4) {
+            else { // if (stat_init==4) {
                 double delta_E_IM;
                 int i;
                 for (i=0; i<poss_config; i++) {
@@ -6570,7 +6585,6 @@
                             nucleate_from_site(xyzi_nn);
                         }
                     }
-
                 }
             }
         }
@@ -7067,58 +7081,124 @@
         if (init==0)
         {
             int j_L;
-            double spin_config = 0;
-            if ( stat_init==1 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+            int spin_config = 0;
+            switch (stat_init) {
+                case 1: { // if ( stat_init==1 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) ;
+                    }
+                    spin_config *= (-spin[xyzi]) ;
+                    spin_config /= 2 ;
+                    spin_config += dim_L ;
+                    break;
                 }
-                spin_config /= 2;
-            }
-            else if ( stat_init==2 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+                case 2: { // else if ( stat_init==2 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] );
+                    }
+                    spin_config *= (-spin[xyzi]);
+                    spin_config += (2*dim_L + (-spin[xyzi]+1)/2);
+                    break;
                 }
-                spin_config += (-spin[xyzi]+1)/2;
-            }
-            else if ( stat_init==3 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+                case 3: { // else if ( stat_init==3 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= 3; 
+                        spin_config += ( ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2 );
+                    }
+                    spin_config /= 2;
+                    break;
                 }
-                spin_config /= 2;
-            }
-            else {  // if ( stat_init==4 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--) {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+                case 4: { // else if ( stat_init==4 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= 3;
+                        spin_config += (( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2);
+                    }
+                    spin_config += ((-spin[xyzi]+1)/2);
+                    break;
                 }
-                spin_config += (-spin[xyzi]+1)/2;
+                case 5: { // else if ( stat_init==5 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) ;
+                    }
+                    spin_config *= (-spin[xyzi]*2) ;
+                    spin_config += (4*dim_L + (-spin[xyzi]+1)/2) ;
+                    break;
+                }
+                case 6: { // else if ( stat_init==6 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] );
+                    }
+                    spin_config *= (-spin[xyzi]);
+                    spin_config += (2*dim_L + (-spin[xyzi]+1)/2);
+                    break;
+                }
+                case 7: { // else if ( stat_init==7 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= (3+2*BC[j_L]);
+                        spin_config += (( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2);
+                    }
+                    spin_config /= 2;
+                    break;
+                }
+                case 8: { // else {  // if ( stat_init==8 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= (3+2*BC[j_L]);
+                        spin_config += (( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2);
+                    }
+                    spin_config += ((-spin[xyzi]+1)/2);
+                    break;
+                }
             }
             // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
+            return exp_Si_Sj[thread_num_if_parallel()][spin_config];
         }
 
         else if ( stat_init == 0 || init==1 )
         {
             // if (first_call==NULL) { first_call = (int *)malloc(num_of_threads*sizeof(int)); }
             // memset(first_call, 1, num_of_threads);
-
+            
             stat_init = 1;
             stat_init += (int)(h[0]!=0);
             int t_i,j_L;
             for (j_L=1; j_L<dim_L; j_L++) {
-                stat_init += 2*(int)(J[0]!=J[j_L]);
-                if ( J[0]!=J[j_L] ) { break; }
+                if ( J[0]!=J[j_L] ) { stat_init += 2; break; }
+            }
+            for (j_L=0; j_L<dim_L; j_L++) {
+                if ( BC[j_L]!=1 ) { stat_init += 4; break; }
             }
 
-            if ( stat_init==1 ) { poss_config = 2*dim_L+1; }
-            else if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
-            else if ( stat_init==3 ) {
-                poss_config = 1;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
+            switch (stat_init){
+                case 1: { // if ( stat_init==1 ) { 
+                    poss_config = 2*dim_L+1; 
+                }
+                case 2: { // else if ( stat_init==2 ) { 
+                    poss_config = (2*dim_L+1)*2; 
+                }
+                case 3: { // else if ( stat_init==3 ) {
+                    poss_config = 1;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
+                }
+                case 4: { // else if ( stat_init==4 ) {
+                    poss_config = 2;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
+                }
+                case 5: { // else if ( stat_init==5 ) { 
+                    poss_config = 4*dim_L+1; 
+                }
+                case 6: { // else if ( stat_init==6 ) { 
+                    poss_config = (4*dim_L+1)*2; 
+                }
+                case 7: { // else if ( stat_init==7 ) {
+                    poss_config = 1;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= (3+2*(1-BC[j_L])); }
+                }
+                case 8: { // else { // if ( stat_init==8 ) {
+                    poss_config = 2;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= (3+2*(1-BC[j_L])); }
+                }
             }
-            else { // if ( stat_init==4 ) {
-                poss_config = 2;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
-            }
+
             if ( exp_Si_Sj==NULL ) {
                 exp_Si_Sj = (double **)malloc(num_of_threads*sizeof(double *));
                 for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double)); }
@@ -7129,104 +7209,183 @@
                     exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double));
                 }
             }
-
-            // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",thread_num_if_parallel());
-            if (stat_init=1) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    delta_E_IM += (double)((p_i-dim_L)*2) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
-                        }
-                    }
-                }
-            }
-            else if (stat_init=2) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    
-                    delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
-                    delta_E_IM += (double)((p_i-(p_i%2))-2*dim_L) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
-                        }
-                    }
-                }
-            }
-            else if (stat_init=3) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    for (j_config=0; j_config<=dim_L; j_config++)
+            
+            // printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+            switch (stat_init){
+                case 1: { // if (stat_init==1) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
                     {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        p_i = p_i*2;
+                        delta_E_IM += (double)(p_i-dim_L*2) * (-2*J[0]);
+                        
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
-                        }
-                    }
+                    break;
                 }
-            }
-            else { // if (stat_init=4) {
-                double delta_E_IM;
-                int j_config, k_config, h_config;
-                int i;
-                for (i=0; i<poss_config; i++)
-                {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-                    delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
-                    p_i = (p_i-(p_i%2))/2;
-
-                    for (j_config=0; j_config<=dim_L; j_config++)
+                case 2: { // else if (stat_init==2) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
                     {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2));
+                        delta_E_IM += (double)(p_i-2*dim_L) * (-2*J[0]);
+                        
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
+                    break;
+                }
+                case 3: { // else if (stat_init==3) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
 
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (delta_E_IM <= 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                        else {
-                            if (T == 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = exp(-(delta_E_IM)/T); }
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%3))/3;
                         }
+
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
+                    break;
+                }
+                case 4: { // else if (stat_init==4) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
+                        delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2))/2;
+
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%3))/3;
+                        }
+
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 5: { // else if (stat_init==5) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        delta_E_IM += (double)(p_i-dim_L*2) * (-2*J[0]);
+                        
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 6: { // else if (stat_init==6) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2))/2;
+                        delta_E_IM += (double)(p_i-2*dim_L) * (-2*J[0]);
+                        
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 7: { // else if (stat_init==7) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
+
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            int bc_j = 3+2*BC[j_config];
+                            delta_E_IM += (double)(((p_i%bc_j)-2+BC[j_config]) * (1+BC[j_config])) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%bc_j))/bc_j;
+                        }
+
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 8: { // else { // if (stat_init==8) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
+                        delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2))/2;
+
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            int bc_j = 3+2*(1-BC[j_config]);
+                            delta_E_IM += (double)(((p_i%bc_j)-2+BC[j_config]) * (1+BC[j_config])) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%bc_j))/bc_j;
+                        }
+
+                        double prob=0.0;
+                        if (delta_E_IM <= 0) { prob = 1.0; }
+                        else if (T != 0) { prob = exp(-(delta_E_IM)/T); }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
                 }
             }
             // memset(first_call, 0, num_of_threads);
@@ -7439,37 +7598,76 @@
         if (init==0)
         {
             int j_L;
-            double spin_config = 0;
-            if ( stat_init==1 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+            int spin_config = 0;
+            switch (stat_init) {
+                case 1: { // if ( stat_init==1 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) ;
+                    }
+                    spin_config *= (-spin[xyzi]) ;
+                    spin_config /= 2 ;
+                    spin_config += dim_L ;
+                    break;
                 }
-                spin_config /= 2;
-            }
-            else if ( stat_init==2 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+                case 2: { // else if ( stat_init==2 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] );
+                    }
+                    spin_config *= (-spin[xyzi]);
+                    spin_config += (2*dim_L + (-spin[xyzi]+1)/2);
+                    break;
                 }
-                spin_config += (-spin[xyzi]+1)/2;
-            }
-            else if ( stat_init==3 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+                case 3: { // else if ( stat_init==3 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= 3; 
+                        spin_config += ( ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2 );
+                    }
+                    spin_config /= 2;
+                    break;
                 }
-                spin_config /= 2;
-            }
-            else { // if ( stat_init==4 ) {
-                for (j_L=dim_L-1; j_L>=0; j_L--)
-                {
-                    spin_config = 3*spin_config + ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2;
+                case 4: { // else if ( stat_init==4 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= 3;
+                        spin_config += (( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2);
+                    }
+                    spin_config += ((-spin[xyzi]+1)/2);
+                    break;
                 }
-                spin_config += (-spin[xyzi]+1)/2;
+                case 5: { // else if ( stat_init==5 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) ;
+                    }
+                    spin_config *= (-spin[xyzi]*2) ;
+                    spin_config += (4*dim_L + (-spin[xyzi]+1)/2) ;
+                    break;
+                }
+                case 6: { // else if ( stat_init==6 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config += ( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] );
+                    }
+                    spin_config *= (-spin[xyzi]);
+                    spin_config += (2*dim_L + (-spin[xyzi]+1)/2);
+                    break;
+                }
+                case 7: { // else if ( stat_init==7 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= (3+2*BC[j_L]);
+                        spin_config += (( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2);
+                    }
+                    spin_config /= 2;
+                    break;
+                }
+                case 8: { // else {  // if ( stat_init==8 ) {
+                    for (j_L=dim_L-1; j_L>=0; j_L--) {
+                        spin_config *= (3+2*BC[j_L]);
+                        spin_config += (( spin[N_N_I[2*dim_L*xyzi+2*j_L+0]] + spin[N_N_I[2*dim_L*xyzi+2*j_L+1]] ) * (-spin[xyzi]) + 2);
+                    }
+                    spin_config += ((-spin[xyzi]+1)/2);
+                    break;
+                }
             }
             // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][(int)spin_config];
+            return exp_Si_Sj[thread_num_if_parallel()][spin_config];
         }
 
         else if ( stat_init == 0 || init==1 )
@@ -7481,20 +7679,43 @@
             stat_init += (int)(h[0]!=0);
             int t_i,j_L;
             for (j_L=1; j_L<dim_L; j_L++) {
-                stat_init += 2*(int)(J[0]!=J[j_L]);
-                if ( J[0]!=J[j_L] ) { break; }
+                if ( J[0]!=J[j_L] ) { stat_init += 2; break; }
+            }
+            for (j_L=0; j_L<dim_L; j_L++) {
+                if ( BC[j_L]!=1 ) { stat_init += 4; break; }
             }
 
-            if ( stat_init==1 ) { poss_config = 2*dim_L+1; }
-            else if ( stat_init==2 ) { poss_config = (2*dim_L+1)*2; }
-            else if ( stat_init==3 ) {
-                poss_config = 1;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
+            switch (stat_init){
+                case 1: { // if ( stat_init==1 ) { 
+                    poss_config = 2*dim_L+1; 
+                }
+                case 2: { // else if ( stat_init==2 ) { 
+                    poss_config = (2*dim_L+1)*2; 
+                }
+                case 3: { // else if ( stat_init==3 ) {
+                    poss_config = 1;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
+                }
+                case 4: { // else if ( stat_init==4 ) {
+                    poss_config = 2;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
+                }
+                case 5: { // else if ( stat_init==5 ) { 
+                    poss_config = 4*dim_L+1; 
+                }
+                case 6: { // else if ( stat_init==6 ) { 
+                    poss_config = (4*dim_L+1)*2; 
+                }
+                case 7: { // else if ( stat_init==7 ) {
+                    poss_config = 1;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= (3+2*(1-BC[j_L])); }
+                }
+                case 8: { // else { // if ( stat_init==8 ) {
+                    poss_config = 2;
+                    for (j_L=0; j_L<dim_L; j_L++) { poss_config *= (3+2*(1-BC[j_L])); }
+                }
             }
-            else { // if ( stat_init==4 ) {
-                poss_config = 2;
-                for (j_L=0; j_L<dim_L; j_L++) { poss_config *= 3; }
-            }
+
             if ( exp_Si_Sj==NULL ) {
                 exp_Si_Sj = (double **)malloc(num_of_threads*sizeof(double *));
                 for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double)); }
@@ -7505,103 +7726,231 @@
                     exp_Si_Sj[t_i] = (double *)malloc(poss_config*sizeof(double));
                 }
             }
-        
+            
             // printf("\n______XXXXXXXXXXXXXXXXXXXXX______%d\n",thread_num_if_parallel());
-            if (stat_init=1) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-
-                    delta_E_IM += (double)((p_i-dim_L)*2) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
+            switch (stat_init){
+                case 1: { // if (stat_init==1) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        p_i = p_i*2;
+                        delta_E_IM += (double)(p_i-dim_L*2) * (-2*J[0]);
+                        
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
                         }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
+                    break;
                 }
-            }
-            else if (stat_init=2) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0; 
-                    
-                    delta_E_IM += (double)(p_i%2) * (-2*h[0]);
-                    delta_E_IM += (double)(p_i-(p_i%2)) * (-2*J[0]);
-                    
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
+                case 2: { // else if (stat_init==2) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2));
+                        delta_E_IM += (double)(p_i-2*dim_L) * (-2*J[0]);
+                        
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
                         }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
+                    break;
                 }
-            }
-            else if (stat_init=3) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
+                case 3: { // else if (stat_init==3) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
 
-                    for (j_config=0; j_config<=dim_L; j_config++) {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
-                    }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%3))/3;
                         }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
+
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
+                        }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
+                    break;
                 }
-            }
-            else { // if (stat_init=4) {
-                double delta_E_IM;
-                int j_config;
-                int i;
-                for (i=0; i<poss_config; i++) {
-                    int p_i=i;
-                    delta_E_IM = 0.0;
-                    delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
-                    p_i = (p_i-(p_i%2))/2;
+                case 4: { // else if (stat_init==4) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
+                        delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2))/2;
 
-                    for (j_config=0; j_config<=dim_L; j_config++) {
-                        delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
-                        p_i = (p_i-(p_i%3))/3;
-                    }
-
-                    int t_i;
-                    #pragma omp parallel for
-                    for (t_i=0; t_i<num_of_threads; t_i++){
-                        if (T == 0) {
-                            if (delta_E_IM > 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 0.0; }
-                            else if (delta_E_IM < 0) { exp_Si_Sj[thread_num_if_parallel()][i] = 1.0; }
-                            else { exp_Si_Sj[thread_num_if_parallel()][i] = 0.5; }
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            delta_E_IM += (double)(((p_i%3)-1) * 2) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%3))/3;
                         }
-                        else { exp_Si_Sj[thread_num_if_parallel()][i] = 1/(1+exp(delta_E_IM/T)); }
+
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
+                        }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
                     }
+                    break;
+                }
+                case 5: { // else if (stat_init==5) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        delta_E_IM += (double)(p_i-dim_L*2) * (-2*J[0]);
+                        
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
+                        }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 6: { // else if (stat_init==6) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0; 
+                        delta_E_IM += (double)((p_i%2)*2-1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2))/2;
+                        delta_E_IM += (double)(p_i-2*dim_L) * (-2*J[0]);
+                        
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
+                        }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 7: { // else if (stat_init==7) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
+
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            int bc_j = 3+2*BC[j_config];
+                            delta_E_IM += (double)(((p_i%bc_j)-2+BC[j_config]) * (1+BC[j_config])) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%bc_j))/bc_j;
+                        }
+
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
+                        }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
+                }
+                case 8: { // else { // if (stat_init==8) {
+                    printf("\n%d______XXXXXXXXXXXXXXXXXXXXX______%d\n", thread_num_if_parallel(), stat_init);
+                    double delta_E_IM;
+                    int j_config, k_config, h_config;
+                    int i;
+                    for (i=0; i<poss_config; i++)
+                    {
+                        int p_i=i;
+                        delta_E_IM = 0.0;
+                        delta_E_IM += (double)((p_i%2)*2 - 1) * (-2*h[0]);
+                        p_i = (p_i-(p_i%2))/2;
+
+                        for (j_config=0; j_config<dim_L; j_config++)
+                        {
+                            int bc_j = 3+2*(1-BC[j_config]);
+                            delta_E_IM += (double)(((p_i%bc_j)-2+BC[j_config]) * (1+BC[j_config])) * (-2*J[j_config]);
+                            p_i = (p_i-(p_i%bc_j))/bc_j;
+                        }
+
+                        double prob = 0.5;
+                        if (delta_E_IM > 0) { 
+                            if (T==0) { prob = 0.0; }
+                            else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
+                        }
+                        else if (delta_E_IM < 0) {
+                            if (T==0) { prob = 1.0; }
+                            else { double p=exp(delta_E_IM/T); prob = 1/(1+p); }
+                        }
+                        for (t_i=0; t_i<num_of_threads; t_i++) { exp_Si_Sj[t_i][i] = prob; }
+                    }
+                    break;
                 }
             }
             // memset(first_call, 0, num_of_threads);
@@ -8097,14 +8446,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                if (BC[j_L]==0){
-                    pos += sprintf(pos, "%do", lattice_size[j_L]);
-                }
-                else
-                {
-                    pos += sprintf(pos, "%dp", lattice_size[j_L]);
-                }
-                
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             // pos += sprintf(pos, "_(%lf,%lf)", Temp_min, Temp_max);
             pos += sprintf(pos, "_{");
@@ -8386,7 +8730,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_(%.3f,%.3f)", Temp_min, Temp_max);
             pos += sprintf(pos, "_{");
@@ -8709,7 +9055,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_(%.3f-%.3f)-[%.3f]", Temp_min, Temp_max, delta_T);
 
@@ -8925,7 +9273,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             pos += sprintf(pos, "_{");
@@ -9625,7 +9975,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             pos += sprintf(pos, "_{");
@@ -9932,7 +10284,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             pos += sprintf(pos, "_{");
@@ -10392,7 +10746,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             pos += sprintf(pos, "_{");
@@ -10753,7 +11109,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             pos += sprintf(pos, "_{");
@@ -11128,7 +11486,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             pos += sprintf(pos, "_{");
@@ -15103,7 +15463,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%lf", T);
             /* pos += sprintf(pos, "_{");
@@ -17146,7 +17508,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%lf", T);
             /* pos += sprintf(pos, "_{");
@@ -19128,7 +19492,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             /* pos += sprintf(pos, "_{");
@@ -19395,7 +19761,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             /* pos += sprintf(pos, "_{");
@@ -19664,7 +20032,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             /* pos += sprintf(pos, "_{");
@@ -19932,7 +20302,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             /* pos += sprintf(pos, "_{");
@@ -20207,9 +20579,11 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
-            pos += sprintf(pos, "_{%.3f,%.3f}_{", Temp_max, Temp_min);
+            pos += sprintf(pos, "_{%.3f,%.3f}", Temp_max, Temp_min);
             /* for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L)
@@ -20533,7 +20907,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             /* pos += sprintf(pos, "_{");
@@ -20805,7 +21181,9 @@
                 {
                     pos += sprintf(pos, "x");
                 }
-                pos += sprintf(pos, "%d", lattice_size[j_L]);
+                if (BC[j_L]==0) { pos += sprintf(pos, "%do", lattice_size[j_L]); }
+                else if (BC[j_L]==1) { pos += sprintf(pos, "%dp", lattice_size[j_L]); }
+                else { pos += sprintf(pos, "%d(%.3f)", lattice_size[j_L], BC[j_L]); }
             }
             pos += sprintf(pos, "_%.3f", T);
             /* pos += sprintf(pos, "_{");
@@ -21652,62 +22030,34 @@
             int i=1;
             while (i<argc){
                 if ( strcmp("-th_step", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
                     i++;
                     thermal_i = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-av_step", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                else if ( strcmp("-av_step", argv[i])==0 ){
                     i++;
                     average_j = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-av_smpl", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                else if ( strcmp("-av_smpl", argv[i])==0 ){
                     i++;
                     sampling_inter = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-av_algo", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                else if ( strcmp("-av_algo", argv[i])==0 ){
                     i++;
                     MC_algo_type_avg = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-th_algo", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                else if ( strcmp("-th_algo", argv[i])==0 ){
                     i++;
                     MC_algo_type_thrm = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-av_updt", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                else if ( strcmp("-av_updt", argv[i])==0 ){
                     i++;
                     MC_update_type_avg = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-th_updt", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
+                else if ( strcmp("-th_updt", argv[i])==0 ){
                     i++;
                     MC_update_type_thrm = atoi(argv[i]);
-                    // printf("%s\n", argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-out", argv[i])==0 ){
+                else if ( strcmp("-out", argv[i])==0 ){
                     i++;
                     int j=0;
                     while ( strcmp(output_list[j], argv[i])!=0 ){
@@ -21717,93 +22067,67 @@
                             return 0;
                         }
                     }
-                    i++;
                     set_output(j);
                 }
-                if (i>=argc) break;
-                if ( strcmp("-L", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
-                    i++;
+                else if ( strcmp("-L", argv[i])==0 ){
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
+                        i++;
                         lattice_size[j_L] = atoi(argv[i]);
-                        // printf("%s\n", argv[i]);
-                        i++;
                     }
                 }
-                if (i>=argc) break;
-                if ( strcmp("-BC", argv[i])==0 ){
-                    // printf("%s\n", argv[i]);
-                    i++;
+                else if ( strcmp("-BC", argv[i])==0 ){
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
-                        BC[j_L] = (atoi(argv[i])==0 ? 0 : 1);
-                        // printf("%s\n", argv[i]);
                         i++;
+                        BC[j_L] = (atoi(argv[i])==0 ? 0 : 1);
                     }
                 }
-                if (i>=argc) break;
-                if ( strcmp("-T", argv[i])==0 ){
+                else if ( strcmp("-T", argv[i])==0 ){
                     i++;
                     T = atof(argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-Tmax", argv[i])==0 ){
+                else if ( strcmp("-Tmax", argv[i])==0 ){
                     i++;
                     Temp_max = atof(argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-Tmin", argv[i])==0 ){
+                else if ( strcmp("-Tmin", argv[i])==0 ){
                     i++;
                     Temp_min = atof(argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-dT", argv[i])==0 ){
+                else if ( strcmp("-dT", argv[i])==0 ){
                     i++;
                     delta_T = atof(argv[i]);
-                    i++;
                 }
-                if (i>=argc) break;
-                if ( strcmp("-J", argv[i])==0 ){
-                    i++;
+                else if ( strcmp("-J", argv[i])==0 ){
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
+                        i++;
                         J[j_L] = atof(argv[i]);
-                        i++;
                     }
                 }
-                if (i>=argc) break;
-                if ( strcmp("-h", argv[i])==0 ){
-                    i++;
+                else if ( strcmp("-h", argv[i])==0 ){
                     int j_S;
                     for(j_S=0; j_S<dim_S; j_S++){
-                        h[j_S] = atof(argv[i]);
                         i++;
+                        h[j_S] = atof(argv[i]);
                     }
                 }
-                if (i>=argc) break;
-                if ( strcmp("-RB", argv[i])==0 ){
-                    i++;
+                else if ( strcmp("-RB", argv[i])==0 ){
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
-                        sigma_J[j_L] = atof(argv[i]);
                         i++;
+                        sigma_J[j_L] = atof(argv[i]);
                     }
                 }
-                if (i>=argc) break;
-                if ( strcmp("-RF", argv[i])==0 ){
-                    i++;
+                else if ( strcmp("-RF", argv[i])==0 ){
                     int j_S;
                     for(j_S=0; j_S<dim_S; j_S++){
-                        sigma_h[j_S] = atof(argv[i]);
                         i++;
+                        sigma_h[j_S] = atof(argv[i]);
                     }
                 }
-                if (i>=argc) break;
-                if ( strcmp("-fn", argv[i])==0 ){
+                else if ( strcmp("-fn", argv[i])==0 ){
                     i++;
                     int j=0;
                     while ( strcmp(function_list[j], argv[i])!=0 ){
@@ -21813,11 +22137,11 @@
                             return 0;
                         }
                     }
-                    i++;
                     no_of_functions+=1;
                     run_this_function = realloc(run_this_function,no_of_functions*sizeof(int));
                     run_this_function[no_of_functions-1] = j;
                 }
+                i++;
             }
         }
         
