@@ -96,7 +96,7 @@
 #endif
 #define UPDATE_WOLFF_BFS 1
 #ifdef UPDATE_WOLFF_BFS
-#define PARALLEL_WOLFF 1 // not optimized
+// #define PARALLEL_WOLFF 1 // not optimized
 #else 
 #define UPDATE_WOLFF_DFS 1
 #endif
@@ -6193,7 +6193,8 @@
                 }
             }
             // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[thread_num_if_parallel()][spin_config];
+            return exp_Si_Sj[0][spin_config];
+            // return exp_Si_Sj[thread_num_if_parallel()][spin_config];
         }
 
         else if ( stat_init == 0 || init==1 )
@@ -6674,12 +6675,15 @@
         return 0;
     }
     #else
-    #ifdef PARALLEL_WOLFF
+    // #ifdef PARALLEL_WOLFF
     int random_Wolff_sweep(long int iter)
     {
+        #ifndef PARALLEL_WOLFF
+        omp_set_num_threads(1);
+        #endif
+
         long int xyzi, i;
         int j_S;
-
         for (i=0; i<iter; i++)
         {
             printf(": Step = %ld ... ", i);
@@ -6827,11 +6831,15 @@
                 revert_cluster();
             }
         }
-
+        
+        #ifndef PARALLEL_WOLFF
+        omp_set_num_threads(num_of_threads);
+        #endif
+        
         return 0;
     }
-    #else
-    int random_Wolff_sweep(long int iter)
+    // #else
+    int random_Wolff_sweep_serial_old(long int iter)
     {
         long int xyzi, i;
         int j_S;
@@ -6890,7 +6898,7 @@
 
         return 0;
     }
-    #endif
+    // #endif
     #endif
 
 //====================  Swendsen-Wang                 ====================//
@@ -6926,9 +6934,13 @@
 
     int full_Wolff_sweep(long int iter)
     {
+        #ifndef PARALLEL_WOLFF
+        omp_set_num_threads(1);
+        #endif
+
         long int xyzi, i;
         int j_S;
-
+        
         for (i=0; i<iter; i++)
         {
             printf(": Step = %ld ... ", i);
@@ -7093,6 +7105,9 @@
             //     }
             // }
         }
+        #ifndef PARALLEL_WOLFF
+        omp_set_num_threads(num_of_threads);
+        #endif
         return 0;
     }
 
