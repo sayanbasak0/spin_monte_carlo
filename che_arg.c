@@ -6193,8 +6193,8 @@
                 }
             }
             // spin_config *= (-spin[xyzi]);
-            return exp_Si_Sj[0][spin_config];
-            // return exp_Si_Sj[thread_num_if_parallel()][spin_config];
+            // return exp_Si_Sj[0][spin_config];
+            return exp_Si_Sj[thread_num_if_parallel()][spin_config];
         }
 
         else if ( stat_init == 0 || init==1 )
@@ -6680,6 +6680,11 @@
     {
         #ifndef PARALLEL_WOLFF
         omp_set_num_threads(1);
+        // printf("                                                                                            S");
+        // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+        #else
+        // printf("                                                                                            P");
+        // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         #endif
 
         long int xyzi, i;
@@ -6936,6 +6941,11 @@
     {
         #ifndef PARALLEL_WOLFF
         omp_set_num_threads(1);
+        // printf("                                                                                            S");
+        // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
+        #else
+        // printf("                                                                                            P");
+        // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         #endif
 
         long int xyzi, i;
