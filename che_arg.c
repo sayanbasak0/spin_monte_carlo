@@ -6193,7 +6193,6 @@
                 }
             }
             // spin_config *= (-spin[xyzi]);
-            // return exp_Si_Sj[0][spin_config];
             return exp_Si_Sj[thread_num_if_parallel()][spin_config];
         }
 
@@ -6576,7 +6575,7 @@
 
         
         int j_L, k_L;
-
+        long int i_2=1;
         for (j_L=0; j_L<dim_L; j_L++)
         {
             for (k_L=0; k_L<2; k_L++)
@@ -6604,7 +6603,7 @@
                         double r_bond = genrand64_real1(thread_num_if_parallel());
                         if (r_bond < p_bond)
                         {
-                            nucleate_from_site(xyzi_nn);
+                            i_2 += nucleate_from_site(xyzi_nn);
                         }
                     }
 
@@ -6612,7 +6611,7 @@
             }
         }
 
-        return 0;
+        return i_2;
     }
     #endif
     #endif
@@ -6625,10 +6624,32 @@
         {
             if (cluster[i] != 0)
             {
+                #ifdef C_IM
+                spin[i] = -spin[i]; 
+                #else
                 double spin_reflected[dim_S];
                 transform_spin(i, spin_reflected);
                 update_spin_single(i, spin_reflected);
+                #endif
             }
+        }
+        
+        return 0;
+    }
+    
+    int revert_nucleated_cluster(long int index_start, long int index_end)
+    {
+        long int i;
+        #pragma omp parallel for
+        for (i=index_start; i<index_end; i++)
+        {
+            #ifdef C_IM
+            spin[nucleation_sites[i]] = -spin[nucleation_sites[i]]; 
+            #else
+            double spin_reflected[dim_S];
+            transform_spin(nucleation_sites[i], spin_reflected);
+            update_spin_single(nucleation_sites[i], spin_reflected);
+            #endif
         }
         
         return 0;
@@ -6689,6 +6710,7 @@
 
         long int xyzi, i;
         int j_S;
+
         for (i=0; i<iter; i++)
         {
             printf(": Step = %ld ... ", i);
@@ -6726,12 +6748,15 @@
             long int i_1 = no_of_sites-remaining_sites;
             long int i_2 = no_of_sites-remaining_sites+no_of_nuclei;
             long int i_3 = no_of_sites-remaining_sites+no_of_nuclei;
-            long int ii;
-            int threads_to_launch = (num_of_threads>2*dim_L?2*dim_L:num_of_threads);
+            long int ii=0;
+            
             while (i_1!=i_2)
             {
                 int j_L,k_L;
-                #pragma omp parallel for private(j_L,k_L) collapse(3) num_threads(threads_to_launch)//schedule(static,i_2-i_1) // if(i_2-i_1>1) // private(j_L,k_L) 
+                
+                // int threads_to_launch = (num_of_threads-num_of_threads%(2*dim_L)>((2*dim_L)*(i_2-i_1))?(2*dim_L)*(i_2-i_1):num_of_threads-num_of_threads%(2*dim_L));
+                // int threads_to_launch = (num_of_threads>(2*dim_L)?(2*dim_L):num_of_threads);
+                #pragma omp parallel for private(j_L,k_L) schedule(static, i_2-i_1/* 2*dim_L */) //collapse(3) //num_threads(2*dim_L) // schedule(static:wq,1) //schedule(static,i_2-i_1) // if(i_2-i_1>1) // private(j_L,k_L) 
                 for (ii=i_1; ii<i_2; ii++)
                 {
                     for (j_L=0; j_L<dim_L; j_L++)
@@ -6739,108 +6764,76 @@
                         for (k_L=0; k_L<2; k_L++)
                         {
                             long int next_site = N_N_I[2*dim_L*nucleation_sites[ii] + 2*j_L + k_L];
-                            if (next_site<no_of_sites)
-                            {
-                                if (cluster[next_site] == 0)
-                                {
-                                    double p_bond = 0;
-                                    #ifdef C_IM
-                                    // printf("\rhere.");
-                                    p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L*2, 0);
-                                    #else
-                                    double spin_reflected[dim_S];
-                                    transform_spin(next_site, spin_reflected);
-                                    double delta_E_bond = 0;
-                                    delta_E_bond -= E_bond_old(nucleation_sites[ii], j_L, k_L, next_site);
-                                    delta_E_bond += E_bond_new(nucleation_sites[ii], j_L, k_L, spin_reflected);
-                                    if (delta_E_bond < 0)
-                                    {
-                                        if (T > 0)
-                                        {
-                                            p_bond = 1 - exp(delta_E_bond/T);
-                                        }
-                                        else
-                                        {
-                                            p_bond = 1;
-                                        }
-                                    #endif
-                                        // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
-                                        double r_bond = genrand64_real1(thread_num_if_parallel());
-                                        if (r_bond < p_bond)
-                                        {
-                                            int update_this_thread = 0;
-                                            // #pragma omp flush(cluster)
-                                            #pragma omp critical
-                                            if ( cluster[next_site] != 1 )
-                                            {
-                                                update_this_thread = 1+i_2;
-                                                i_2++;
-                                                // update_this_thread = 1+i_3;
-                                                // i_3++;
-                                                cluster[next_site] = 1;
-                                            }
-                                            
-                                            if (update_this_thread)
-                                            {
-                                                // #pragma omp flush(cluster) 
-                                                #ifdef C_IM
-                                                spin[next_site] = -spin[next_site];
-                                                #else
-                                                update_spin_single(next_site, spin_reflected);
-                                                #endif
 
-                                                nucleation_sites[update_this_thread-1] = next_site;
-                                                // i_3++;
-                                            }
-                                        }
-                                    #ifdef C_IM
-                                    #else
+                            if (cluster[next_site] == 0)
+                            {
+                                double p_bond = 0;
+                                #ifdef C_IM
+                                // printf("\rhere.");
+                                p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L*2, 0);
+                                #else
+                                double spin_reflected[dim_S];
+                                double delta_E_bond = 0;
+                                transform_spin(next_site, spin_reflected);
+                                delta_E_bond -= E_bond_old(nucleation_sites[ii], j_L, k_L, next_site);
+                                delta_E_bond += E_bond_new(nucleation_sites[ii], j_L, k_L, spin_reflected);
+                                // delta_E_bond = -delta_E_bond; // if spin is not flipped
+                                if (delta_E_bond < 0)
+                                {
+                                    if (T > 0)
+                                    {
+                                        p_bond = 1 - exp(delta_E_bond/T);
                                     }
-                                    #endif
+                                    else
+                                    {
+                                        p_bond = 1;
+                                    }
+                                #endif
+                                    // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                                    double r_bond = genrand64_real1(thread_num_if_parallel());
+                                    if (r_bond < p_bond)
+                                    {
+                                        
+                                        long int update_this_thread = 0;
+                                        #pragma omp atomic capture
+                                        { update_this_thread = cluster[next_site]; cluster[next_site] = 1; }
+                                        if (update_this_thread==0) {
+                                            #pragma omp atomic capture
+                                            { update_this_thread = i_3; i_3 += 1; }
+                                            #ifdef C_IM
+                                            spin[next_site] = -spin[next_site];
+                                            #else
+                                            update_spin_single(next_site, spin_reflected);
+                                            #endif
+
+                                            nucleation_sites[update_this_thread] = next_site;
+                                        }
+                                    }
+                                #ifdef C_IM
+                                #else
                                 }
+                                #endif
                             }
                         }
                     }
                 }
-
+                
                 i_1 = i_2;
                 i_2 = i_3;
             }
             
             // printf("%ld \n",i_3);
             
-            double p_cluster;
-            // if (r_cluster<exp(delta_E_cluster/T))
-            // {
-            //     revert_cluster();
-            // }
-            if (delta_E_cluster <= 0)
-            {
-                p_cluster = 1.0;
-            }
-            else 
-            {
-                if (T == 0)
-                {
-                    p_cluster = 0.0;
-                }
-                else 
-                {
-                    p_cluster = exp(-delta_E_cluster/T);
-                }
-            }
-            // double r_cluster = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
-            double r_cluster = genrand64_real1(thread_num_if_parallel());
-            if(r_cluster >= p_cluster)
-            {
-                revert_cluster();
-            }
+            // double p_cluster = 0.0;
+            // // delta_E_cluster = (double)(i_3)*2*h[0]*(spin[nucleation_sites[0]]);
+            // if (delta_E_cluster <= 0) { p_cluster = 1.0; }
+            // else if (T != 0) { p_cluster = exp(-delta_E_cluster/T); }
+            // double r_cluster = genrand64_real1(thread_num_if_parallel());
+            // if(r_cluster > p_cluster) { revert_nucleated_cluster(0,i_3); }
         }
-        
         #ifndef PARALLEL_WOLFF
         omp_set_num_threads(num_of_threads);
         #endif
-        
         return 0;
     }
     // #else
@@ -6870,33 +6863,14 @@
                 // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()]) % no_of_sites;
                 xyzi = genrand64_int64(thread_num_if_parallel()) % no_of_sites;
 
-                nucleate_from_site(xyzi);
-                double p_cluster;
-                // if (r_cluster<exp(delta_E_cluster/T))
-                // {
-                //     revert_cluster();
-                // }
-                if (delta_E_cluster <= 0)
-                {
-                    p_cluster = 1.0;
-                }
-                else 
-                {
-                    if (T == 0)
-                    {
-                        p_cluster = 0.0;
-                    }
-                    else 
-                    {
-                        p_cluster = exp(-delta_E_cluster/T);
-                    }
-                }
+                int i_2 = nucleate_from_site(xyzi);
+                double p_cluster = 0.0;
+                delta_E_cluster = (double)(i_2)*2*h[0]*(spin[nucleation_sites[0]]);
+                if (delta_E_cluster <= 0) { p_cluster = 1.0; }
+                else if (T > 0) { p_cluster = exp(-delta_E_cluster/T); }
                 // double r_cluster = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()])/ (double) RAND_MAX;
                 double r_cluster = genrand64_real1(thread_num_if_parallel());
-                if(r_cluster >= p_cluster)
-                {
-                    revert_cluster();
-                }
+                if(r_cluster > p_cluster) { revert_cluster(); }
             // }
             // while (cluster[xyzi] != 1);
         }
@@ -6944,13 +6918,13 @@
         // printf("                                                                                            S");
         // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         #else
+        // omp_set_num_threads(2*dim_L);
         // printf("                                                                                            P");
         // printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
         #endif
-
         long int xyzi, i;
         int j_S;
-        
+
         for (i=0; i<iter; i++)
         {
             printf(": Step = %ld ... ", i);
@@ -6988,15 +6962,7 @@
                 {
                     next_to_visit++;
                 }
-                // if (next_to_visit>=no_of_sites)
-                // {
-                //     printf("%ld,%ld,%ld,%ld,%ld,%ld                               \n", next_to_visit,i_0,i_1,i_2,i_3,no_of_clusters);
-                //     break;
-                // }
-                // i_0 = no_of_sites-remaining_sites;
-                // i_1 = no_of_sites-remaining_sites;
-                // i_2 = no_of_sites-remaining_sites+no_of_nuclei;
-                // i_3 = no_of_sites-remaining_sites+no_of_nuclei;
+                
 
                 nucleation_sites[i_1] = next_to_visit;
                 cluster[next_to_visit] = no_of_clusters;
@@ -7007,11 +6973,11 @@
                 transform_spin(next_to_visit, spin_reflected_0);
                 update_spin_single(next_to_visit, spin_reflected_0);
                 #endif
-
+                int rc = (genrand64_int64(thread_num_if_parallel()) % 2);
                 while (i_1!=i_2)
                 {
                     int j_L,k_L;
-                    #pragma omp parallel for private(j_L,k_L) collapse(3) //schedule(static,i_2-i_1) // if(i_2-i_1>1) 
+                    #pragma omp parallel for private(j_L,k_L) schedule(static, i_2-i_1/* 2*dim_L */) //collapse(3) //num_threads(2*dim_L) // schedule(static:wq,1) //schedule(static,i_2-i_1) // if(i_2-i_1>1) // private(j_L,k_L) 
                     for (ii=i_1; ii<i_2; ii++)
                     {
                         for (j_L=0; j_L<dim_L; j_L++)
@@ -7019,63 +6985,70 @@
                             for (k_L=0; k_L<2; k_L++)
                             {
                                 long int next_site = N_N_I[2*dim_L*nucleation_sites[ii] + 2*j_L + k_L];
-                                if (next_site<no_of_sites)
+                                if (cluster[next_site] == 0)
                                 {
-                                    if (cluster[next_site] == 0)
-                                    {
-                                        double p_bond = 0;
-                                        #ifdef C_IM
-                                        // printf("\rhere.");
-                                        p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L, 0);
-                                        #else
-                                        double spin_reflected[dim_S];
-                                        transform_spin(next_site, spin_reflected);
-                                        double delta_E_bond = 0;
-                                        delta_E_bond -= E_bond_old(nucleation_sites[ii], j_L, k_L, next_site);
-                                        delta_E_bond += E_bond_new(nucleation_sites[ii], j_L, k_L, spin_reflected);
-                                        if (delta_E_bond < 0)
-                                        {
-                                            if (T > 0)
-                                            {
-                                                p_bond = 1 - exp(delta_E_bond/T);
-                                            }
-                                            else
-                                            {
-                                                p_bond = 1;
-                                            }
-                                        #endif
-                                            // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
-                                            double r_bond = genrand64_real1(thread_num_if_parallel());
-                                            if (r_bond < p_bond)
-                                            {
-                                                int update_this_thread = 0;
-                                                // #pragma omp flush(cluster)
-                                                #pragma omp critical
-                                                if ( cluster[next_site] != no_of_clusters )
-                                                {
-                                                    update_this_thread = 1+i_3;
-                                                    i_3++;
-                                                    cluster[next_site] = no_of_clusters;
-                                                }
-                                                
-                                                if (update_this_thread)
-                                                {
-                                                    // #pragma omp flush(cluster)
-                                                    #ifdef C_IM
-                                                    spin[next_site] = -spin[next_site];
-                                                    #else
-                                                    update_spin_single(next_site, spin_reflected);
-                                                    #endif
+                                    double p_bond = 0;
+                                    #ifdef C_IM
+                                    // printf("\rhere.");
 
-                                                    nucleation_sites[update_this_thread-1] = next_site;
-                                                    // i_3++;
-                                                }
-                                            }
-                                        #ifdef C_IM
-                                        #else
-                                        }
-                                        #endif
+                                    // #ifdef PARALLEL_WOLFF
+                                    // p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L, 0);
+                                    // if (!rc) { p_bond = 1-p_bond; }
+                                    // #else
+                                    if (rc) {
+                                    p_bond = activation_probability_Wolff(nucleation_sites[ii], next_site, j_L, 0);
                                     }
+                                    else {
+                                    p_bond = 1-activation_probability_Wolff(nucleation_sites[ii], next_site, j_L, 0);
+                                    }
+                                    // #endif
+
+                                    #else
+                                    double spin_reflected[dim_S];
+                                    double delta_E_bond = 0;
+                                    transform_spin(next_site, spin_reflected);
+                                    delta_E_bond -= E_bond_old(nucleation_sites[ii], j_L, k_L, next_site);
+                                    delta_E_bond += E_bond_new(nucleation_sites[ii], j_L, k_L, spin_reflected);
+                                    if (!rc) { 
+                                    delta_E_bond = -delta_E_bond; 
+                                    }
+                                    
+                                    if (delta_E_bond < 0)
+                                    {
+                                        if (T > 0)
+                                        {
+                                            p_bond = 1 - exp(delta_E_bond/T);
+                                        }
+                                        else
+                                        {
+                                            p_bond = 1;
+                                        }
+                                    #endif
+                                        // double r_bond = (double) rand_r(&random_seed[cache_size*thread_num_if_parallel()]) / (double) RAND_MAX;
+                                        double r_bond = genrand64_real1(thread_num_if_parallel());
+                                        if (r_bond < p_bond)
+                                        {
+                                            long int update_this_thread = 0;
+                                            #pragma omp atomic capture
+                                            { update_this_thread = cluster[next_site]; cluster[next_site] = no_of_clusters; }
+                                            if (update_this_thread==0) {
+                                                #pragma omp atomic capture
+                                                { update_this_thread = i_3; i_3 += 1; }
+                                                if (rc) {
+                                                #ifdef C_IM
+                                                spin[next_site] = -spin[next_site]; 
+                                                #else
+                                                update_spin_single(next_site, spin_reflected); 
+                                                #endif
+                                                }
+
+                                                nucleation_sites[update_this_thread] = next_site;
+                                            }
+                                        }
+                                    #ifdef C_IM
+                                    #else
+                                    }
+                                    #endif
                                 }
                             }
                         }
@@ -7084,39 +7057,30 @@
                     i_2 = i_3;
                 }
                 
-                if (genrand64_int64(thread_num_if_parallel()) % 2)
-                {
-                    #pragma omp parallel for
-                    for (ii=i_0; ii<i_3; ii++)
-                    {
-                        #ifdef C_IM
-                        spin[nucleation_sites[ii]] = -spin[nucleation_sites[ii]]; 
-                        #else
-                        double spin_reflected[dim_S];
-                        transform_spin(ii, spin_reflected);
-                        update_spin_single(ii, spin_reflected);
-                        #endif
-                    }
-                }
+                // double p_cluster = 0.5;
+                // delta_E_cluster = (double)(i_3-i_0)*2*h[0]*(spin[nucleation_sites[0]]);
+                // if (delta_E_cluster > 0) { 
+                //     if (T==0) { p_cluster = 0.0; }
+                //     else { double p=exp(-delta_E_cluster/T); p_cluster = p/(1+p); }
+                // }
+                // else if (delta_E_cluster < 0) {
+                //     if (T==0) { p_cluster = 1.0; }
+                //     else { double p=exp(-delta_E_cluster/T); p_cluster = 1/(1+p); }
+                // }
+                // double r_cluster = genrand64_real1(thread_num_if_parallel());
+                // if (r_cluster > p_cluster) { revert_nucleated_cluster(i_0,i_3); }
                 i_0=i_1;
                 remaining_sites = no_of_sites-i_3;
                 i_2++;
                 i_3++;
             }
-
             // printf("%ld \n",no_of_clusters);
-
-            // for (ii=i_0; ii<i_3; ii++)
-            // {
-            //     if (cluster[ii]==0)
-            //     {
-            //         printf("%d",cluster[ii]);
-            //         return 0;
-            //     }
-            // }
         }
+
         #ifndef PARALLEL_WOLFF
         omp_set_num_threads(num_of_threads);
+        #else
+        // omp_set_num_threads(num_of_threads);
         #endif
         return 0;
     }
@@ -7790,7 +7754,7 @@
                         p_i = p_i*2;
                         delta_E_IM += (double)(p_i-dim_L*2) * (-2*J[0]);
                         
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7816,7 +7780,7 @@
                         p_i = (p_i-(p_i%2));
                         delta_E_IM += (double)(p_i-2*dim_L) * (-2*J[0]);
                         
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7845,7 +7809,7 @@
                             p_i = (p_i-(p_i%3))/3;
                         }
 
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7876,7 +7840,7 @@
                             p_i = (p_i-(p_i%3))/3;
                         }
 
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7900,7 +7864,7 @@
                         delta_E_IM = 0.0; 
                         delta_E_IM += (double)(p_i-dim_L*2) * (-2*J[0]);
                         
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7926,7 +7890,7 @@
                         p_i = (p_i-(p_i%2))/2;
                         delta_E_IM += (double)(p_i-2*dim_L) * (-2*J[0]);
                         
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7956,7 +7920,7 @@
                             p_i = (p_i-(p_i%bc_j))/bc_j;
                         }
 
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
@@ -7988,7 +7952,7 @@
                             p_i = (p_i-(p_i%bc_j))/bc_j;
                         }
 
-                        double prob=0.0;
+                        double prob=0.5;
                         if (delta_E_IM > 0) { 
                             if (T==0) { prob = 0.0; }
                             else { double p=exp(-delta_E_IM/T); prob = p/(1+p); }
