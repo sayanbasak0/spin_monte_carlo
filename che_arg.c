@@ -246,7 +246,8 @@
 //====================  MC-update iterations          ====================//
     long int thermal_i = 10*10; // 128*10*10*10; // thermalizing MCS 
     long int average_j = 10*10; // 128*10*10; // no. of measurements 
-    long int sampling_inter = 16;  // random no. (between 1 & sampling_inter) of MCS before taking each measurement // *=sampling_inter-genrand64_int64(0)%sampling_inter
+    long int sampling_inter = 16;  // random no. (between 1 & sampling_inter)/constant no. of MCS before taking each measurement // *=sampling_inter-genrand64_int64(0)%sampling_inter
+    int interval_type = 0;  // random if 0 / constant otherwise
 
 //====================  NN-interaction (J)            ====================//
     double J[dim_L] = { 1.0, 1.0, 1.0 }; // double J[dim_L] = { 1.0 }; 
@@ -6713,16 +6714,16 @@
 
         for (i=0; i<iter; i++)
         {
-            printf(": Step = %ld ... ", i);
-            printf("\b\b\b\b\b\b\b\b\b\b"       );
-            printf(           "\b\b\b\b\b");
-            long int i_iter = i/10;
-            while (i_iter>0)
-            {
-                printf("\b");
-                i_iter = i_iter/10;
-            }
-            fflush(stdout);
+            // printf(": Step = %ld ... ", i);
+            // printf("\b\b\b\b\b\b\b\b\b\b"       );
+            // printf(           "\b\b\b\b\b");
+            // long int i_iter = i/10;
+            // while (i_iter>0)
+            // {
+            //     printf("\b");
+            //     i_iter = i_iter/10;
+            // }
+            // fflush(stdout);
             set_cluster_s(0);
             
             // xyzi = rand_r(&random_seed[cache_size*thread_num_if_parallel()]) % no_of_sites;
@@ -6844,16 +6845,16 @@
 
         for (i=0; i<iter; i++)
         {
-            printf(": Step = %ld ... ", i);
-            printf("\b\b\b\b\b\b\b\b\b\b"       );
-            printf(           "\b\b\b\b\b");
-            long int i_iter = i/10;
-            while (i_iter>0)
-            {
-                printf("\b");
-                i_iter = i_iter/10;
-            }
-            fflush(stdout);
+            // printf(": Step = %ld ... ", i);
+            // printf("\b\b\b\b\b\b\b\b\b\b"       );
+            // printf(           "\b\b\b\b\b");
+            // long int i_iter = i/10;
+            // while (i_iter>0)
+            // {
+            //     printf("\b");
+            //     i_iter = i_iter/10;
+            // }
+            // fflush(stdout);
             set_cluster_s(0);
             
             // do
@@ -6927,16 +6928,16 @@
 
         for (i=0; i<iter; i++)
         {
-            printf(": Step = %ld ... ", i);
-            printf("\b\b\b\b\b\b\b\b\b\b"       );
-            printf(           "\b\b\b\b\b");
-            long int i_iter = i/10;
-            while (i_iter>0)
-            {
-                printf("\b");
-                i_iter = i_iter/10;
-            }
-            fflush(stdout);
+            // printf(": Step = %ld ... ", i);
+            // printf("\b\b\b\b\b\b\b\b\b\b"       );
+            // printf(           "\b\b\b\b\b");
+            // long int i_iter = i/10;
+            // while (i_iter>0)
+            // {
+            //     printf("\b");
+            //     i_iter = i_iter/10;
+            // }
+            // fflush(stdout);
             set_cluster_s(0);
             set_nucleation_site();
             #ifdef C_IM
@@ -8259,7 +8260,7 @@
         return 0;
     }
 
-    int averaging_iteration(long int average_iter, long int sampl_inter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
+    int averaging_iteration(long int average_iter, long int sampl_inter, int inter_type, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
     {
         // printf("\n--------\n");
         // printf("%ld,%d,%d", average_iter, MC_algo_type_local, MC_update_type_local);
@@ -8286,7 +8287,7 @@
             // }
             // printf("\n");
         }
-
+        double m_prev = -2.0;
         while(average_iter)
         {
             if (reqd_to_print == 1)
@@ -8294,7 +8295,11 @@
                 printf(" Iteration = %ld ", average_iter );
                 fflush(stdout);
             }
-            Monte_Carlo_Sweep(sampl_inter-genrand64_int64(thread_num_if_parallel())%sampl_inter, MC_algo_type_local, MC_update_type_local);
+            if (inter_type==0){
+                Monte_Carlo_Sweep(sampl_inter-genrand64_int64(thread_num_if_parallel())%sampl_inter, MC_algo_type_local, MC_update_type_local);
+            } else{
+                Monte_Carlo_Sweep(sampl_inter, MC_algo_type_local, MC_update_type_local);
+            }
 
             // random_Wolff_sweep(1);
             
@@ -8316,15 +8321,43 @@
             MCS_counter = MCS_counter + 1;
             
             
-            printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"       );
-            // printf(           "\b\b\b\b\b");
-            long int i_iter = average_iter/10;
-            while (i_iter>0)
+            if (reqd_to_print == 1)
             {
-                printf("\b");
-                i_iter = i_iter/10;
+                printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b"       );
+                // printf(           "\b\b\b\b\b");
+                long int i_iter = average_iter/10;
+                while (i_iter>0)
+                {
+                    printf("\b");
+                    i_iter = i_iter/10;
+                }
+                fflush(stdout);
             }
-            fflush(stdout);
+            #ifdef SAVE_SPIN_AFTER
+                if (dim_S==1)
+                {
+                    if (SAVE_SPIN_AFTER>0)
+                    {
+                        if ((long int)(MCS_counter)%SAVE_SPIN_AFTER==0)
+                        {
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_r%d%db_%ld", h_order, r_order, (long int)(MCS_counter));
+                            save_spin_config(append_string, "w", 2);
+                        }
+                    } else if (SAVE_SPIN_AFTER<0)
+                    {
+                        if (fabs(m_prev-m[0])>del_m_counter)
+                        {
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_r%d%db_%ld", h_order, r_order, (long int)(MCS_counter));
+                            save_spin_config(append_string, "w", 2);
+                            m_prev = m[0];
+                        }
+                    }
+                }
+            #endif
             average_iter = average_iter - 1;
         }
 
@@ -8549,21 +8582,27 @@
         thermalizing_iteration(0, 0, 0, 0, 1);
         for (i=0; i<repeat_for_same_T; i++)
         {
-            
             thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, 0);
-            averaging_iteration(average_j, sampling_inter, MC_algo_type_avg, MC_update_type_avg, 0);
+            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0);
             printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)get_time_if_parallel()-start_time_local);
             fflush(stdout);
             char str_prep[128];
             char *pos_prep = str_prep;
             pos_prep += sprintf(pos_prep, "%ld\t", i);
             #ifdef SAVE_SPIN_AFTER
-            if (i%SAVE_SPIN_AFTER==0 /* && fabs(m[0])<0.5 */ )
+            if (SAVE_SPIN_AFTER>0)
             {
-                char append_string[128];
-                sprintf(append_string, "_i%ld", i/SAVE_SPIN_AFTER);
-                save_spin_config(append_string, "a", 2);
-                output_data(output_file_0, str_prep, "Yes");
+                if (i%SAVE_SPIN_AFTER==0 /* && fabs(m[0])<0.5 */ )
+                {
+                    char append_string[128];
+                    sprintf(append_string, "_i%ld", i/SAVE_SPIN_AFTER);
+                    save_spin_config(append_string, "a", 2);
+                    output_data(output_file_0, str_prep, "Yes");
+                }
+                else
+                {
+                    output_data(output_file_0, str_prep, "No");
+                }
             }
             else
             {
@@ -8627,7 +8666,7 @@
         save_spin_config(append_string1, "a", 2);
         printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
 
-        averaging_iteration(average_j, sampling_inter, MC_algo_type_av, MC_update_type_av, 1);
+        averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_av, MC_update_type_av, 1);
         char append_string2[128];
         char *pos_append_string2 = append_string2;
         pos_append_string2 += sprintf(pos_append_string2, "_r%d%db", h_order, r_order);
@@ -8948,7 +8987,7 @@
             }
             save_spin_config(append_string1, "a", 2);
 
-            averaging_iteration(average_j, sampling_inter, MC_algo_type_avg, MC_update_type_avg, 0);
+            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0);
 
             output_data(output_file_name, "", "");
 
@@ -9387,7 +9426,7 @@
             for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
             {
                 thermalizing_iteration(/* thermal_i */0, /* MC_algo_type_thrm */0, /* MC_update_type_thrm */0, 0, 1);
-                averaging_iteration(average_j, sampling_inter, MC_algo_type_avg, MC_update_type_avg, 0);
+                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0);
 
                 output_data(output_file_0, "", "");
             }
@@ -9396,7 +9435,7 @@
             fflush(stdout);
             for (h[jj_S] = h_end; order[jj_S] * h[jj_S] <= order[jj_S] * h_start; h[jj_S] = h[jj_S] + order[jj_S] * delta_h)
             {
-                averaging_iteration(average_j, sampling_inter, MC_algo_type, MC_update_type, 0);
+                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type, MC_update_type, 0);
 
                 output_data(output_file_0, "", "");
             }
@@ -10496,7 +10535,7 @@
                         output_data(output_file_0, "", "Yes\t");
                     }
                 }
-                else
+                else if (SAVE_SPIN_AFTER < 0)
                 {
                     if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                     {
@@ -10913,7 +10952,7 @@
                         pFile_output = NULL;
                     }
                 }
-                else
+                else if (SAVE_SPIN_AFTER < 0)
                 {
                     if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                     {
@@ -11004,7 +11043,7 @@
                         pFile_output = NULL;
                     }
                 }
-                else
+                else if (SAVE_SPIN_AFTER < 0)
                 {
                     if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                     {
@@ -11282,7 +11321,7 @@
                             pFile_output = NULL;
                         }
                     }
-                    else
+                    else if (SAVE_SPIN_AFTER < 0)
                     {
                         if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                         {
@@ -11367,7 +11406,7 @@
                             pFile_output = NULL;
                         }
                     }
-                    else
+                    else if (SAVE_SPIN_AFTER < 0)
                     {
                         if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                         {
@@ -12634,46 +12673,48 @@
         fprintf(pFile_1, "\n"); */
         
         #ifdef SAVE_SPIN_AFTER
-            
-            if ( h_counter % SAVE_SPIN_AFTER == 0 )
+            if (SAVE_SPIN_AFTER>0)
             {
-                double temp_h[dim_S];
-                for (j_S=0; j_S<dim_S; j_S++)
+                if ( h_counter % SAVE_SPIN_AFTER == 0 )
                 {
-                    temp_h[j_S] = h[j_S];
+                    double temp_h[dim_S];
+                    for (j_S=0; j_S<dim_S; j_S++)
+                    {
+                        temp_h[j_S] = h[j_S];
+                        if (sweep_or_loop == 1)
+                        {
+                            h[j_S] = 0.0;
+                        }
+                    }
+                    h[jj_S] = h_init[0];
+
+                    char append_string[128];
+                    char *pos = append_string;
                     if (sweep_or_loop == 1)
                     {
-                        h[j_S] = 0.0;
+                        pos += sprintf(pos, "_step_%d_%ld", repeat_loop, h_counter);
+                    }
+                    else
+                    {
+                        pos += sprintf(pos, "_step_%d_%ld", repeat_sweep, h_counter);
+                    }
+                    if (dim_L==2 && dim_S>=2)
+                    {
+                        save_spin_config(append_string, "a", 0);
+                    }
+                    else if (dim_S==1)
+                    {
+                        save_spin_config(append_string, "a", 2);
+                    }
+                        
+                    
+                    for (j_S=0; j_S<dim_S; j_S++)
+                    {
+                        h[j_S] = temp_h[j_S];
                     }
                 }
-                h[jj_S] = h_init[0];
-
-                char append_string[128];
-                char *pos = append_string;
-                if (sweep_or_loop == 1)
-                {
-                    pos += sprintf(pos, "_step_%d_%ld", repeat_loop, h_counter);
-                }
-                else
-                {
-                    pos += sprintf(pos, "_step_%d_%ld", repeat_sweep, h_counter);
-                }
-                if (dim_L==2 && dim_S>=2)
-                {
-                    save_spin_config(append_string, "a", 0);
-                }
-                else if (dim_S==1)
-                {
-                    save_spin_config(append_string, "a", 2);
-                }
-                    
-                
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    h[j_S] = temp_h[j_S];
-                }
+                h_counter++;
             }
-            h_counter++;
         #endif
 
         #ifdef PRINT_OUTPUT
@@ -21876,13 +21917,14 @@
         }
         printf(" (Boundary Conditions)\n");
 
-        printf("  -th_step <Thermalizing MC Steps>\n");
         printf("  -th_algo <Glauber(0)/Metropolis(1)/Wolff(2)>\n");
         printf("  -th_updt <Checkerboard(0)/Random(1)/Linear(2)>\n");
-        printf("  -av_step <Averaging MC Steps>\n");
-        printf("  -av_smpl <Sampling/Measurement Interval>\n");
+        printf("  -th_step <Thermalizing MC Steps>\n");
         printf("  -av_algo <Glauber(0)/Metropolis(1)/Wolff(2)>\n");
         printf("  -av_updt <Checkerboard(0)/Random(1)/Linear(2)>\n");
+        printf("  -av_step <Averaging MC Steps>\n");
+        printf("  -av_smpl <Sampling/Measurement Interval>\n");
+        printf("  -av_intr <Constant(1) or Random(0) Interval>\n");
         
         printf("  -T <Temperature>\n");
         printf("  -Tmax <Maximum Temperature>\n");
@@ -22053,6 +22095,10 @@
                 else if ( strcmp("-av_smpl", argv[i])==0 ){
                     i++;
                     sampling_inter = atoi(argv[i]);
+                }
+                else if ( strcmp("-av_intr", argv[i])==0 ){
+                    i++;
+                    interval_type = atoi(argv[i]);
                 }
                 else if ( strcmp("-av_algo", argv[i])==0 ){
                     i++;
