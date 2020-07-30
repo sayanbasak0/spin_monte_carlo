@@ -69,6 +69,7 @@
 #define UM 0xFFFFFFFF80000000ULL /* Most significant 33 bits */
 #define LM 0x7FFFFFFFULL /* Least significant 31 bits */
 
+#define CACHE_STRIDE 512
 
 /* The array for the state vector */
 static unsigned long long **mt; 
@@ -80,6 +81,7 @@ static int prev_size=0;
 /* initialization for number of seeds required */
 void init_mt19937_parallel(int size)
 {
+    size = CACHE_STRIDE*size;
     int i;
     mt = (unsigned long long **)malloc(size*sizeof(unsigned long long*));
     mag01 = (unsigned long long **)malloc(size*sizeof(unsigned long long*));
@@ -97,6 +99,7 @@ void init_mt19937_parallel(int size)
 
 void reinit_mt19937_parallel(int size)
 {
+    size = CACHE_STRIDE*size;
     int i;
     for (i=0; i<prev_size; i++)
     {
@@ -144,6 +147,7 @@ void uninit_mt19937_parallel(void)
 /* initializes mt[NN] with a seed */
 void init_genrand64(unsigned long long seed, int thread)
 {
+    thread = CACHE_STRIDE*thread;
     mt[thread][0] = seed;
     for (mti[thread]=1; mti[thread]<NN; mti[thread]++) 
         mt[thread][mti[thread]] =  (6364136223846793005ULL * (mt[thread][mti[thread]-1] ^ (mt[thread][mti[thread]-1] >> 62)) + mti[thread]);
@@ -156,25 +160,26 @@ void init_by_array64(unsigned long long init_key[],
              unsigned long long key_length,
              int thread)
 {
+    int tid = CACHE_STRIDE*thread;
     unsigned long long i, j, k;
     init_genrand64(19650218ULL, thread);
     i=1; j=0;
     k = (NN>key_length ? NN : key_length);
     for (; k; k--) {
-        mt[thread][i] = (mt[thread][i] ^ ((mt[thread][i-1] ^ (mt[thread][i-1] >> 62)) * 3935559000370003845ULL))
+        mt[tid][i] = (mt[tid][i] ^ ((mt[tid][i-1] ^ (mt[tid][i-1] >> 62)) * 3935559000370003845ULL))
           + init_key[j] + j; /* non linear */
         i++; j++;
-        if (i>=NN) { mt[thread][0] = mt[thread][NN-1]; i=1; }
+        if (i>=NN) { mt[tid][0] = mt[tid][NN-1]; i=1; }
         if (j>=key_length) j=0;
     }
     for (k=NN-1; k; k--) {
-        mt[thread][i] = (mt[thread][i] ^ ((mt[thread][i-1] ^ (mt[thread][i-1] >> 62)) * 2862933555777941757ULL))
+        mt[tid][i] = (mt[tid][i] ^ ((mt[tid][i-1] ^ (mt[tid][i-1] >> 62)) * 2862933555777941757ULL))
           - i; /* non linear */
         i++;
-        if (i>=NN) { mt[thread][0] = mt[thread][NN-1]; i=1; }
+        if (i>=NN) { mt[tid][0] = mt[tid][NN-1]; i=1; }
     }
 
-    mt[thread][0] = 1ULL << 63; /* MSB is 1; assuring non-zero initial array */ 
+    mt[tid][0] = 1ULL << 63; /* MSB is 1; assuring non-zero initial array */ 
 }
 
 /* generates a random number on [0, 2^64-1]-interval */
@@ -182,30 +187,30 @@ unsigned long long genrand64_int64(int thread)
 {
     int i;
     unsigned long long x;
-    
+    int tid = CACHE_STRIDE*thread;
 
-    if (mti[thread] >= NN) { /* generate NN words at one time */
+    if (mti[tid] >= NN) { /* generate NN words at one time */
 
         /* if init_genrand64() has not been called, */
         /* a default initial seed is used     */
-        if (mti[thread] == NN+1) 
+        if (mti[tid] == NN+1) 
             init_genrand64(5489ULL, thread); 
 
         for (i=0;i<NN-MM;i++) {
-            x = (mt[thread][i]&UM)|(mt[thread][i+1]&LM);
-            mt[thread][i] = mt[thread][i+MM] ^ (x>>1) ^ mag01[thread][(int)(x&1ULL)];
+            x = (mt[tid][i]&UM)|(mt[tid][i+1]&LM);
+            mt[tid][i] = mt[tid][i+MM] ^ (x>>1) ^ mag01[tid][(int)(x&1ULL)];
         }
         for (;i<NN-1;i++) {
-            x = (mt[thread][i]&UM)|(mt[thread][i+1]&LM);
-            mt[thread][i] = mt[thread][i+(MM-NN)] ^ (x>>1) ^ mag01[thread][(int)(x&1ULL)];
+            x = (mt[tid][i]&UM)|(mt[tid][i+1]&LM);
+            mt[tid][i] = mt[tid][i+(MM-NN)] ^ (x>>1) ^ mag01[tid][(int)(x&1ULL)];
         }
-        x = (mt[thread][NN-1]&UM)|(mt[thread][0]&LM);
-        mt[thread][NN-1] = mt[thread][MM-1] ^ (x>>1) ^ mag01[thread][(int)(x&1ULL)];
+        x = (mt[tid][NN-1]&UM)|(mt[tid][0]&LM);
+        mt[tid][NN-1] = mt[tid][MM-1] ^ (x>>1) ^ mag01[tid][(int)(x&1ULL)];
 
-        mti[thread] = 0;
+        mti[tid] = 0;
     }
   
-    x = mt[thread][mti[thread]++];
+    x = mt[tid][mti[tid]++];
 
     x ^= (x >> 29) & 0x5555555555555555ULL;
     x ^= (x << 17) & 0x71D67FFFEDA60000ULL;
