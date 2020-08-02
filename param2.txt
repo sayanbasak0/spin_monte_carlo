@@ -1,8 +1,17 @@
 -L 64 64 64 
 -BC 1 1 0
 -J 1 1 1 
--RF 2.27
--T 0
--fn ZTNE_dec
--out h
+-h 0
+-th_step 100 
+-th_algo 1 
+-th_updt 0 
+-av_step 100 
+-av_intr 1 
+-av_smpl 16 
+-av_algo 2 
+-av_updt 1 
+-T 4.50 
+-fn Evo_T_Randm
+-out T
 -out m
+-out m_avg

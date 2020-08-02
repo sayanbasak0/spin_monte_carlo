@@ -29,9 +29,6 @@
 #define dim_L 3 // Lattice dimensions
 #define dim_S 1 // Spin dimensions
 
-#define MARSAGLIA 1 // uncomment only one
-// #define REJECTION 1 // uncomment only one
-// #define BOX_MULLER 1 // uncomment only one
 // Comment next line for newer compilers // gcc-6.3.0 or newer // intel-18.0.1.163 or newer
 // #define OLD_COMPILER 1 
 // Uncomment ^it if OpenMP reduction has compile errors 
@@ -44,36 +41,52 @@
 // #define DYNAMIC_BINARY_DIVISION 1 // uncomment only one
 // #define DYNAMIC_BINARY_DIVISION_BY_SLOPE 1 // uncomment only one
 
-// #define RANDOM_FIELD 1 // for random field disorder
-#define GAUSSIAN_FIELD 1 // for random gaussian fields
-// #define BIMODAL_FIELD 1 // for random bimodal fields
+#define MARSAGLIA 1 // uncomment only one
+// #define REJECTION 1 // uncomment only one
+// #define BOX_MULLER 1 // uncomment only one
 
-// #define RANDOM_BOND 1 // for random bond disorder
+// #define GAUSSIAN_FIELD 1 // for random gaussian fields
+// #define BIMODAL_FIELD 1 // for random bimodal fields
+#if (GAUSSIAN_FIELD==1)
+    #define RANDOM_FIELD 1 // for random field disorder
+#else
+    #if (BIMODAL_FIELD==1)
+        #define RANDOM_FIELD 1 // for random field disorder
+    #endif
+#endif
+
 // #define GAUSSIAN_BOND 1 // for random gaussian bonds
-#define BIMODAL_BOND 1 // for random bimodal bonds
+// #define BIMODAL_BOND 1 // for random bimodal bonds
+#if (GAUSSIAN_BOND==1)
+    #define RANDOM_BOND 1 // for random field disorder
+#else
+    #if (BIMODAL_BOND==1)
+        #define RANDOM_BOND 1 // for random field disorder
+    #endif
+#endif
 
 #if !defined(RANDOM_BOND) && !defined(RANDOM_FIELD) && !(dim_S-1)
-#define C_IM 1
+    #define C_IM 1
 #endif
 #if !defined(RANDOM_BOND) && defined(RANDOM_FIELD) && !(dim_S-1)
-#define RFIM 1
+    #define RFIM 1
 #endif
 #if defined(RANDOM_BOND) && !defined(RANDOM_FIELD) && !(dim_S-1)
-#define RBIM 1
+    #define RBIM 1
 #endif
 #if defined(RANDOM_BOND) && defined(RANDOM_FIELD) && !(dim_S-1)
-#define RFBIM 1
+    #define RFBIM 1
 #endif
 
 #if defined(C_IM) || defined(RFIM) || defined(RBIM) || defined(RFBIM)
-#define ZTNE_IM_MULTIPLE 1
+    #define ZTNE_IM_MULTIPLE 1
 #endif
 
-#define SAVE_SPIN_AFTER -1
+#define SAVE_SPIN_AFTER 1
 // #define TRAINING_DATA 1
 
 #if defined(SAVE_SPIN_AFTER) || defined(TRAINING_DATA)
-#define SLICE_STRIDE 10
+    #define SLICE_STRIDE 10
 #endif
 
 #define TYPE_VOID 0
@@ -87,18 +100,18 @@
 
 // #define UPDATE_CHKR_NON_EQ 1 // uncomment only one
 #ifndef UPDATE_CHKR_NON_EQ
-// #define UPDATE_ALL_NON_EQ 1 // uncomment only one
+    // #define UPDATE_ALL_NON_EQ 1 // uncomment only one
 #endif
 #define UPDATE_CHKR_EQ_MC 1 // for checkerboard updates - parallelizable
 
 #ifdef _OPENMP
-#define PARALLEL_RANDOM_MC_SWEEP 1 // parallelized random updates
+    #define PARALLEL_RANDOM_MC_SWEEP 1 // parallelized random updates
 #endif
 #define UPDATE_WOLFF_BFS 1
 #ifdef UPDATE_WOLFF_BFS
-// #define PARALLEL_WOLFF 1 // not optimized
+    // #define PARALLEL_WOLFF 1 // not optimized
 #else 
-#define UPDATE_WOLFF_DFS 1
+    #define UPDATE_WOLFF_DFS 1
 #endif
 // #define UPDATE_WOLFF_GHOST 1 // https://journals-aps-org.ezproxy.lib.purdue.edu/pre/pdf/10.1103/PhysRevE.98.063306
 
@@ -121,6 +134,9 @@
     
     #ifndef VARIABLE_SEPARATE
     FILE *pFile_1, *pFile_2, *pFile_phase, *pFile_output = NULL, *pFile_chkpt, *pFile_temp, *pFile_ising_spin, *pFile_ising_h;
+    char input_file_spin[256];
+    char input_file_h[256];
+    char input_file_J[256];
     char output_file_0[256];
     #endif
     
@@ -142,7 +158,7 @@
     __device__ int dev_gpu_threads=16;
     #endif
     // long int CHUNK_SIZE = 256; 
-    int output_prepend = 0; 
+    int output_prepend = 1; 
     int output_append = 1;
 
 //========================================================================//
@@ -390,7 +406,7 @@
     
 //====================  Hysteresis                    ====================//
     long int hysteresis_MCS = 10; 
-    int hysteresis_repeat = 4;
+    int hysteresis_repeat = 1;
     int repeat_sweep = 0;
     int repeat_loop = 0;
     long int h_counter = 0;
@@ -2627,16 +2643,6 @@
             
         }
         
-        /* for (i = 0; i < no_of_sites; i++)
-        {
-            for (j_S = 0; j_S<dim_S; j_S++)
-            {
-                printf("|%le|", spin[dim_S*i + j_S]);
-            }
-            printf("\n");
-        }
-        printf("\n"); */
-        
         return 0;
     }
 
@@ -2872,48 +2878,55 @@
 
 //====================  Load J, h, Spin               ====================//
 
-    int load_spin_config(char append_string[])
+    int load_spin_config(char append_string[], int full_file_name)
     {
         long int i;
         int j_S, j_L;
-
         char input_file_1[256];
-        char *pos = input_file_1;
-        pos += sprintf(pos, "Spin(%d)_", dim_S);
-        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        if (full_file_name==0)
         {
-            if (j_L) 
+            char *pos = input_file_1;
+            pos += sprintf(pos, "Spin(%d)_", dim_S);
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
-                pos += sprintf(pos, "x");
+                if (j_L) 
+                {
+                    pos += sprintf(pos, "x");
+                }
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
             }
-            pos += sprintf(pos, "%d", lattice_size[j_L]);
+            pos += sprintf(pos, "_%.3f", T);
+            #ifdef RANDOM_FIELD
+            pos += sprintf(pos, "_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%.3f", sigma_h[j_S]);
+            }
+            #endif
+            pos += sprintf(pos, "_");
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
+            {
+                if (j_S) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", h[j_S]);
+            }
+            strcat(input_file_1, append_string);
+            strcat(input_file_1, ".dat");
+            // pos += sprintf(pos, ".dat");
+                
+            pFile_2 = fopen(input_file_1, "r"); // opens old file for reading
         }
-        pos += sprintf(pos, "_%.3f", T);
-        #ifdef RANDOM_FIELD
-        pos += sprintf(pos, "_");
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        else
         {
-            if (j_S) 
-            {
-                pos += sprintf(pos, ",");
-            }
-            pos += sprintf(pos, "%.3f", sigma_h[j_S]);
+            strcpy(input_file_1, append_string);
+            pFile_2 = fopen(input_file_1, "r"); // opens old file for reading
         }
-        #endif
-        pos += sprintf(pos, "_");
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
-        {
-            if (j_S) 
-            {
-                pos += sprintf(pos, ",");
-            }
-            pos += sprintf(pos, "%lf", h[j_S]);
-        }
-        strcat(input_file_1, append_string);
-        strcat(input_file_1, ".dat");
-        // pos += sprintf(pos, ".dat");
-            
-        pFile_2 = fopen(input_file_1, "r"); // opens old file for reading
         
         if (pFile_2 == NULL)
         {
@@ -2961,7 +2974,7 @@
         return 0;
     }
 
-    int load_h_config(char append_string[])
+    int load_h_config(char append_string[], int full_file_name)
     {
         //---------------------------------------------------------------------------------------//
         
@@ -2970,39 +2983,47 @@
         int j_S, j_L;
         #ifdef RANDOM_FIELD
         char input_file_1[256];
-        char *pos = input_file_1;
-        pos += sprintf(pos, "h_config_");
-        
-        for (j_S = 0 ; j_S != dim_S ; j_S++) 
+        if (full_file_name==0)
         {
-            if (j_S) 
+            char *pos = input_file_1;
+            pos += sprintf(pos, "h_config_");
+            
+            for (j_S = 0 ; j_S != dim_S ; j_S++) 
             {
-                pos += sprintf(pos, ",");
+                if (j_S) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_h[j_S]);
             }
-            pos += sprintf(pos, "%lf", sigma_h[j_S]);
+            pos += sprintf(pos, "_");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L) 
+                {
+                    pos += sprintf(pos, "x");
+                }
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+
+            #ifdef BIMODAL_FIELD
+            pos += sprintf(pos, "_bimodal");
+            #endif
+            #ifdef GAUSSIAN_FIELD
+            pos += sprintf(pos, "_gaussian");
+            #endif
+            
+            strcat(input_file_1, append_string);
+            strcat(input_file_1, ".dat");
+            
+            pFile_1 = fopen(input_file_1, "r"); // opens file for reading
         }
-        pos += sprintf(pos, "_");
-        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        else
         {
-            if (j_L) 
-            {
-                pos += sprintf(pos, "x");
-            }
-            pos += sprintf(pos, "%d", lattice_size[j_L]);
+            strcpy(input_file_1, append_string);
+            pFile_1 = fopen(input_file_1, "r"); // opens file for reading
         }
-
-        #ifdef BIMODAL_FIELD
-        pos += sprintf(pos, "_bimodal");
-        #endif
-        #ifdef GAUSSIAN_FIELD
-        pos += sprintf(pos, "_gaussian");
-        #endif
         
-        strcat(input_file_1, append_string);
-        strcat(input_file_1, ".dat");
-        
-        pFile_1 = fopen(input_file_1, "r"); // opens file for reading
-
         if (pFile_1 == NULL)
         {
             // h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
@@ -3053,7 +3074,7 @@
         return 0;
     }
 
-    int load_J_config(char append_string[])
+    int load_J_config(char append_string[], int full_file_name)
     {
         //---------------------------------------------------------------------------------------//
         
@@ -3062,39 +3083,47 @@
         int j_L, k_L;
         #ifdef RANDOM_BOND
         char input_file_1[256];
-        char *pos = input_file_1;
-        pos += sprintf(pos, "J_config_");
-
-        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        if (full_file_name==0)
         {
-            if (j_L) 
+            char *pos = input_file_1;
+            pos += sprintf(pos, "J_config_");
+
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
-                pos += sprintf(pos, ",");
+                if (j_L) 
+                {
+                    pos += sprintf(pos, ",");
+                }
+                pos += sprintf(pos, "%lf", sigma_J[j_L]);
             }
-            pos += sprintf(pos, "%lf", sigma_J[j_L]);
+            pos += sprintf(pos, "_");
+            for (j_L = 0 ; j_L != dim_L ; j_L++) 
+            {
+                if (j_L) 
+                {
+                    pos += sprintf(pos, "x");
+                }
+                pos += sprintf(pos, "%d", lattice_size[j_L]);
+            }
+
+            #ifdef BIMODAL_BOND
+            pos += sprintf(pos, "_bimodal");
+            #endif
+            #ifdef GAUSSIAN_BOND
+            pos += sprintf(pos, "_gaussian");
+            #endif
+
+            strcat(input_file_1, append_string);
+            strcat(input_file_1, ".dat");
+            
+            pFile_1 = fopen(input_file_1, "r"); // opens file for reading
         }
-        pos += sprintf(pos, "_");
-        for (j_L = 0 ; j_L != dim_L ; j_L++) 
+        else
         {
-            if (j_L) 
-            {
-                pos += sprintf(pos, "x");
-            }
-            pos += sprintf(pos, "%d", lattice_size[j_L]);
+            strcpy(input_file_1, append_string);
+            pFile_1 = fopen(input_file_1, "r"); // opens file for reading
         }
-
-        #ifdef BIMODAL_BOND
-        pos += sprintf(pos, "_bimodal");
-        #endif
-        #ifdef GAUSSIAN_BOND
-        pos += sprintf(pos, "_gaussian");
-        #endif
-
-        strcat(input_file_1, append_string);
-        strcat(input_file_1, ".dat");
         
-        pFile_1 = fopen(input_file_1, "r"); // opens file for reading
-
         if (pFile_1 == NULL)
         {
             // J_random = (double*)malloc(2*dim_L*no_of_sites*sizeof(double));
@@ -3267,7 +3296,7 @@
             }
             else
             {
-                load_spin_config("_chkpt");
+                load_spin_config("_chkpt", 0);
             }
         }
         else
@@ -3581,29 +3610,30 @@
         #endif
 
         fprintf(pFile_output, "Spin Initialization - ");
-        if( r_order==1 )
+        if ( h_order==0 && r_order==0 )
+        {
+            fprintf(pFile_output, "Ordered along = (");
+            for (j_S=0; j_S<dim_S; j_S++)
+            {
+                if (j_S)
+                {
+                    fprintf(pFile_output, ",");
+                }
+                fprintf(pFile_output, " %.12e ", order[j_S]);
+            }
+            fprintf(pFile_output, ") ,\n");
+        }
+        else if ( h_order==1 && r_order==0 )
+        {
+            fprintf(pFile_output, "Along Field ,\n");
+        }
+        else if ( h_order==0 && r_order==1 )
         {
             fprintf(pFile_output, "Random ,\n");
         }
-        else
+        else if ( h_order==1 && r_order==1 )
         {
-            if ( h_order==1 )
-            {
-                fprintf(pFile_output, "Along Field ,\n");
-            }
-            else if ( h_order==0 && r_order==0 )
-            {
-                fprintf(pFile_output, "Ordered along = (");
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    if (j_S)
-                    {
-                        fprintf(pFile_output, ",");
-                    }
-                    fprintf(pFile_output, " %.12e ", order[j_S]);
-                }
-                fprintf(pFile_output, ") ,\n");
-            }
+            fprintf(pFile_output, "File Loaded = %s ,\n", input_file_spin);
         }
         
 
@@ -3652,8 +3682,11 @@
                 fprintf(pFile_output, "Linear site update ,\n");
             }
         }
-
-        fprintf(pFile_output, "Averaging-MCS = %ld x [1-%ld] ,\n", average_j, sampling_inter);
+        if (interval_type==0){
+            fprintf(pFile_output, "Averaging-MCS = %ld x [1-%ld] ,\n", average_j, sampling_inter);
+        } else{
+            fprintf(pFile_output, "Averaging-MCS = %ld x [%ld] ,\n", average_j, sampling_inter);
+        }
 
         if (MC_algo_type_avg == 2)
         {
@@ -3698,6 +3731,7 @@
                 fprintf(pFile_output, "Linear site update ,\n");
             }
         }
+        
 
         fprintf(pFile_output, "hysteresis-MCS/step = %ld, \n", hysteresis_MCS);
         
@@ -8224,9 +8258,9 @@
     int thermalizing_iteration(long int thermal_iter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print, int init)
     {
         #ifdef C_IM
-        activation_probability_Metropolis(0, init);
-        activation_probability_Glauber(0, init);
-        activation_probability_Wolff(0, 0, 0, init);
+            activation_probability_Glauber(0, init);
+            activation_probability_Metropolis(0, init);
+            activation_probability_Wolff(0, 0, 0, init);
         #endif
         
         // printf("\n--------\n");
@@ -8260,7 +8294,7 @@
         return 0;
     }
 
-    int averaging_iteration(long int average_iter, long int sampl_inter, int inter_type, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print)
+    int averaging_iteration(long int average_iter, long int sampl_inter, int inter_type, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print, int save_spin)
     {
         // printf("\n--------\n");
         // printf("%ld,%d,%d", average_iter, MC_algo_type_local, MC_update_type_local);
@@ -8333,31 +8367,38 @@
                 }
                 fflush(stdout);
             }
-            #ifdef SAVE_SPIN_AFTER
-                if (dim_S==1)
-                {
-                    if (SAVE_SPIN_AFTER>0)
+            if (save_spin==1){
+                #ifdef SAVE_SPIN_AFTER
+                    #if (dim_S==1)
                     {
-                        if ((long int)(MCS_counter)%SAVE_SPIN_AFTER==0)
+                        #if (SAVE_SPIN_AFTER>0)
                         {
-                            char append_string[128];
-                            char *pos_append_string = append_string;
-                            pos_append_string += sprintf(pos_append_string, "_r%d%db_%ld", h_order, r_order, (long int)(MCS_counter));
-                            save_spin_config(append_string, "w", 2);
-                        }
-                    } else if (SAVE_SPIN_AFTER<0)
-                    {
-                        if (fabs(m_prev-m[0])>del_m_counter)
-                        {
-                            char append_string[128];
-                            char *pos_append_string = append_string;
-                            pos_append_string += sprintf(pos_append_string, "_r%d%db_%ld", h_order, r_order, (long int)(MCS_counter));
-                            save_spin_config(append_string, "w", 2);
-                            m_prev = m[0];
-                        }
+                            if ((long int)(MCS_counter)%SAVE_SPIN_AFTER==0)
+                            {
+                                char append_string[128];
+                                char *pos_append_string = append_string;
+                                pos_append_string += sprintf(pos_append_string, "_r%d%db_%ld", h_order, r_order, (long int)(MCS_counter));
+                                save_spin_config(append_string, "w", 2);
+                            }
+                        } 
+                        #else 
+                            #if (SAVE_SPIN_AFTER<0)
+                            {
+                                if (fabs(m_prev-m[0])>del_m_counter)
+                                {
+                                    char append_string[128];
+                                    char *pos_append_string = append_string;
+                                    pos_append_string += sprintf(pos_append_string, "_r%d%db_%ld", h_order, r_order, (long int)(MCS_counter));
+                                    save_spin_config(append_string, "w", 2);
+                                    m_prev = m[0];
+                                }
+                            }
+                            #endif
+                        #endif
                     }
-                }
-            #endif
+                    #endif
+                #endif
+            }
             average_iter = average_iter - 1;
         }
 
@@ -8397,7 +8438,7 @@
         return 0;
     }
 
-    int evolution_at_T(int ini_order, long int repeat_for_same_T)
+    int evolution_at_T(int ini_order)
     {
         printf("\n__________________________________________________________\n");
         double start_time_local = get_time_if_parallel();
@@ -8431,36 +8472,27 @@
         }
         printf("}, %d, %d)\n", h_order, r_order);
         
-        if (ini_order==0)
-        {
-            h_order = 0;
-            r_order = 0;
-            initialize_spin_config();
-        }
-        else
-        {
-            if (ini_order==1)
-            {
+        switch(ini_order){
+            case 0:
+                h_order = 0;
+                r_order = 0;
+                initialize_spin_config();
+                break;
+            case 1:
                 h_order = 1;
                 r_order = 0;
                 initialize_spin_config();
-            }
-            else
-            {
-                if (ini_order==2)
-                {
-                    h_order = 0;
-                    r_order = 1;
-                    initialize_spin_config();
-                }
-                else
-                {
-                    if (ini_order = 3)
-                    {
-                        load_spin_config("_chkpt");
-                    }
-                }
-            }
+                break;
+            case 2:
+                h_order = 0;
+                r_order = 1;
+                initialize_spin_config();
+                break;
+            case 3:
+                h_order = 1;
+                r_order = 1;
+                load_spin_config(input_file_spin, 1);
+                break;
         }
         // ensemble_all();
         ensemble_E();
@@ -8575,39 +8607,61 @@
 
         // column labels and parameters
         output_param_file(output_file_0);
-        output_label(output_file_0, "Step\t", "Saved_Spin\t");
+        output_label(output_file_0, "Step\tInterval\t", "Saved_Spin\t");
 
         long int i;
-        
-        thermalizing_iteration(0, 0, 0, 0, 1);
-        for (i=0; i<repeat_for_same_T; i++)
+        double m_prev = -2.0;
+        thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, 1);
+        for (i=0; i<average_j; i++)
         {
-            thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, 0);
-            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0);
+            long int sampl_inter = sampling_inter;
+            if (interval_type==0){
+                sampl_inter = sampling_inter-genrand64_int64(thread_num_if_parallel())%sampling_inter;
+            } 
+            averaging_iteration(sampl_inter, 1, 1, MC_algo_type_avg, MC_update_type_avg, 0, 0);
+            
+            
             printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)get_time_if_parallel()-start_time_local);
             fflush(stdout);
             char str_prep[128];
             char *pos_prep = str_prep;
-            pos_prep += sprintf(pos_prep, "%ld\t", i);
+            pos_prep += sprintf(pos_prep, "%ld\t%ld\t", i, sampl_inter);
             #ifdef SAVE_SPIN_AFTER
-            if (SAVE_SPIN_AFTER>0)
-            {
-                if (i%SAVE_SPIN_AFTER==0 /* && fabs(m[0])<0.5 */ )
+                #if (SAVE_SPIN_AFTER>0)
                 {
-                    char append_string[128];
-                    sprintf(append_string, "_i%ld", i/SAVE_SPIN_AFTER);
-                    save_spin_config(append_string, "a", 2);
-                    output_data(output_file_0, str_prep, "Yes");
+                    if ((i+1)%SAVE_SPIN_AFTER==0 /* && fabs(m[0])<0.5 */ )
+                    {
+                        char append_string[128];
+                        sprintf(append_string, "_i%ld", i);
+                        save_spin_config(append_string, "a", 2);
+                        output_data(output_file_0, str_prep, "Yes");
+                    }
+                    else
+                    {
+                        output_data(output_file_0, str_prep, "No");
+                    }
                 }
-                else
-                {
-                    output_data(output_file_0, str_prep, "No");
-                }
-            }
-            else
-            {
-                output_data(output_file_0, str_prep, "No");
-            }
+                #else
+                    #if (SAVE_SPIN_AFTER<0)
+                    {
+                        if (fabs(m_prev-m[0])>del_m_counter)
+                        {
+                            char append_string[128];
+                            sprintf(append_string, "_i%ld", i);
+                            save_spin_config(append_string, "a", 2);
+                            output_data(output_file_0, str_prep, "Yes");
+                        }
+                        else
+                        {
+                            output_data(output_file_0, str_prep, "No");
+                        }
+                    }
+                    #else
+                        {
+                            output_data(output_file_0, str_prep, "No");
+                        }
+                    #endif
+                #endif
             #else
                 output_data(output_file_0, str_prep, "No");
             #endif
@@ -8637,7 +8691,15 @@
         // repeat with different initial configurations
         int j_S, j_SS, j_L;
         double start_time_local = get_time_if_parallel();
-        initialize_spin_config();
+        if (h_order==1 && r_order==1)
+        {
+            load_spin_config(input_file_spin, 1);
+        }
+        else
+        {
+            initialize_spin_config();
+        }
+        
         // Monte_Carlo_Sweep(/* sweeps */2, /* MC_algo_type_local */2, /* MC_update_type_local */0);
         // printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
         printf("\norder = ({%lf", order[0]);
@@ -8666,7 +8728,8 @@
         save_spin_config(append_string1, "a", 2);
         printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
 
-        averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_av, MC_update_type_av, 1);
+        averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_av, MC_update_type_av, 1, 1);
+
         char append_string2[128];
         char *pos_append_string2 = append_string2;
         pos_append_string2 += sprintf(pos_append_string2, "_r%d%db", h_order, r_order);
@@ -8704,26 +8767,23 @@
         // int MC_algo_type_avg = 2; // 0-Glauber // 1-Metropolis // 2-Wolff
         // int MC_update_type_avg = 0; // 0-Checkerboard // 1-Random // 2-Linear // Wolff-irrelevant
     
-        if (ini_order==0)
-        {
-            h_order = 0;
-            r_order = 0;
-        }
-        else
-        {
-            if (ini_order==1)
-            {
+        switch(ini_order){
+            case 0:
+                h_order = 0;
+                r_order = 0;
+                break;
+            case 1:
                 h_order = 1;
                 r_order = 0;
-            }
-            else
-            {
-                if (ini_order==2)
-                {
-                    h_order = 0;
-                    r_order = 1;
-                }
-            }
+                break;
+            case 2:
+                h_order = 0;
+                r_order = 1;
+                break;
+            case 3:
+                h_order = 1;
+                r_order = 1;
+                break;
         }
         
 
@@ -8872,6 +8932,7 @@
             initialize_spin_and_evolve_at_T(MC_algo_type_thrm, MC_update_type_thrm, MC_algo_type_avg, MC_update_type_avg);
 
             output_data(output_file_0, "", "");
+            save_spin_config("_chkpt", "w", 1);
         }
         
         // reset_output_variable_name_0();
@@ -8987,7 +9048,7 @@
             }
             save_spin_config(append_string1, "a", 2);
 
-            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0);
+            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0, 1);
 
             output_data(output_file_name, "", "");
 
@@ -9020,7 +9081,7 @@
         return 0;
     }
 
-    int fc_fh_or_both(int c_h_ch_hc, int zero_or_finite)
+    int fc_fh_or_both(int ini_order, int c_h_ch_hc)
     {
         int j_S, j_SS, j_L;
         //
@@ -9031,28 +9092,12 @@
             int MC_algo_type_temp = MC_algo_type;
             int MC_update_type_temp = MC_update_type;
             double T_temp = T;
-            double h_temp[dim_S];
-            if (zero_or_finite == 0)
-            {
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    h_temp[j_S] = h[j_S];
-                }
-            }
         // hysteresis_repeat = 2;
         // thermal_i = 1000;
         // average_j = 100;
         // sampling_inter = 16;
         // MC_algo_type = 1; // Metropolis
         // MC_update_type = 1; // 0 - Checkerboard, 1 - Random, 2 - Linear
-
-        if (zero_or_finite == 0)
-        {
-            for (j_S=0; j_S<dim_S; j_S++)
-            {
-                h[j_S] = 0;
-            }
-        }
 
         if (c_h_ch_hc == 0 || c_h_ch_hc == 2)
         {
@@ -9072,7 +9117,29 @@
             printf(",%lf", h[j_S]);
         }
         printf("}..\n");
-        
+        switch(ini_order){
+            case 0:
+                h_order = 0;
+                r_order = 0;
+                initialize_spin_config();
+                break;
+            case 1:
+                h_order = 1;
+                r_order = 0;
+                initialize_spin_config();
+                break;
+            case 2:
+                h_order = 0;
+                r_order = 1;
+                initialize_spin_config();
+                break;
+            case 3:
+                h_order = 1;
+                r_order = 1;
+                load_spin_config(input_file_spin, 1);
+                break;
+        }
+        printf("\n");
         /* // set output_variable_name=1 here
         {
             // output_h = 1;
@@ -9194,8 +9261,7 @@
         output_label(output_file_0, "", "");
         
         printf("\n");
-        initialize_spin_config();
-        printf("\n");
+        
         int i;
         for (i=0; i<hysteresis_repeat; i++)
         {
@@ -9221,15 +9287,9 @@
             MC_algo_type = MC_algo_type_temp;
             MC_update_type = MC_update_type_temp;
             T = T_temp;
-            if (zero_or_finite == 0)
-            {
-                for (j_S=0; j_S<dim_S; j_S++)
-                {
-                    h[j_S] = h_temp[j_S];
-                }
-            }
 
         printf("\n__________________________________________________________\n");
+        save_spin_config("_chkpt", "w", 1);
         return 0;
     }
 
@@ -9426,7 +9486,7 @@
             for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
             {
                 thermalizing_iteration(/* thermal_i */0, /* MC_algo_type_thrm */0, /* MC_update_type_thrm */0, 0, 1);
-                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0);
+                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0, 0);
 
                 output_data(output_file_0, "", "");
             }
@@ -9435,7 +9495,7 @@
             fflush(stdout);
             for (h[jj_S] = h_end; order[jj_S] * h[jj_S] <= order[jj_S] * h_start; h[jj_S] = h[jj_S] + order[jj_S] * delta_h)
             {
-                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type, MC_update_type, 0);
+                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type, MC_update_type, 0, 0);
 
                 output_data(output_file_0, "", "");
             }
@@ -10198,7 +10258,7 @@
         }
         printf("\nEnd : h=%lf .       \n", h[0]);
         #ifdef SAVE_SPIN_AFTER
-            if (SAVE_SPIN_AFTER > 0)
+            #if (SAVE_SPIN_AFTER > 0)
             {
                 h_counter++;
                 if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -10219,6 +10279,7 @@
                     output_data(output_file_0, "", "Yes\t");
                 }
             }
+            #endif
         #endif
         // reset_output_variable_name_0();
             
@@ -10511,7 +10572,7 @@
                 fflush(stdout);
             }
             #ifdef SAVE_SPIN_AFTER
-                if (SAVE_SPIN_AFTER > 0)
+                #if (SAVE_SPIN_AFTER > 0)
                 {
                     h_counter++;
                     if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -10535,32 +10596,35 @@
                         output_data(output_file_0, "", "Yes\t");
                     }
                 }
-                else if (SAVE_SPIN_AFTER < 0)
-                {
-                    if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                #else 
+                    #if (SAVE_SPIN_AFTER < 0)
                     {
-                        h_counter++;
-                        m_counter -= order[0]*del_m_counter;
-                        char append_string[128];
-                        char *pos_append_string = append_string;
-                        if (inc_dec==1)
+                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                         {
-                            pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
+                            h_counter++;
+                            m_counter -= order[0]*del_m_counter;
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            if (inc_dec==1)
+                            {
+                                pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
+                            }
+                            else
+                            {
+                                pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
+                            }
+                            
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            // pFile_output = pFile_1;
+                            // output_data("output_file.dat", "", "Yes\t");
+                            // pFile_output = NULL;
+                            output_data(output_file_0, "", "Yes\t");
+                            
                         }
-                        else
-                        {
-                            pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
-                        }
-                        
-                        save_spin_config(append_string, "w", 2);
-                        // ensemble_all();
-                        // pFile_output = pFile_1;
-                        // output_data("output_file.dat", "", "Yes\t");
-                        // pFile_output = NULL;
-                        output_data(output_file_0, "", "Yes\t");
-                        
                     }
-                }
+                    #endif
+                #endif
             #endif
         }
         printf("\nEnd : h=%lf .       \n", h[0]);
@@ -10661,7 +10725,7 @@
                     }
                 }
                 #ifdef SAVE_SPIN_AFTER
-                    if (SAVE_SPIN_AFTER > 0)
+                    #if (SAVE_SPIN_AFTER > 0)
                     {
                         h_counter++;
                         if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -10677,7 +10741,7 @@
                             output_data(output_file_0, "", "Yes\t");
                         }
                     }
-                    else
+                    #else
                     {
                         if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
                         {
@@ -10694,6 +10758,7 @@
                             output_data(output_file_0, "", "Yes\t");
                         }
                     }
+                    #endif
                 #endif
                 fflush(stdout);
             }
@@ -10937,7 +11002,7 @@
             pFile_output = NULL;
 
             #ifdef SAVE_SPIN_AFTER
-                if (SAVE_SPIN_AFTER > 0)
+                #if (SAVE_SPIN_AFTER > 0)
                 {
                     h_counter++;
                     if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -10952,22 +11017,25 @@
                         pFile_output = NULL;
                     }
                 }
-                else if (SAVE_SPIN_AFTER < 0)
-                {
-                    if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                #else 
+                    #if (SAVE_SPIN_AFTER < 0)
                     {
-                        h_counter++;
-                        m_counter -= order[0]*del_m_counter;
-                        char append_string[128];
-                        char *pos_append_string = append_string;
-                        pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
-                        save_spin_config(append_string, "w", 2);
-                        // ensemble_all();
-                        pFile_output = pFile_1;
-                        output_data("output_file.dat", "", "Yes\t");
-                        pFile_output = NULL;
+                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                        {
+                            h_counter++;
+                            m_counter -= order[0]*del_m_counter;
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            pFile_output = pFile_1;
+                            output_data("output_file.dat", "", "Yes\t");
+                            pFile_output = NULL;
+                        }
                     }
-                }
+                    #endif
+                #endif
             #endif
         }
         printf("\rEnd : h=%lf .       \n", h[0]);
@@ -11028,7 +11096,7 @@
             output_data("output_file.dat", "", "No\t");
             pFile_output = NULL;
             #ifdef SAVE_SPIN_AFTER
-                if (SAVE_SPIN_AFTER > 0)
+                #if (SAVE_SPIN_AFTER > 0)
                 {
                     h_counter++;
                     if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -11043,22 +11111,25 @@
                         pFile_output = NULL;
                     }
                 }
-                else if (SAVE_SPIN_AFTER < 0)
-                {
-                    if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                #else 
+                    #if (SAVE_SPIN_AFTER < 0)
                     {
-                        h_counter++;
-                        m_counter -= order[0]*del_m_counter;
-                        char append_string[128];
-                        char *pos_append_string = append_string;
-                        pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
-                        save_spin_config(append_string, "w", 2);
-                        // ensemble_all();
-                        pFile_output = pFile_1;
-                        output_data("output_file.dat", "", "Yes\t");
-                        pFile_output = NULL;
+                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                        {
+                            h_counter++;
+                            m_counter -= order[0]*del_m_counter;
+                            char append_string[128];
+                            char *pos_append_string = append_string;
+                            pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
+                            save_spin_config(append_string, "w", 2);
+                            // ensemble_all();
+                            pFile_output = pFile_1;
+                            output_data("output_file.dat", "", "Yes\t");
+                            pFile_output = NULL;
+                        }
                     }
-                }
+                    #endif
+                #endif
             #endif
         }
         printf("\rEnd : h=%lf .       \n", h[0]);
@@ -11306,7 +11377,7 @@
                 pFile_output = NULL;
 
                 #ifdef SAVE_SPIN_AFTER
-                    if (SAVE_SPIN_AFTER > 0)
+                    #if (SAVE_SPIN_AFTER > 0)
                     {
                         h_counter++;
                         if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -11321,22 +11392,25 @@
                             pFile_output = NULL;
                         }
                     }
-                    else if (SAVE_SPIN_AFTER < 0)
-                    {
-                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                    #else 
+                        #if (SAVE_SPIN_AFTER < 0)
                         {
-                            h_counter++;
-                            m_counter -= order[0]*del_m_counter;
-                            char append_string[128];
-                            char *pos_append_string = append_string;
-                            pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
-                            save_spin_config(append_string, "w", 2);
-                            // ensemble_all();
-                            pFile_output = pFile_1;
-                            output_data("output_file.dat", "", "Yes\t");
-                            pFile_output = NULL;
+                            if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                            {
+                                h_counter++;
+                                m_counter -= order[0]*del_m_counter;
+                                char append_string[128];
+                                char *pos_append_string = append_string;
+                                pos_append_string += sprintf(pos_append_string, "_dec_%ld", h_counter);
+                                save_spin_config(append_string, "w", 2);
+                                // ensemble_all();
+                                pFile_output = pFile_1;
+                                output_data("output_file.dat", "", "Yes\t");
+                                pFile_output = NULL;
+                            }
                         }
-                    }
+                        #endif
+                    #endif
                 #endif
 
                 old_h = h[0];
@@ -11391,7 +11465,7 @@
                 output_data("output_file.dat", "", "No\t");
                 pFile_output = NULL;
                 #ifdef SAVE_SPIN_AFTER
-                    if (SAVE_SPIN_AFTER > 0)
+                    #if (SAVE_SPIN_AFTER > 0)
                     {
                         h_counter++;
                         if (h_counter%SAVE_SPIN_AFTER == 0)
@@ -11406,22 +11480,25 @@
                             pFile_output = NULL;
                         }
                     }
-                    else if (SAVE_SPIN_AFTER < 0)
-                    {
-                        if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                    #else 
+                        #if (SAVE_SPIN_AFTER < 0)
                         {
-                            h_counter++;
-                            m_counter -= order[0]*del_m_counter;
-                            char append_string[128];
-                            char *pos_append_string = append_string;
-                            pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
-                            save_spin_config(append_string, "w", 2);
-                            // ensemble_all();
-                            pFile_output = pFile_1;
-                            output_data("output_file.dat", "", "Yes\t");
-                            pFile_output = NULL;
+                            if (order[0]*m_counter>order[0]*m[0] && remaining_sites>0) // ( h_counter % SAVE_SPIN_AFTER == 0 )
+                            {
+                                h_counter++;
+                                m_counter -= order[0]*del_m_counter;
+                                char append_string[128];
+                                char *pos_append_string = append_string;
+                                pos_append_string += sprintf(pos_append_string, "_inc_%ld", h_counter);
+                                save_spin_config(append_string, "w", 2);
+                                // ensemble_all();
+                                pFile_output = pFile_1;
+                                output_data("output_file.dat", "", "Yes\t");
+                                pFile_output = NULL;
+                            }
                         }
-                    }
+                        #endif
+                    #endif
                 #endif
 
                 old_h = h[0];
@@ -12673,7 +12750,7 @@
         fprintf(pFile_1, "\n"); */
         
         #ifdef SAVE_SPIN_AFTER
-            if (SAVE_SPIN_AFTER>0)
+            #if (SAVE_SPIN_AFTER>0)
             {
                 if ( h_counter % SAVE_SPIN_AFTER == 0 )
                 {
@@ -12715,6 +12792,7 @@
                 }
                 h_counter++;
             }
+            #endif
         #endif
 
         #ifdef PRINT_OUTPUT
@@ -20024,8 +20102,8 @@
         double delta_h = del_h;
         h_order = 0;
         r_order = 1;
-        initialize_spin_config();
-        load_spin_config(spin_file);
+        // initialize_spin_config();
+        load_spin_config(spin_file, 1);
         
         ensemble_m();
         ensemble_E();
@@ -20569,7 +20647,7 @@
         double delta_phi = del_phi; // double delta_phi = 1.0; // for h_start=0
         h_order = 0;
         r_order = 1;
-        load_spin_config("");
+        load_spin_config("", 0);
                 
         ensemble_m();
         ensemble_E();
@@ -21164,7 +21242,7 @@
         h_order = 0;
         r_order = 1;
         // initialize_spin_config();
-        load_spin_config(spin_file);
+        load_spin_config(spin_file, 1);
         order[jj_S] = order_start;
         for (j_S=0; j_S<dim_S; j_S++)
         {
@@ -21486,7 +21564,7 @@
 
         T=0.1;
         
-        evolution_at_T(3,100);
+        evolution_at_T(3);
 
         // reset_output_variable_name_0();
         
@@ -21916,73 +21994,90 @@
             printf(" <BC[%d]>",j_L+1);
         }
         printf(" (Boundary Conditions)\n");
+        printf("  -order");
+        for(j_L=0; j_L<dim_L;j_L++){
+            printf(" <order[%d]>",j_L+1);
+        }
+        printf(" (Spin Ordered Initialization)\n");
 
-        printf("  -th_algo <Glauber(0)/Metropolis(1)/Wolff(2)>\n");
-        printf("  -th_updt <Checkerboard(0)/Random(1)/Linear(2)>\n");
+        printf("  -th_algo < 0(Glauber) /");
+        printf("             1(Metropolis) /");
+        printf("             2(Wolff) >\n");
+        printf("  -th_updt < 0(Checkerboard) /");
+        printf("             1(Random) /");
+        printf("             2(Linear)>\n");
         printf("  -th_step <Thermalizing MC Steps>\n");
-        printf("  -av_algo <Glauber(0)/Metropolis(1)/Wolff(2)>\n");
-        printf("  -av_updt <Checkerboard(0)/Random(1)/Linear(2)>\n");
+        printf("  -av_algo < 0(Glauber) /");
+        printf("             1(Metropolis) /");
+        printf("             2(Wolff) >\n");
+        printf("  -av_updt < 0(Checkerboard) /");
+        printf("             1(Random) /");
+        printf("             2(Linear)>\n");
         printf("  -av_step <Averaging MC Steps>\n");
         printf("  -av_smpl <Sampling/Measurement Interval>\n");
-        printf("  -av_intr <Constant(1) or Random(0) Interval>\n");
+        printf("  -av_intr < 1(Constant) /");
+        printf("             0(Random) > (Interval Type)\n");
         
         printf("  -T <Temperature>\n");
         printf("  -Tmax <Maximum Temperature>\n");
         printf("  -Tmin <Minimum Temperature>\n");
         printf("  -dT <Temperature Step>\n");
+
+        printf("  -Sconfig <Spin configuration Filename>\n");
         
         printf("  -h");
         int j_S;
         for(j_S=0; j_S<dim_S; j_S++){
-            printf(" <h[%d]>",j_S+1);
+            printf(" <h[%d]>", j_S+1);
         }
         printf(" (Uniform Field)\n");
         // printf("  -dh <field step>\n");
-        #ifdef RANDOM_FIELD
         printf("  -RF");
         for(j_S=0; j_S<dim_S; j_S++){
             printf(" <RF[%d]>",j_S+1);
         }
         printf(" (Random Field Strength)\n");
+        #ifndef RANDOM_FIELD
+            printf("      / Recompile with -");
+            printf(" #define GAUSSIAN_FIELD 1");
+            printf(" -or-");
+            printf(" #define BIMODAL_FIELD 1\n");
         #endif
-
+        printf("  -hconfig <Random Field configuration Filename>\n");
+        
         printf("  -J");
         for(j_L=0; j_L<dim_L; j_L++){
             printf(" <J[%d]>",j_L+1);
         }
         printf(" (Uniform Bond)\n");
         // printf("  -dJ <bond step>\n");
-        #ifdef RANDOM_BOND
         printf("  -RB");
         for(j_L=0; j_L<dim_L; j_L++){
             printf(" <RB[%d]>",j_L+1);
         }
         printf(" (Random Bond Strength)\n");
+        #ifndef RANDOM_BOND
+            printf("      / Recompile with -");
+            printf(" #define GAUSSIAN_BOND 1");
+            printf(" -or-");
+            printf(" #define BIMODAL_BOND 1\n");
         #endif
+        printf("  -Jconfig <Random Bond configuration Filename>\n");
 
-        printf("  -fn <");
+        func_len--;
+        printf("  -fn < %s ", function_list[func_len]);
         while (func_len>0) {
             func_len--;
-            if(func_len>0) {
-                printf("%s/",function_list[func_len]);
-            }
-            else {
-                printf("%s",function_list[func_len]);
-            }
-
+            printf("/\n      / %s ",function_list[func_len]);
+            
         }
         printf("> (Function Type)\n");
 
-        printf("  -out <");
+        out_len--;
+        printf("  -out < %s ", output_list[out_len]);
         while (out_len>0) {
             out_len--;
-            if(out_len>0) {
-                printf("%s/",output_list[out_len]);
-            }
-            else {
-                printf("%s",output_list[out_len]);
-            }
-
+            printf("/\n       / %s ", output_list[out_len]);
         }
         printf("> (Output Columns)\n");
         return 0;
@@ -22034,9 +22129,33 @@
             "ZTNE_inc", 
             "ZTNE_dec", 
             "EQ_init_Ordrd",
-            "EQ_init_Randm"
+            "EQ_init_hOrdr",
+            "EQ_init_Randm",
+            "EQ_init_Load",
+            "Evo_T_Ordrd",
+            "Evo_T_hOrdr",
+            "Evo_T_Randm",
+            "Evo_T_Load",
+            "Cool_init_Ordrd",
+            "Cool_init_hOrdr",
+            "Cool_init_Randm",
+            "Cool_init_Load",
+            "Heat_init_Ordrd",
+            "Heat_init_hOrdr",
+            "Heat_init_Randm",
+            "Heat_init_Load",
+            "CoolHeat_init_Ordrd",
+            "CoolHeat_init_hOrdr",
+            "CoolHeat_init_Randm",
+            "CoolHeat_init_Load",
+            "HeatCool_init_Ordrd",
+            "HeatCool_init_hOrdr",
+            "HeatCool_init_Randm",
+            "HeatCool_init_Load"
         };
-        int func_len = 4;
+        int func_len = sizeof(function_list) / sizeof(function_list[0]);
+        // int func_len = 4;
+        
         int *run_this_function = calloc(0, sizeof(int));
         int no_of_functions=0;
         
@@ -22075,8 +22194,10 @@
             "Y_2_avg",
             "Y_x_mu"
         };
-        int out_len = 33;
-        
+        int out_len = sizeof(output_list) / sizeof(output_list[0]);
+        // int out_len = 33;
+        int load_h_from_filename = 0;
+        int load_J_from_filename = 0;
         if (argc==1){
             print_help(function_list, func_len, output_list, out_len);
             return 0;
@@ -22139,7 +22260,20 @@
                     int j_L;
                     for(j_L=0; j_L<dim_L; j_L++){
                         i++;
-                        BC[j_L] = (atoi(argv[i])==0 ? 0 : 1);
+                        BC[j_L] = atof(argv[i]);
+                    }
+                }
+                else if ( strcmp("-order", argv[i])==0 ){
+                    int j_S;
+                    double temp = 0.0;
+                    for(j_S=0; j_S<dim_S; j_S++){
+                        i++;
+                        order[j_S] = atof(argv[i]);
+                        temp += order[j_S];
+                    }
+                    temp = sqrt(temp);
+                    for(j_S=0; j_S<dim_S; j_S++){
+                        order[j_S] = order[j_S]/temp;
                     }
                 }
                 else if ( strcmp("-T", argv[i])==0 ){
@@ -22200,6 +22334,20 @@
                     run_this_function = realloc(run_this_function,no_of_functions*sizeof(int));
                     run_this_function[no_of_functions-1] = j;
                 }
+                else if ( strcmp("-Sconfig", argv[i])==0 ){
+                    i++;
+                    strcpy(input_file_spin, argv[i]);
+                }
+                else if ( strcmp("-hconfig", argv[i])==0 ){
+                    i++;
+                    strcpy(input_file_h, argv[i]);
+                    load_h_from_filename=1;
+                }
+                else if ( strcmp("-Jconfig", argv[i])==0 ){
+                    i++;
+                    strcpy(input_file_J, argv[i]);
+                    load_J_from_filename=1;
+                }
                 i++;
             }
         }
@@ -22243,14 +22391,22 @@
         #endif
         
         #ifdef RANDOM_BOND
-        load_J_config("");
+        if (load_J_from_filename==0){
+            load_J_config("", 0);
+        } else{
+            load_J_config(input_file_J, 1);
+        }
         // printf("J loaded. \n");
         printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         #endif
         
         #ifdef RANDOM_FIELD
         // initialize_h_random_gaussian();
-        load_h_config("");
+        if (load_h_from_filename==0){
+            load_h_config("", 0);
+        } else{
+            load_h_config(input_file_h, 1);
+        }
         // printf("h loaded. \n");
         printf("[t=%lf s] \n", get_time_if_parallel()-abs_start_time);
         #endif
@@ -22263,17 +22419,88 @@
         int fi;
         for (fi=0; fi<no_of_functions; fi++)
         {
-            if (run_this_function[fi] == 0){
-                zero_temp_IM_hysteresis_with_changing_field(-1);
-            }
-            else if (run_this_function[fi] == 1){
-                zero_temp_IM_hysteresis_with_changing_field(1);
-            }
-            else if (run_this_function[fi] == 2){
-                evo_diff_ini_config_temp(0);
-            }
-            else if (run_this_function[fi] == 3){
-                evo_diff_ini_config_temp(2);
+            switch(run_this_function[fi]){
+                case 0: 
+                    zero_temp_IM_hysteresis_with_changing_field(-1);
+                    break;
+                case 1: 
+                    zero_temp_IM_hysteresis_with_changing_field(1);
+                    break;
+                case 2: 
+                    evo_diff_ini_config_temp(0);
+                    break;
+                case 3: 
+                    evo_diff_ini_config_temp(1);
+                    break;
+                case 4: 
+                    evo_diff_ini_config_temp(2);
+                    break;
+                case 5: 
+                    evo_diff_ini_config_temp(3);
+                    break;
+                case 6: 
+                    evolution_at_T(0);
+                    break;
+                case 7: 
+                    evolution_at_T(1);
+                    break;
+                case 8: 
+                    evolution_at_T(2);
+                    break;
+                case 9: 
+                    evolution_at_T(3);
+                    break;
+                case 10: 
+                    fc_fh_or_both(0, 0);
+                    break;
+                case 11: 
+                    fc_fh_or_both(1, 0);
+                    break;
+                case 12: 
+                    fc_fh_or_both(2, 0);
+                    break;
+                case 13: 
+                    fc_fh_or_both(3, 0);
+                    break;
+                case 14: 
+                    fc_fh_or_both(0, 1);
+                    break;
+                case 15: 
+                    fc_fh_or_both(1, 1);
+                    break;
+                case 16: 
+                    fc_fh_or_both(2, 1);
+                    break;
+                case 17: 
+                    fc_fh_or_both(3, 1);
+                    break;
+                case 18: 
+                    fc_fh_or_both(0, 2);
+                    break;
+                case 19: 
+                    fc_fh_or_both(1, 2);
+                    break;
+                case 20: 
+                    fc_fh_or_both(2, 2);
+                    break;
+                case 21: 
+                    fc_fh_or_both(3, 2);
+                    break;
+                case 22: 
+                    fc_fh_or_both(0, 3);
+                    break;
+                case 23: 
+                    fc_fh_or_both(1, 3);
+                    break;
+                case 24: 
+                    fc_fh_or_both(2, 3);
+                    break;
+                case 25: 
+                    fc_fh_or_both(3, 3);
+                    break;
+                default: 
+                    printf("\n%s - Not Implemented\n", function_list[run_this_function[i]]);
+                    break;
             }
         }
         // thermal_i = thermal_i*lattice_size[0];
@@ -22295,7 +22522,7 @@
         // zero_temp_RFIM_ringdown(0.1);
         // zero_temp_RFIM_return_point_memory();
         // hysteresis_protocol(0, -1);
-        // fc_fh_or_both(2, 0);
+        // fc_fh_or_both(0, 2, 0);
         // evo_diff_ini_config_temp(0);
         // evo_diff_ini_config_temp(2);
         // return 0;
@@ -22313,7 +22540,7 @@
             
             sigma_h[0] = 2.270;
             // sigma_h[1] = 1.000;
-            load_h_config("");
+            load_h_config("", 0);
 
             double h_sweep[dim_S] = { 0.0 };
             h_sweep[0] = 0.1*h_sweep_vals[i];
@@ -22358,7 +22585,7 @@
                 // sigma_h[0] = 0.500;
                 // sigma_h[1] = h_field_vals[i];
                 // sigma_h[1] = 0.000;
-                load_h_config("");
+                load_h_config("", 0);
                 
                 start_time_loop[0] = get_time_if_parallel();
                 // field_cool_and_rotate_checkerboard(0, 1);
@@ -22423,7 +22650,7 @@
         // MC_update_type = 0;
         // h_order = 0;
         // r_order = 1;
-        // fc_fh_or_both(2,0);
+        // fc_fh_or_both(2,2,0);
         // evolution_at_T(1);
         // evo_diff_ini_config_temp(2);
         
@@ -22433,7 +22660,7 @@
         MC_update_type = 0;
         h_order = 0;
         r_order = 1;
-        fc_fh_or_both(2,1);
+        fc_fh_or_both(2,2,1);
         */
         
         /* 

@@ -1,4 +1,4 @@
-# Monte Carlo and Zero Temperature simulations w/ Parallelization
+# Monte Carlo and Zero Temperature simulations w/ Parallelization (OpenMP)
 
 ## System consists of Hard Spins, with O(n>0) symmetry, on a (d>0)-dimensional Lattice, with square symmetry, interacting with nearest neighbors only.
 
@@ -55,9 +55,9 @@ $ ./a.out -L 64 64 64 -BC 1 1 0 -J 1 1 1 -h 0 -th_step 100 -th_algo 1 -av_step 1
 $ ./a.out `cat param.txt`
 ```
 
-with, example parameter file for equilibrium simulation of Clean Ising Model:
+with, example parameter file for equilibrium simulation of 3D Ising Model:
 ```
-$ cat param.txt
+$ cat param1.txt
 -L 64 64 64 
 -BC 1 1 0
 -J 1 1 1 
@@ -66,6 +66,7 @@ $ cat param.txt
 -th_algo 1 
 -th_updt 0 
 -av_step 100 
+-av_intr 0 
 -av_smpl 16 
 -av_algo 2 
 -av_updt 1 
@@ -77,26 +78,72 @@ $ cat param.txt
 -out m
 -out m_avg
 ```
-example parameter file for zero temperature non-equilibrium simulation of Random Field Ising Model:
-> (recompile with `#define RANDOM_FIELD 1`)
+``EQ_init_Randm`` (Random Spin Initialization) can be replaced by :
+- ``EQ_init_hOrdr`` (Spin ordered along h Initialization) 
+- ``EQ_init_Ordrd`` (Ordered Spin Initialization) 
+  - provide starting order with ```-order "filename.ext"```
+- ``EQ_init_Load`` (Load spin config from file) 
+  - provide filename with ```-Sconfig "filename.ext"```
+
+example parameter file for evolution with a loaded spin configuration, saves output while averaging after thermalization of 3D Ising Model:
 ```
 $ cat param2.txt
 -L 64 64 64 
 -BC 1 1 0
 -J 1 1 1 
+-h 0
+-th_step 100 
+-th_algo 1 
+-th_updt 0 
+-av_step 100 
+-av_intr 1 
+-av_smpl 16 
+-av_algo 2 
+-av_updt 1 
+-T 4.50 
+-fn Evo_T_Randm
+-out T
+-out m
+-out m_avg
+```
+``Evo_T_Randm`` (Random Spin Initialization) can be replaced by :
+- ``Evo_T_hOrdr`` (Spin ordered along h Initialization) 
+- ``Evo_T_Ordrd`` (Ordered Spin Initialization) 
+  - provide starting order with ```-order "filename.ext"```
+- ``Evo_T_Load`` (Load spin config from file) 
+  - provide filename with ```-Sconfig "filename.ext"```
+
+example parameter file for zero temperature non-equilibrium simulation of Random Field Ising Model:
+> (recompile with `#define GAUSSIAN_FIELD 1`) \
+> -or- \
+> (recompile with `#define BIMODAL_FIELD 1`) \
+> -and/or- \
+> (recompile with `#define GAUSSIAN_BOND 1`) \
+> -or- \
+> (recompile with `#define BIMODAL_BOND 1`) 
+```
+$ cat param3.txt
+-L 64 64 64 
+-BC 1 1 0
+-J 1 1 1 
 -RF 2.27
+-RB 0.00 0.00 0.00
 -T 0
 -fn ZTNE_dec
 -out h
 -out m
 ```
+``ZTNE_dec`` (decreasing h) can be replaced by ``ZTNE_inc`` (increasing h)
 
 ## Requires recompilations after editing **che_arg.c** to run different models.
 * *dim_S* = Spin dimension(s) - O(n) model - Hard spins
 * *dim_L* = Lattice dimension(s) or the Spatial dimension(s)
-* *RANDOM_FIELD* = Gaussian/Bimodal Distribution
-* *RANDOM_BOND* = Gaussian/Bimodal Distribution
+* *GAUSSIAN_FIELD* = Gaussian Distribution of Random Fields
+* *BIMODAL_FIELD* = Bimodal Distribution of Random Fields
+* *GAUSSIAN_BOND* = Gaussian Distribution of Random Bonds
+* *BIMODAL_BOND* = Bimodal Distribution of Random Bonds
+* *SAVE_SPIN_AFTER* = Save Spin frequency
 
 
 ---
-\* ***This file is under construction***
+\* ***This code is under construction***
