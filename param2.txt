@@ -3,13 +3,11 @@
 -J 1 1 1 
 -h 0
 -th_step 100 
--th_algo 1 
--th_updt 0 
+-th_algos 1 1 0 1
 -av_step 100 
 -av_intr 1 
 -av_smpl 16 
--av_algo 2 
--av_updt 1 
+-av_algos 1 2 1 1
 -T 4.50 
 -fn Evo_T_Randm
 -out T

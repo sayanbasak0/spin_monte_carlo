@@ -132,6 +132,7 @@
 //========================================================================//
 //====================  Variables                     ====================//
     
+    int fscanf_return;
     #ifndef VARIABLE_SEPARATE
     FILE *pFile_1, *pFile_2, *pFile_phase, *pFile_output = NULL, *pFile_chkpt, *pFile_temp, *pFile_ising_spin, *pFile_ising_h;
     char input_file_spin[256];
@@ -251,13 +252,32 @@
 
 //====================  MC-update type                ====================//
     int MC_algo_type = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
-    int MC_algo_type_thrm = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
-    int MC_algo_type_avg = 1; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
+    int* MC_algo_type_thrm; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
+    int* MC_algo_type_avg; // 0 -> Glauber , 1 -> Metropolis, 2 -> Wolff
     char G_M_W[] = "GMW";
     int MC_update_type = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
-    int MC_update_type_thrm = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
-    int MC_update_type_avg = 0; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
+    int* MC_update_type_thrm; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
+    int* MC_update_type_avg; // 0 -> Checkerboard updates/ Full sweep (Swendsen-Wang) , 1 -> Random updates/ Wolff nucleate at Random site , 2 -> Linear updates/
     char C_R_L[] = "CRL";
+    int MC_step_type = 1; 
+    int* MC_step_type_thrm; 
+    int* MC_step_type_avg; 
+    int interleave_algos_thrm = 0;
+    int interleave_algos_avg = 0;
+    
+    char * GC_MR_WL(int* MC_algo, int* MC_update, int length){
+        // memset(str_GC_MR_WL, 0, sizeof(str_GC_MR_WL));
+        char *temp_str = (char*)malloc(128*sizeof(char));
+        char* pos_s = temp_str;
+        int j_A;
+        
+        for (j_A=0; j_A<length; j_A++) {
+            pos_s += sprintf(pos_s, "%c%c", G_M_W[MC_algo[j_A]], C_R_L[MC_update[j_A]]);
+            // strncat(str_GC_MR_WL, &G_M_W[MC_algo[j_A]], 1); 
+            // strncat(str_GC_MR_WL, &C_R_L[MC_update[j_A]], 1); 
+        }
+        return temp_str;
+    }
 
 //====================  MC-update iterations          ====================//
     long int thermal_i = 10*10; // 128*10*10*10; // thermalizing MCS 
@@ -605,6 +625,20 @@
             fflush(stdout);
             // usleep(1000000);
             free(field_site);
+        }
+        if (interleave_algos_thrm>0){
+            free(MC_algo_type_thrm );
+            free(MC_update_type_thrm );
+            free(MC_step_type_thrm );
+            printf("th_algos variables, ");
+            fflush(stdout);
+        }
+        if (interleave_algos_avg>0){
+            free(MC_algo_type_avg );
+            free(MC_update_type_avg );
+            free(MC_step_type_avg );
+            printf("av_algos variables, ");
+            fflush(stdout);
         }
         #ifdef _OPENMP
             // free(random_seed);
@@ -2945,7 +2979,7 @@
             {
                 for (j_S = 0; j_S<dim_S; j_S++)
                 {
-                    fscanf(pFile_2, "%le", &spin[dim_S*i + j_S]);
+                    fscanf_return = fscanf(pFile_2, "%le", &spin[dim_S*i + j_S]);
                 }
             }
             fclose(pFile_2);
@@ -3039,20 +3073,20 @@
         else
         {
             // h_random = (double*)malloc(dim_S*no_of_sites*sizeof(double));
-            fscanf(pFile_1, "%le", &h_i_min);
-            fscanf(pFile_1, "%le", &h_i_max);
+            fscanf_return = fscanf(pFile_1, "%le", &h_i_min);
+            fscanf_return = fscanf(pFile_1, "%le", &h_i_max);
             for (j_S=0; j_S<dim_S; j_S++)
             {
-                fscanf(pFile_1, "%le", &h[j_S]);
-                fscanf(pFile_1, "%le", &sigma_h[j_S]);
-                fscanf(pFile_1, "%le", &h_dev_avg[j_S]);
+                fscanf_return = fscanf(pFile_1, "%le", &h[j_S]);
+                fscanf_return = fscanf(pFile_1, "%le", &sigma_h[j_S]);
+                fscanf_return = fscanf(pFile_1, "%le", &h_dev_avg[j_S]);
             }
             
             for (i = 0; i < no_of_sites; i++)
             {
                 for (j_S = 0; j_S<dim_S; j_S++)
                 {
-                    fscanf(pFile_1, "%le", &h_random[dim_S*i + j_S]);
+                    fscanf_return = fscanf(pFile_1, "%le", &h_random[dim_S*i + j_S]);
                 }
             }
             fclose(pFile_1);
@@ -3149,13 +3183,13 @@
             //     }
             // }
 
-            fscanf(pFile_1, "%le", &J_i_min);
-            fscanf(pFile_1, "%le", &J_i_max);
+            fscanf_return = fscanf(pFile_1, "%le", &J_i_min);
+            fscanf_return = fscanf(pFile_1, "%le", &J_i_max);
             for (j_L=0; j_L<dim_L; j_L++)
             {
-                fscanf(pFile_1, "%le", &J[j_L]);
-                fscanf(pFile_1, "%le", &sigma_J[j_L]);
-                fscanf(pFile_1, "%le", &J_dev_avg[j_L]);
+                fscanf_return = fscanf(pFile_1, "%le", &J[j_L]);
+                fscanf_return = fscanf(pFile_1, "%le", &sigma_J[j_L]);
+                fscanf_return = fscanf(pFile_1, "%le", &J_dev_avg[j_L]);
             }
             
             for (i = 0; i < no_of_sites; i++)
@@ -3164,7 +3198,7 @@
                 {
                     for (k_L = 0; k_L<2; k_L++)
                     {
-                        fscanf(pFile_1, "%le", &J_random[2*dim_L*i + 2*j_L + k_L]);
+                        fscanf_return = fscanf(pFile_1, "%le", &J_random[2*dim_L*i + 2*j_L + k_L]);
                     }
                 }
             }
@@ -3306,7 +3340,7 @@
                 int *array = (int *)voidarray;
                 for (j_arr=0; j_arr<array_length; j_arr++)
                 {
-                    fscanf(pFile_chkpt, "%d", &array[j_arr]);
+                    fscanf_return = fscanf(pFile_chkpt, "%d", &array[j_arr]);
                 }
             }
             if (array_type == TYPE_LONGINT)
@@ -3314,7 +3348,7 @@
                 long int *array = (long int *)voidarray;
                 for (j_arr=0; j_arr<array_length; j_arr++)
                 {
-                    fscanf(pFile_chkpt, "%ld", &array[j_arr]);
+                    fscanf_return = fscanf(pFile_chkpt, "%ld", &array[j_arr]);
                 }
             }
             if (array_type == TYPE_FLOAT)
@@ -3322,7 +3356,7 @@
                 float *array = (float *)voidarray;
                 for (j_arr=0; j_arr<array_length; j_arr++)
                 {
-                    fscanf(pFile_chkpt, "%e", &array[j_arr]);
+                    fscanf_return = fscanf(pFile_chkpt, "%e", &array[j_arr]);
                 }
             }
             if (array_type == TYPE_DOUBLE)
@@ -3330,7 +3364,7 @@
                 double *array = (double *)voidarray;
                 for (j_arr=0; j_arr<array_length; j_arr++)
                 {
-                    fscanf(pFile_chkpt, "%le", &array[j_arr]);
+                    fscanf_return = fscanf(pFile_chkpt, "%le", &array[j_arr]);
                 }
             }
             // if (array_type != TYPE_VOID)
@@ -3638,97 +3672,102 @@
         
 
         fprintf(pFile_output, "Thermalizing-MCS = %ld ,\n", thermal_i);
+        int j_A;
+        for (j_A=0; j_A<interleave_algos_thrm; j_A++){
+            if (MC_algo_type_thrm[j_A] == 2)
+            {
+                if (MC_update_type_thrm[j_A] == 0)
+                {
+                    fprintf(pFile_output, "Swendsen-Wang cluster update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+                else
+                {
+                    fprintf(pFile_output, "Wolff cluster update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+            }
+            else if (MC_algo_type_thrm[j_A] == 1)
+            {
+                fprintf(pFile_output, "Metropolis - ");
+                if (MC_update_type_thrm[j_A] == 0)
+                {
+                    fprintf(pFile_output, "Checkerboard site update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+                else if (MC_update_type_thrm[j_A] == 1)
+                {
+                    fprintf(pFile_output, "Random site update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+                else if (MC_update_type_thrm[j_A] == 2)
+                {
+                    fprintf(pFile_output, "Linear site update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+            }
+            else if (MC_algo_type_thrm[j_A] == 0)
+            {
+                fprintf(pFile_output, "Glauber - ");
+                if (MC_update_type_thrm[j_A] == 0)
+                {
+                    fprintf(pFile_output, "Checkerboard site update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+                else if (MC_update_type_thrm[j_A] == 1)
+                {
+                    fprintf(pFile_output, "Random site update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+                else if (MC_update_type_thrm[j_A] == 2)
+                {
+                    fprintf(pFile_output, "Linear site update (%d) ,\n", MC_step_type_thrm[j_A]);
+                }
+            }
+        }
 
-        if (MC_algo_type_thrm == 2)
-        {
-            if (MC_update_type_thrm == 0)
-            {
-                fprintf(pFile_output, "Swendsen-Wang cluster update ,\n");
-            }
-            else
-            {
-                fprintf(pFile_output, "Wolff cluster update ,\n");
-            }
-        }
-        else if (MC_algo_type_thrm == 1)
-        {
-            fprintf(pFile_output, "Metropolis - ");
-            if (MC_update_type_thrm == 0)
-            {
-                fprintf(pFile_output, "Checkerboard site update ,\n");
-            }
-            else if (MC_update_type_thrm == 1)
-            {
-                fprintf(pFile_output, "Random site update ,\n");
-            }
-            else if (MC_update_type_thrm == 2)
-            {
-                fprintf(pFile_output, "Linear site update ,\n");
-            }
-        }
-        else if (MC_algo_type_thrm == 0)
-        {
-            fprintf(pFile_output, "Glauber - ");
-            if (MC_update_type_thrm == 0)
-            {
-                fprintf(pFile_output, "Checkerboard site update ,\n");
-            }
-            else if (MC_update_type_thrm == 1)
-            {
-                fprintf(pFile_output, "Random site update ,\n");
-            }
-            else if (MC_update_type_thrm == 2)
-            {
-                fprintf(pFile_output, "Linear site update ,\n");
-            }
-        }
         if (interval_type==0){
             fprintf(pFile_output, "Averaging-MCS = %ld x [1-%ld] ,\n", average_j, sampling_inter);
         } else{
             fprintf(pFile_output, "Averaging-MCS = %ld x [%ld] ,\n", average_j, sampling_inter);
         }
 
-        if (MC_algo_type_avg == 2)
-        {
-            if (MC_update_type_avg == 0)
+        for (j_A=0; j_A<interleave_algos_avg; j_A++){
+            if (MC_algo_type_avg[j_A] == 2)
             {
-                fprintf(pFile_output, "Swendsen-Wang cluster update ,\n");
+                if (MC_update_type_avg[j_A] == 0)
+                {
+                    fprintf(pFile_output, "Swendsen-Wang cluster update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
+                else
+                {
+                    fprintf(pFile_output, "Wolff cluster update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
             }
-            else
+            else if (MC_algo_type_avg[j_A] == 1)
             {
-                fprintf(pFile_output, "Wolff cluster update ,\n");
+                fprintf(pFile_output, "Metropolis - ");
+                if (MC_update_type_avg[j_A] == 0)
+                {
+                    fprintf(pFile_output, "Checkerboard site update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
+                else if (MC_update_type_avg[j_A] == 1)
+                {
+                    fprintf(pFile_output, "Random site update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
+                else if (MC_update_type_avg[j_A] == 2)
+                {
+                    fprintf(pFile_output, "Linear site update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
             }
-        }
-        else if (MC_algo_type_avg == 1)
-        {
-            fprintf(pFile_output, "Metropolis - ");
-            if (MC_update_type_avg == 0)
+            else if (MC_algo_type_avg[j_A] == 0)
             {
-                fprintf(pFile_output, "Checkerboard site update ,\n");
-            }
-            else if (MC_update_type_avg == 1)
-            {
-                fprintf(pFile_output, "Random site update ,\n");
-            }
-            else if (MC_update_type_avg == 2)
-            {
-                fprintf(pFile_output, "Linear site update ,\n");
-            }
-        }
-        else if (MC_algo_type_avg == 0)
-        {
-            fprintf(pFile_output, "Glauber - ");
-            if (MC_update_type_avg == 0)
-            {
-                fprintf(pFile_output, "Checkerboard site update ,\n");
-            }
-            else if (MC_update_type_avg == 1)
-            {
-                fprintf(pFile_output, "Random site update ,\n");
-            }
-            else if (MC_update_type_avg == 2)
-            {
-                fprintf(pFile_output, "Linear site update ,\n");
+                fprintf(pFile_output, "Glauber - ");
+                if (MC_update_type_avg[j_A] == 0)
+                {
+                    fprintf(pFile_output, "Checkerboard site update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
+                else if (MC_update_type_avg[j_A] == 1)
+                {
+                    fprintf(pFile_output, "Random site update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
+                else if (MC_update_type_avg[j_A] == 2)
+                {
+                    fprintf(pFile_output, "Linear site update (%d) ,\n", MC_step_type_avg[j_A]);
+                }
             }
         }
         
@@ -8255,7 +8294,7 @@
         return 0;
     }
 
-    int thermalizing_iteration(long int thermal_iter, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print, int init)
+    int thermalizing_iteration(long int thermal_iter, int* MC_algo_type_local, int* MC_update_type_local, int* MC_step_type_local, int interleave_algos_local, int reqd_to_print, int init)
     {
         #ifdef C_IM
             activation_probability_Glauber(0, init);
@@ -8272,9 +8311,15 @@
             printf("Thermalizing.. ");
             fflush(stdout);
         }
+        while (thermal_iter)
+        {
+            int j_A;
+            for (j_A=0; j_A<interleave_algos_local; j_A++){
+                Monte_Carlo_Sweep(MC_step_type_local[j_A], MC_algo_type_local[j_A], MC_update_type_local[j_A]);
+            }
+            thermal_iter = thermal_iter - 1;
+        }
 
-        Monte_Carlo_Sweep(thermal_iter, MC_algo_type_local, MC_update_type_local);
-        
         if (reqd_to_print == 1)
         {
             // ensemble_all();
@@ -8294,7 +8339,7 @@
         return 0;
     }
 
-    int averaging_iteration(long int average_iter, long int sampl_inter, int inter_type, int MC_algo_type_local, int MC_update_type_local, int reqd_to_print, int save_spin)
+    int averaging_iteration(long int average_iter, long int sampl_inter, int inter_type, int* MC_algo_type_local, int* MC_update_type_local, int* MC_step_type_local, int interleave_algos_local, int reqd_to_print, int save_spin)
     {
         // printf("\n--------\n");
         // printf("%ld,%d,%d", average_iter, MC_algo_type_local, MC_update_type_local);
@@ -8330,9 +8375,23 @@
                 fflush(stdout);
             }
             if (inter_type==0){
-                Monte_Carlo_Sweep(sampl_inter-genrand64_int64(thread_num_if_parallel())%sampl_inter, MC_algo_type_local, MC_update_type_local);
+                long int sampli = (sampl_inter-genrand64_int64(thread_num_if_parallel())%sampl_inter);
+                while (sampli){
+                    int j_A;
+                    for (j_A=0; j_A<interleave_algos_local; j_A++){
+                        Monte_Carlo_Sweep(MC_step_type_local[j_A], MC_algo_type_local[j_A], MC_update_type_local[j_A]);
+                    }
+                    sampli = sampli - 1;
+                }
             } else{
-                Monte_Carlo_Sweep(sampl_inter, MC_algo_type_local, MC_update_type_local);
+                long int sampli = sampl_inter;
+                while (sampli){
+                    int j_A;
+                    for (j_A=0; j_A<interleave_algos_local; j_A++){
+                        Monte_Carlo_Sweep(sampl_inter*MC_step_type_local[j_A], MC_algo_type_local[j_A], MC_update_type_local[j_A]);
+                    }
+                    sampli = sampli - 1;
+                }
             }
 
             // random_Wolff_sweep(1);
@@ -8517,7 +8576,11 @@
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_evo(t)_T%.3f_%c%c_%c%c_", dim_S, dim_L, T, G_M_W[MC_algo_type_thrm], C_R_L[MC_update_type_thrm], G_M_W[MC_algo_type_avg], C_R_L[MC_update_type_avg]);
+            char *str_GC_MR_WL_thrm = GC_MR_WL(MC_algo_type_thrm, MC_update_type_thrm, interleave_algos_thrm);
+            char *str_GC_MR_WL_avg = GC_MR_WL(MC_algo_type_avg, MC_update_type_avg, interleave_algos_avg);
+            pos += sprintf(pos, "O(%d)_%dD_evo(t)_T%.3f_%s_%s_", dim_S, dim_L, T, str_GC_MR_WL_thrm, str_GC_MR_WL_avg);
+            free(str_GC_MR_WL_thrm);
+            free(str_GC_MR_WL_avg);
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -8611,14 +8674,14 @@
 
         long int i;
         double m_prev = -2.0;
-        thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, 1);
+        thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, MC_step_type_thrm, interleave_algos_thrm, 0, 1);
         for (i=0; i<average_j; i++)
         {
             long int sampl_inter = sampling_inter;
             if (interval_type==0){
                 sampl_inter = sampling_inter-genrand64_int64(thread_num_if_parallel())%sampling_inter;
             } 
-            averaging_iteration(sampl_inter, 1, 1, MC_algo_type_avg, MC_update_type_avg, 0, 0);
+            averaging_iteration(sampl_inter, 1, 1, MC_algo_type_avg, MC_update_type_avg, MC_step_type_avg, interleave_algos_avg, 0, 0);
             
             
             printf("\r(%ld) m=%2.6f, <m>=%2.6f [t=%2.3e s]    ", i, m[0], m_avg[0], (double)get_time_if_parallel()-start_time_local);
@@ -8686,7 +8749,7 @@
         return 0;
     }
 
-    int initialize_spin_and_evolve_at_T(int MC_algo_type_th, int MC_update_type_th, int MC_algo_type_av, int MC_update_type_av)
+    int initialize_spin_and_evolve_at_T(int* MC_algo_type_th, int* MC_update_type_th, int* MC_step_type_th, int interleave_algos_th, int* MC_algo_type_av, int* MC_update_type_av, int* MC_step_type_av, int interleave_algos_av)
     {
         // repeat with different initial configurations
         int j_S, j_SS, j_L;
@@ -8720,7 +8783,7 @@
         }
         printf("), Energy = %lf \n", E);
 
-        thermalizing_iteration(thermal_i, MC_algo_type_th, MC_update_type_th, 1, 1);
+        thermalizing_iteration(thermal_i, MC_algo_type_th, MC_update_type_th, MC_step_type_th, interleave_algos_th, 1, 1);
         // Monte_Carlo_Sweep(/* sweeps */2, /* MC_algo_type_local */2, /* MC_update_type_local */0);
         char append_string1[128];
         char *pos_append_string1 = append_string1;
@@ -8728,7 +8791,7 @@
         save_spin_config(append_string1, "a", 2);
         printf("[t=%lf s] ", (double)get_time_if_parallel()-start_time_local);
 
-        averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_av, MC_update_type_av, 1, 1);
+        averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_av, MC_update_type_av, MC_step_type_av, interleave_algos_av, 1, 1);
 
         char append_string2[128];
         char *pos_append_string2 = append_string2;
@@ -8835,7 +8898,12 @@
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_eq_%c%c_%c%c_", dim_S, dim_L, G_M_W[MC_algo_type_thrm], C_R_L[MC_update_type_thrm], G_M_W[MC_algo_type_avg], C_R_L[MC_update_type_avg]);
+            char *str_GC_MR_WL_thrm = GC_MR_WL(MC_algo_type_thrm, MC_update_type_thrm, interleave_algos_thrm);
+            char *str_GC_MR_WL_avg = GC_MR_WL(MC_algo_type_avg, MC_update_type_avg, interleave_algos_avg);
+            pos += sprintf(pos, "O(%d)_%dD_eq_%s_%s_", dim_S, dim_L, str_GC_MR_WL_thrm, str_GC_MR_WL_avg);
+            free(str_GC_MR_WL_thrm);
+            free(str_GC_MR_WL_avg);
+            
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -8929,7 +8997,7 @@
         for (T=Temp_max; T>=Temp_min; T=T-delta_T)
         {
             printf("\nT=%lf\t ", T);
-            initialize_spin_and_evolve_at_T(MC_algo_type_thrm, MC_update_type_thrm, MC_algo_type_avg, MC_update_type_avg);
+            initialize_spin_and_evolve_at_T(MC_algo_type_thrm, MC_update_type_thrm, MC_step_type_thrm, interleave_algos_thrm, MC_algo_type_avg, MC_update_type_avg, MC_step_type_avg, interleave_algos_avg);
 
             output_data(output_file_0, "", "");
             save_spin_config("_chkpt", "w", 1);
@@ -9034,7 +9102,7 @@
             else {printf("--> %lf ", T);}
             fflush(stdout);
             
-            thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, 0, 1);
+            thermalizing_iteration(thermal_i, MC_algo_type_thrm, MC_update_type_thrm, MC_step_type_thrm, interleave_algos_thrm, 0, 1);
             
             char append_string1[128];
             char *pos_append_string1 = append_string1;
@@ -9048,7 +9116,7 @@
             }
             save_spin_config(append_string1, "a", 2);
 
-            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0, 1);
+            averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, MC_step_type_avg, interleave_algos_avg, 0, 1);
 
             output_data(output_file_name, "", "");
 
@@ -9167,7 +9235,12 @@
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_FC-FH_%c%c_%c%c_", dim_S, dim_L, G_M_W[MC_algo_type_thrm], C_R_L[MC_update_type_thrm], G_M_W[MC_algo_type_avg], C_R_L[MC_update_type_avg]);
+            char *str_GC_MR_WL_thrm = GC_MR_WL(MC_algo_type_thrm, MC_update_type_thrm, interleave_algos_thrm);
+            char *str_GC_MR_WL_avg = GC_MR_WL(MC_algo_type_avg, MC_update_type_avg, interleave_algos_avg);
+            pos += sprintf(pos, "O(%d)_%dD_FC-FH_%s_%s_", dim_S, dim_L, str_GC_MR_WL_thrm, str_GC_MR_WL_avg);
+            free(str_GC_MR_WL_thrm);
+            free(str_GC_MR_WL_avg);
+            
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -9377,8 +9450,10 @@
         {
             // char output_file_0[256];
             char *pos = output_file_0;
-            pos += sprintf(pos, "O(%d)_%dD_hysteresis_%c%c_", dim_S, dim_L, G_M_W[MC_update_type_avg], C_R_L[MC_update_type_avg]);
-
+            char *str_GC_MR_WL_avg = GC_MR_WL(MC_algo_type_avg, MC_update_type_avg, interleave_algos_avg);
+            pos += sprintf(pos, "O(%d)_%dD_hysteresis_%s_", dim_S, dim_L, str_GC_MR_WL_avg);
+            free(str_GC_MR_WL_avg);
+            
             for (j_L = 0 ; j_L != dim_L ; j_L++) 
             {
                 if (j_L) 
@@ -9485,8 +9560,8 @@
             fflush(stdout);
             for (h[jj_S] = h_start; order[jj_S] * h[jj_S] >= order[jj_S] * h_end; h[jj_S] = h[jj_S] - order[jj_S] * delta_h)
             {
-                thermalizing_iteration(/* thermal_i */0, /* MC_algo_type_thrm */0, /* MC_update_type_thrm */0, 0, 1);
-                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, 0, 0);
+                thermalizing_iteration(/* thermal_i */0, MC_algo_type_thrm, MC_update_type_thrm, MC_step_type_thrm, interleave_algos_thrm, 0, 1);
+                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, MC_step_type_avg, interleave_algos_avg, 0, 0);
 
                 output_data(output_file_0, "", "");
             }
@@ -9495,7 +9570,8 @@
             fflush(stdout);
             for (h[jj_S] = h_end; order[jj_S] * h[jj_S] <= order[jj_S] * h_start; h[jj_S] = h[jj_S] + order[jj_S] * delta_h)
             {
-                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type, MC_update_type, 0, 0);
+                thermalizing_iteration(/* thermal_i */0, MC_algo_type_thrm, MC_update_type_thrm, MC_step_type_thrm, interleave_algos_thrm, 0, 1);
+                averaging_iteration(average_j, sampling_inter, interval_type, MC_algo_type_avg, MC_update_type_avg, MC_step_type_avg, interleave_algos_avg, 0, 0);
 
                 output_data(output_file_0, "", "");
             }
@@ -21984,7 +22060,7 @@
     {
         printf("Usage:\n$ ./a.out\n");
         printf("  -L");
-        int j_L;
+        int j_L, j_S;
         for(j_L=0; j_L<dim_L;j_L++){
             printf(" <L[%d]>",j_L+1);
         }
@@ -21995,28 +22071,24 @@
         }
         printf(" (Boundary Conditions)\n");
         printf("  -order");
-        for(j_L=0; j_L<dim_L;j_L++){
-            printf(" <order[%d]>",j_L+1);
+        for(j_S=0; j_S<dim_S;j_S++){
+            printf(" <order[%d]>",j_S+1);
         }
         printf(" (Spin Ordered Initialization)\n");
 
-        printf("  -th_algo < 0(Glauber) /");
-        printf("             1(Metropolis) /");
-        printf("             2(Wolff) >\n");
-        printf("  -th_updt < 0(Checkerboard) /");
-        printf("             1(Random) /");
-        printf("             2(Linear)>\n");
+        printf("  -th_algos <# of thermal algos> <algo #1> <updt #1> <steps #1> <algo #2> ...\n");
+        printf("  -av_algos <# of averaging algos> <algo #1> <updt #1> <steps #1> <algo #2> ...\n");
+        printf("   # algo   < 0(Glauber) /\n");
+        printf("            / 1(Metropolis) /\n");
+        printf("            / 2(Swendsen-Wang/Wolff) > (Algorithm types for thermalizing/averaging MCS)\n");
+        printf("   # updt   < 0(Checkerboard/Swendsen-Wang) /\n");
+        printf("            / 1(Random/Wolff) /\n");
+        printf("            / 2(Linear/Wolff)> (Update types for thermalizing/averaging MCS)\n");
         printf("  -th_step <Thermalizing MC Steps>\n");
-        printf("  -av_algo < 0(Glauber) /");
-        printf("             1(Metropolis) /");
-        printf("             2(Wolff) >\n");
-        printf("  -av_updt < 0(Checkerboard) /");
-        printf("             1(Random) /");
-        printf("             2(Linear)>\n");
         printf("  -av_step <Averaging MC Steps>\n");
         printf("  -av_smpl <Sampling/Measurement Interval>\n");
-        printf("  -av_intr < 1(Constant) /");
-        printf("             0(Random) > (Interval Type)\n");
+        printf("  -av_intr < 1(Constant) /\n");
+        printf("           / 0(Random) > (Interval Type)\n");
         
         printf("  -T <Temperature>\n");
         printf("  -Tmax <Maximum Temperature>\n");
@@ -22026,7 +22098,6 @@
         printf("  -Sconfig <Spin configuration Filename>\n");
         
         printf("  -h");
-        int j_S;
         for(j_S=0; j_S<dim_S; j_S++){
             printf(" <h[%d]>", j_S+1);
         }
@@ -22209,6 +22280,22 @@
                     i++;
                     thermal_i = atoi(argv[i]);
                 }
+                else if ( strcmp("-th_algos", argv[i])==0 ){
+                    int j_A;
+                    i++;
+                    interleave_algos_thrm = atoi(argv[i]);
+                    MC_algo_type_thrm = (int *)malloc(interleave_algos_thrm*sizeof(int));
+                    MC_update_type_thrm = (int *)malloc(interleave_algos_thrm*sizeof(int));
+                    MC_step_type_thrm = (int *)malloc(interleave_algos_thrm*sizeof(int));
+                    for(j_A=0; j_A<interleave_algos_thrm; j_A++){
+                        i++;
+                        MC_algo_type_thrm[j_A] = atoi(argv[i]);
+                        i++;
+                        MC_update_type_thrm[j_A] = atoi(argv[i]);
+                        i++;
+                        MC_step_type_thrm[j_A] = atoi(argv[i]);
+                    }
+                }
                 else if ( strcmp("-av_step", argv[i])==0 ){
                     i++;
                     average_j = atoi(argv[i]);
@@ -22221,21 +22308,21 @@
                     i++;
                     interval_type = atoi(argv[i]);
                 }
-                else if ( strcmp("-av_algo", argv[i])==0 ){
+                else if ( strcmp("-av_algos", argv[i])==0 ){
+                    int j_A;
                     i++;
-                    MC_algo_type_avg = atoi(argv[i]);
-                }
-                else if ( strcmp("-th_algo", argv[i])==0 ){
-                    i++;
-                    MC_algo_type_thrm = atoi(argv[i]);
-                }
-                else if ( strcmp("-av_updt", argv[i])==0 ){
-                    i++;
-                    MC_update_type_avg = atoi(argv[i]);
-                }
-                else if ( strcmp("-th_updt", argv[i])==0 ){
-                    i++;
-                    MC_update_type_thrm = atoi(argv[i]);
+                    interleave_algos_avg = atoi(argv[i]);
+                    MC_algo_type_avg = (int *)malloc(interleave_algos_avg*sizeof(int));
+                    MC_update_type_avg = (int *)malloc(interleave_algos_avg*sizeof(int));
+                    MC_step_type_avg = (int *)malloc(interleave_algos_avg*sizeof(int));
+                    for(j_A=0; j_A<interleave_algos_avg; j_A++){
+                        i++;
+                        MC_algo_type_avg[j_A] = atoi(argv[i]);
+                        i++;
+                        MC_update_type_avg[j_A] = atoi(argv[i]);
+                        i++;
+                        MC_step_type_avg[j_A] = atoi(argv[i]);
+                    }
                 }
                 else if ( strcmp("-out", argv[i])==0 ){
                     i++;

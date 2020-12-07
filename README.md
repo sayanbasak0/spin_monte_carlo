@@ -47,7 +47,7 @@ $ ./a.out
 
 ### Example run:
 ```
-$ ./a.out -L 64 64 64 -BC 1 1 0 -J 1 1 1 -h 0 -th_step 100 -th_algo 1 -av_step 100 -av_algo 2 -av_updt 1 -fn EQ_init_Randm -smpl 16 -Tmin 0.9 -Tmax 1 -dT 0.2 -out T -out m -out m_avg 
+$ ./a.out -L 64 64 64 -BC 1 1 0 -J 1 1 1 -h 0 -th_step 100 -th_algos 1 1 1 1 -av_step 100 -av_algos 1 2 1 1 -av_smpl 16 -fn EQ_init_Randm -Tmin 0.9 -Tmax 1 -dT 0.2 -out T -out m -out m_avg 
 ```
 
 ### Input through parameters file:
@@ -55,21 +55,19 @@ $ ./a.out -L 64 64 64 -BC 1 1 0 -J 1 1 1 -h 0 -th_step 100 -th_algo 1 -av_step 1
 $ ./a.out `cat param.txt`
 ```
 
-with, example parameter file for equilibrium simulation of 3D Ising Model:
+Example parameter file for equilibrium simulation of 3D Ising Model:
 ```
 $ cat param1.txt
--L 64 64 64 
+-L 8 8 8 
 -BC 1 1 0
 -J 1 1 1 
 -h 0
 -th_step 100 
--th_algo 1 
--th_updt 0 
+-th_algos 3 2 0 1 1 0 1 0 0 1 
 -av_step 100 
--av_intr 0 
+-av_intr 0
 -av_smpl 16 
--av_algo 2 
--av_updt 1 
+-av_algos 3 0 1 1 1 1 1 2 1 1
 -Tmin 0.9 
 -Tmax 1 
 -dT 0.2
@@ -81,11 +79,20 @@ $ cat param1.txt
 ``EQ_init_Randm`` (Random Spin Initialization) can be replaced by :
 - ``EQ_init_hOrdr`` (Spin ordered along h Initialization) 
 - ``EQ_init_Ordrd`` (Ordered Spin Initialization) 
-  - provide starting order with ```-order "filename.ext"```
+  - provide starting order with ```-order <S[1]> ... <S[dim_S]>```
 - ``EQ_init_Load`` (Load spin config from file) 
   - provide filename with ```-Sconfig "filename.ext"```
 
-example parameter file for evolution with a loaded spin configuration, saves output while averaging after thermalization of 3D Ising Model:
+``-th_algos`` interleave as many types of Monte-Carlo updates you want during thermalization.
+- first argument indicates the total.
+- the next arguments has to be in sets of 3 ( x total) :
+  1. MC algorithm (Metropolis|Glauber|Wolff/Swendsen-Wang)
+  2. MC update type (Checkerboard/Swendsen-Wang|Random/Wolff|Linear/Wolff)
+  3. Steps for each algorithm and update type
+
+``-av_algos`` interleave as many types of Monte-Carlo updates you want during averaging. Same instructions as above.
+
+Example parameter file for evolution starting from a random spin configuration, saves output while averaging after thermalization of 3D Ising Model:
 ```
 $ cat param2.txt
 -L 64 64 64 
@@ -93,13 +100,11 @@ $ cat param2.txt
 -J 1 1 1 
 -h 0
 -th_step 100 
--th_algo 1 
--th_updt 0 
+-th_algos 1 1 0 1
 -av_step 100 
 -av_intr 1 
 -av_smpl 16 
--av_algo 2 
--av_updt 1 
+-av_algos 1 2 1 1
 -T 4.50 
 -fn Evo_T_Randm
 -out T
