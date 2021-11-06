@@ -22502,88 +22502,89 @@
         // long int * h_sorted = sort_h_index(h_random, no_of_sites);
 
         long int i, j;
+        int is_chkpt = 0;
         
         int fi;
         for (fi=0; fi<no_of_functions; fi++)
         {
             switch(run_this_function[fi]){
                 case 0: 
-                    zero_temp_IM_hysteresis_with_changing_field(-1);
+                    is_chkpt = zero_temp_IM_hysteresis_with_changing_field(-1);
                     break;
                 case 1: 
-                    zero_temp_IM_hysteresis_with_changing_field(1);
+                    is_chkpt = zero_temp_IM_hysteresis_with_changing_field(1);
                     break;
                 case 2: 
-                    evo_diff_ini_config_temp(0);
+                    is_chkpt = evo_diff_ini_config_temp(0);
                     break;
                 case 3: 
-                    evo_diff_ini_config_temp(1);
+                    is_chkpt = evo_diff_ini_config_temp(1);
                     break;
                 case 4: 
-                    evo_diff_ini_config_temp(2);
+                    is_chkpt = evo_diff_ini_config_temp(2);
                     break;
                 case 5: 
-                    evo_diff_ini_config_temp(3);
+                    is_chkpt = evo_diff_ini_config_temp(3);
                     break;
                 case 6: 
-                    evolution_at_T(0);
+                    is_chkpt = evolution_at_T(0);
                     break;
                 case 7: 
-                    evolution_at_T(1);
+                    is_chkpt = evolution_at_T(1);
                     break;
                 case 8: 
-                    evolution_at_T(2);
+                    is_chkpt = evolution_at_T(2);
                     break;
                 case 9: 
-                    evolution_at_T(3);
+                    is_chkpt = evolution_at_T(3);
                     break;
                 case 10: 
-                    fc_fh_or_both(0, 0);
+                    is_chkpt = fc_fh_or_both(0, 0);
                     break;
                 case 11: 
-                    fc_fh_or_both(1, 0);
+                    is_chkpt = fc_fh_or_both(1, 0);
                     break;
                 case 12: 
-                    fc_fh_or_both(2, 0);
+                    is_chkpt = fc_fh_or_both(2, 0);
                     break;
                 case 13: 
-                    fc_fh_or_both(3, 0);
+                    is_chkpt = fc_fh_or_both(3, 0);
                     break;
                 case 14: 
-                    fc_fh_or_both(0, 1);
+                    is_chkpt = fc_fh_or_both(0, 1);
                     break;
                 case 15: 
-                    fc_fh_or_both(1, 1);
+                    is_chkpt = fc_fh_or_both(1, 1);
                     break;
                 case 16: 
-                    fc_fh_or_both(2, 1);
+                    is_chkpt = fc_fh_or_both(2, 1);
                     break;
                 case 17: 
-                    fc_fh_or_both(3, 1);
+                    is_chkpt = fc_fh_or_both(3, 1);
                     break;
                 case 18: 
-                    fc_fh_or_both(0, 2);
+                    is_chkpt = fc_fh_or_both(0, 2);
                     break;
                 case 19: 
-                    fc_fh_or_both(1, 2);
+                    is_chkpt = fc_fh_or_both(1, 2);
                     break;
                 case 20: 
-                    fc_fh_or_both(2, 2);
+                    is_chkpt = fc_fh_or_both(2, 2);
                     break;
                 case 21: 
-                    fc_fh_or_both(3, 2);
+                    is_chkpt = fc_fh_or_both(3, 2);
                     break;
                 case 22: 
-                    fc_fh_or_both(0, 3);
+                    is_chkpt = fc_fh_or_both(0, 3);
                     break;
                 case 23: 
-                    fc_fh_or_both(1, 3);
+                    is_chkpt = fc_fh_or_both(1, 3);
                     break;
                 case 24: 
-                    fc_fh_or_both(2, 3);
+                    is_chkpt = fc_fh_or_both(2, 3);
                     break;
                 case 25: 
-                    fc_fh_or_both(3, 3);
+                    is_chkpt = fc_fh_or_both(3, 3);
                     break;
                 default: 
                     printf("\n%s - Not Implemented\n", function_list[run_this_function[i]]);
@@ -22614,7 +22615,6 @@
         // evo_diff_ini_config_temp(2);
         // return 0;
 
-        int is_chkpt = 0;
         
         
         /* // double h_sweep_vals[] = { 0.1000, 0.2000, 0.3000, 0.4000, 0.5000 };
